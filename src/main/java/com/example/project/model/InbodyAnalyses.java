@@ -1,31 +1,39 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
 
-@Entity
-@Table(name = "inbody_analyses")
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "inbody_analyses")
 public class InbodyAnalyses {
     @Id
-    private int id_inbody_analyses;
-    
-    private float height;
-    private float weight;
-    private float bmi;
-    private float fat_percent;
-    private float muscle_percent;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_inbody_analys", nullable = false)
+    private int idInbodyAnalys;
 
-    @ManyToMany(mappedBy = "memberInbodyAnalyses")
-    private List<Members> members = new ArrayList<>();
+    @Column(name = "height")
+    private Float height;
+
+    @Column(name = "weight")
+    private Float weight;
+
+    @Column(name = "bmi")
+    private Float bmi;
+
+    @Column(name = "fat_percent")
+    private Float fatPercent;
+
+    @Column(name = "muscle_persent")
+    private Float musclePersent;
+
+    @ManyToMany(mappedBy = "inbodyAnalyses")
+    private Set<Members> members = new HashSet<>();
 }

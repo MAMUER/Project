@@ -1,39 +1,42 @@
-package ru.mirea.app.fitness_club.ORM.Accounts;
+package com.example.project.model.Accounts;
 
+import lombok.*;
 
-import java.sql.Date;
+import java.time.LocalDate;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import ru.mirea.app.fitness_club.ORM.Trainers;
-import ru.mirea.app.fitness_club.ORM.TrainersPhoto;
+import com.example.project.model.Trainers;
+import com.example.project.model.TrainersPhoto;
 
+import jakarta.persistence.*;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "trainers_accounts")
-@AllArgsConstructor
-@NoArgsConstructor
-@Getter
-public class TrainersAccounts {    
-    @OneToOne
-    @JoinColumn(name = "id_trainer", nullable = false)
-    private Trainers trainers;
-    
+public class TrainersAccounts {
     @Id
+    @Column(name = "username", nullable = false, length = 45)
     private String username;
 
-    @OneToOne(cascade = CascadeType.ALL)
-    @JoinColumn(name = "id_trainers_photo")
-    private TrainersPhoto trainerPhoto;
+    @OneToOne
+    @JoinColumn(name = "id_trainer", nullable = false)
+    private Trainers trainer;
 
+    @ManyToOne
+    @JoinColumn(name = "id_trainers_photo")
+    private TrainersPhoto trainersPhoto;
+
+    @Column(name = "password", nullable = false, length = 100)
     private String password;
-    private Date last_login;
-    private Date account_creation_date;
-    private String user_role;
+
+    @Column(name = "last_login")
+    private LocalDate lastLogin;
+
+    @Column(name = "account_creation_date", nullable = false)
+    private LocalDate accountCreationDate;
+
+    @Column(name = "user_role", nullable = false, length = 45)
+    private String userRole;
 }

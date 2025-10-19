@@ -1,4 +1,23 @@
 package com.example.project.repository;
 
-public interface FeedbackRepository {
+import java.time.LocalDate;
+import java.util.Set;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import com.example.project.model.Feedback;
+
+@Repository
+public interface FeedbackRepository extends JpaRepository<Feedback, Integer> {
+
+    Set<Feedback> findByRatingGreaterThanEqual(short minRating);
+
+    Set<Feedback> findByRatingLessThanEqual(short maxRating);
+
+    Set<Feedback> findByMemberAccountUsername(String username);
+
+    Set<Feedback> findByFeedbackDateBetween(LocalDate startDate, LocalDate endDate);
+
+    Set<Feedback> findByFeedbackTextContaining(String keyword);
 }

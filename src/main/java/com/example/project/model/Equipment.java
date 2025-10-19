@@ -1,35 +1,34 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
 
-@Entity
-@Table(name = "equipment")
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "equipment")
 public class Equipment {
-    
     @Id
-    private int id_equipment;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_equipment", nullable = false)
+    private int idEquipment;
 
-    @OneToOne
-    @JoinColumn(name = "id_equipment_type", nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "id_equipment_type")
     private EquipmentType equipmentType;
 
+    @Column(name = "name", nullable = false, length = 45)
     private String name;
-    private int quantity;
 
-    @ManyToMany(mappedBy = "gymEquipments")
-    private List<Gyms> gyms = new ArrayList<>();
+    @Column(name = "quantity")
+    private Integer quantity;
+
+    @ManyToMany(mappedBy = "equipment")
+    private Set<Gyms> gyms = new HashSet<>();
 }

@@ -1,8 +1,6 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.service;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.Setter;
+import lombok.*;
 
 @Getter
 @AllArgsConstructor

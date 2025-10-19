@@ -1,45 +1,42 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.*;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
 
+import jakarta.persistence.*;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "gyms")
-@AllArgsConstructor
-@NoArgsConstructor
-@Getter
 public class Gyms {
     @Id
-    private int id_gym;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_gym", nullable = false)
+    private int idGym;
 
-    private String gym_name;
-
-    @Id
     @ManyToOne
     @JoinColumn(name = "club_name", nullable = false)
     private Clubs club;
 
-    private int capacity;
-    private int available_hours;
+    @Column(name = "gym_name", nullable = false, length = 45)
+    private String gymName;
 
-    @ManyToMany(cascade = { CascadeType.ALL })
-    @JoinTable(name = "gyms_have_equipment",
-            joinColumns = {
-                @JoinColumn(name = "id_gym"),
-                @JoinColumn(name = "club_name")},
-            inverseJoinColumns = {
-                @JoinColumn(name = "id_equipment")})
-    private List<Equipment> gymEquipments = new ArrayList<>();
+    @Column(name = "capacity", nullable = false)
+    private int capacity;
+
+    @Column(name = "available_hours", nullable = false)
+    private int availableHours;
+
+    @ManyToMany
+    @JoinTable(
+        name = "gyms_have_equipment",
+        joinColumns = @JoinColumn(name = "id_gym"),
+        inverseJoinColumns = @JoinColumn(name = "id_equipment")
+    )
+    private Set<Equipment> equipment = new HashSet<>();
 }

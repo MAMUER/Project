@@ -1,21 +1,25 @@
 * {
-    font-family: "Fira Sans";
+    font-family: "Open Sans";
+    font-size: 16px;
+    line-height: 21.8px;
+    color: #000000;
 }
 
 body {
     display: flex;
     margin: 0;
     padding: 0;
-    background: #dde5f4;      
+    background: #E8EEFB;      
 }
 
 #selected {
     width: 70px;
     height: 70px;
-    background-color: #3e4684;
-    border-radius: 10px;
-    box-shadow: 0 0 2em #e6e9f9;
+    background-color: #0795E8;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.2);
     gap: 2em;
+    border: 2px solid #074EE8;
 }
 
 #selected img {
@@ -23,32 +27,49 @@ body {
     margin: auto;
     width: 50px;
     height: 50px;
+    filter: brightness(0) invert(1);
 }
 
 .content {
     flex-grow: 1;
     padding: 140px;
-    padding-top: 0px;
+    padding-top: 40px;
     max-width: 80%;
+}
+
+.content h1 {
+    font-size: 32px;
+    line-height: 43.6px;
+    color: #0707E8;
+    font-weight: 600;
+    margin-bottom: 30px;
 }
 
 .all-trainers {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
+    gap: 30px;
 }
 
 .trainer-item {
-    background-color: #f1f7fe;
-    box-shadow: 0 0 2em #e6e9f9;
-    padding: 15px;
-    display: grid;
+    background-color: #FFFFFF;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
     width: 260px;
-    height: 365px;
-    border-radius: 10px;
-    display: table-column;
+    min-height: 365px;
+    border-radius: 16px;
     justify-content: space-between;
-    margin-bottom: 40px;
-    margin-right: 40px;
+    margin-bottom: 30px;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.trainer-item:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
 }
 
 .trainer-photo {
@@ -56,121 +77,123 @@ body {
     height: 270px;
     max-height: 300px;
     display: block;
-    margin: auto;
+    margin: 0 auto 15px auto;
+    border-radius: 12px;
+    overflow: hidden;
 }
 
 .trainer-photo img {
+    width: 100%;
     height: 100%;
-    max-width: 100%;
-    border-radius: 10px;
+    object-fit: cover;
+    border-radius: 12px;
+    transition: transform 0.3s ease;
 }
 
-.trainer-description{
-    margin: 5px 5px;
+.trainer-item:hover .trainer-photo img {
+    transform: scale(1.05);
 }
 
-.registration input[type="submit"] {
-    background-color: white;
-    box-shadow: 0 0 2em #3e4684;
-    margin: auto;
-    width: 150px;
-    border-radius: 10px;
+.trainer-description {
+    margin: 10px 0;
+    text-align: center;
+}
+
+.trainer-name {
+    font-size: 18px;
+    line-height: 24.5px;
+    color: #0707E8;
+    font-weight: 600;
+    margin: 0;
 }
 
 .buttons {
     margin-top: 15px;
+    text-align: center;
 }
 
-.signup-button {
+.signup-button,
+.openSidebar,
+.closeSidebar {
     margin-top: 15px;
-    background-color: #3e4684;
+    background-color: #0795E8;
     border: none;
-    color: white;
-    padding: 10px 30px;
+    color: #FFFFFF;
+    padding: 12px 24px;
     text-align: center;
     text-decoration: none;
     display: inline-block;
     font-size: 16px;
-    margin: 5px 5px;
+    font-weight: 600;
+    margin: 5px;
     cursor: pointer;
-    border-radius: 10px;
-    box-shadow: 0 0 2em #e6e9f9;
+    border-radius: 24px;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.2);
+    transition: all 0.3s ease;
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
     overflow-y: hidden;
-    margin-right: 20px;
 }
 
-.gray-button {
-    background-color: #bbc6da;
-    color: #3a3c50;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    overflow-y: hidden;
-    cursor: default;
+.signup-button:hover,
+.openSidebar:hover,
+.closeSidebar:hover {
+    background-color: #074EE8;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(7, 7, 232, 0.3);
 }
 
 .registration {
-    background-color: #f1f7fe;
-    padding: 5px 10px;
-    margin: 5px 5px;
-    width: 200px;
-    border-radius: 10px;
+    background-color: #FFFFFF;
+    padding: 12px;
+    margin: 10px 0;
+    width: 100%;
+    border-radius: 12px;
     display: flex;
     justify-content: center;
     align-items: center;
+    border: 2px solid #E8EEFB;
+    transition: border-color 0.3s ease;
 }
 
-input[ type="datetime-local"] {
-    width: 200px;
-    justify-content: center;
-    align-items: center;
+.registration:focus-within {
+    border-color: #0795E8;
+}
+
+input[type="datetime-local"] {
+    width: 100%;
     border: none;
-    background-color: #f1f7fe;
-}
-
-#sidebar {
-    position: fixed;
-    right: 0;
-    top: 0;
-    width: 350px;
-    height: 100%;
-    background-color: #dde5f4;
-    padding: 20px;
-    box-sizing: border-box;
-    transform: translateX(100%);
-    transition: transform 0.2s ease-in-out;
-    z-index: 2;
-}
-
-#sidebar.active {
-    transform: translateX(0);
-}
-
-#openSidebar,
-#closeSidebar {
-    margin-top: 15px;
-    background-color: #3e4684;
-    border: none;
-    color: white;
-    padding: 10px 30px;
-    text-align: center;
-    text-decoration: none;
-    display: inline-block;
+    background-color: transparent;
     font-size: 16px;
-    margin: 5px 5px;
-    cursor: pointer;
-    border-radius: 10px;
-    box-shadow: 0 0 2em #e6e9f9;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    overflow-y: hidden;
+    color: #000000;
+    outline: none;
+}
+
+/* Убедитесь что sidebar изначально скрыт и правильно позиционирован */
+.trainer-sidebar {
+    position: fixed;
+    right: -400px; /* Измените с transform на right */
+    top: 0;
+    width: 400px;
+    height: 100%;
+    background-color: #FFFFFF;
+    padding: 30px;
+    box-sizing: border-box;
+    transition: right 0.3s ease-in-out; /* Анимируем right вместо transform */
+    z-index: 1000;
+    display: block !important; /* Всегда block */
+    box-shadow: -4px 0 24px rgba(7, 7, 232, 0.1);
+    border-left: 2px solid #E8EEFB;
+    visibility: hidden; /* Скрываем через visibility */
+    opacity: 0; /* И через opacity для плавности */
+}
+
+.trainer-sidebar.active {
+    right: 0;
+    visibility: visible;
+    opacity: 1;
 }
 
 #overlay {
@@ -181,26 +204,141 @@ input[ type="datetime-local"] {
     top: 0;
     left: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 1; /* Ensure it's below the sidebar */
+    z-index: 999;
+    backdrop-filter: blur(2px);
 }
 
-#schedule {
-    margin-top: 20px;
+.trainer-sidebar h2 {
+    font-size: 20px;
+    line-height: 27.3px;
+    color: #0707E8;
+    font-weight: 600;
+    margin-bottom: 20px;
+    margin-top: 0;
 }
 
-#sidebar h2 {
-    font-size: 1.2em;
-    margin-bottom: 10px;
+.schedule {
+    margin-top: 25px;
 }
 
-#scheduleList {
+.scheduleList {
     list-style-type: none;
     padding: 0;
+    max-height: 250px;
+    overflow-y: auto;
+    margin-top: 15px;
 }
 
-#scheduleList li {
-    margin-bottom: 5px;
-    padding: 10px;
-    background-color: #f1f7fe;
-    border-radius: 5px;
+.scheduleList li {
+    margin-bottom: 8px;
+    padding: 12px;
+    background-color: #E8EEFB;
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 1.4;
+    border: 1px solid #0795E8;
+    transition: all 0.3s ease;
+}
+
+/* ОСТАВЬТЕ ТОЛЬКО ЭТОТ БЛОК */
+.scheduleList li.free-day {
+    background-color: #f0f8f0;
+    border: 1px solid #4CAF50;
+    color: #2E7D32;
+    text-align: center;
+    font-style: italic;
+    cursor: default;
+}
+
+.scheduleList li.free-day:hover {
+    background-color: #f0f8f0;
+    color: #2E7D32;
+    transform: none;
+}
+
+/* ОБЫЧНЫЙ hover для занятых слотов */
+.scheduleList li:not(.free-day):hover {
+    background-color: #0795E8;
+    color: #FFFFFF;
+    transform: translateX(4px);
+}
+
+/* Стили для текстовых элементов */
+.small-text {
+    font-size: 12px;
+    line-height: 16.4px;
+}
+
+.medium-text {
+    font-size: 16px;
+    line-height: 21.8px;
+}
+
+.large-text {
+    font-size: 24px;
+    line-height: 32.7px;
+}
+
+.xlarge-text {
+    font-size: 32px;
+    line-height: 43.6px;
+}
+
+.xxlarge-text {
+    font-size: 40px;
+    line-height: 54.5px;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 1200px) {
+    .all-trainers {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .all-trainers {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .content {
+        padding: 100px 20px 20px 20px;
+        max-width: 100%;
+    }
+    
+    .trainer-item {
+        width: 100%;
+        max-width: 280px;
+        margin: 0 auto 30px auto;
+    }
+}
+
+@media (max-width: 600px) {
+    .all-trainers {
+        grid-template-columns: 1fr;
+    }
+    
+    .trainer-sidebar {
+        width: 100%;
+        padding: 20px;
+    }
+}
+
+/* Стили для скроллбара */
+.scheduleList::-webkit-scrollbar {
+    width: 6px;
+}
+
+.scheduleList::-webkit-scrollbar-track {
+    background: #E8EEFB;
+    border-radius: 3px;
+}
+
+.scheduleList::-webkit-scrollbar-thumb {
+    background: #0795E8;
+    border-radius: 3px;
+}
+
+.scheduleList::-webkit-scrollbar-thumb:hover {
+    background: #074EE8;
 }

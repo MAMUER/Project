@@ -1,44 +1,55 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.sql.Date;
+import lombok.*;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import ru.mirea.app.fitness_club.ORM.Accounts.StaffAccounts;
+import com.example.project.model.Accounts.StaffAccounts;
 
-@Entity
-@Table(name = "staff")
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "staff")
 public class Staff {
     @Id
-    private int id_staff;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_staff", nullable = false)
+    private int idStaff;
 
     @ManyToOne
     @JoinColumn(name = "id_position")
     private Position position;
 
-    private String first_name;
-    private String second_name;
-    private int phone_number;
+    @Column(name = "first_name", nullable = false, length = 45)
+    private String firstName;
+
+    @Column(name = "second_name", nullable = false, length = 45)
+    private String secondName;
+
+    @Column(name = "phone_number", nullable = false, length = 11)
+    private String phoneNumber;
+
+    @Column(name = "email", nullable = false, length = 45)
     private String email;
-    private Date hire_date;
-    private String staff_about;
+
+    @Column(name = "hire_date", nullable = false)
+    private LocalDate hireDate;
+
+    @Column(name = "staff_about", length = 100)
+    private String staffAbout;
+
+    @Column(name = "gender", nullable = false)
     private int gender;
 
-    @OneToMany(mappedBy = "staff")
-    private List<StaffSchedule> staffSchedules;
+    @OneToOne(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true)
+    private StaffAccounts staffAccount;
 
-    @OneToOne(mappedBy = "staff")
-    private StaffAccounts staffAccounts;
+    @OneToMany(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<StaffSchedule> staffSchedules = new ArrayList<>();
 }

@@ -1,16 +1,18 @@
-package ru.mirea.app.fitness_club.Service;
+package com.example.project.service;
 
+import lombok.AllArgsConstructor;
+
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
-import lombok.AllArgsConstructor;
-import ru.mirea.app.fitness_club.ORM.Trainers;
-import ru.mirea.app.fitness_club.ORM.TrainingSchedule;
-import ru.mirea.app.fitness_club.ORM.Accounts.TrainersAccounts;
-import ru.mirea.app.fitness_club.Repository.TrainersRepository;
-
+import com.example.project.model.Trainers;
+import com.example.project.model.TrainingSchedule;
+import com.example.project.model.Accounts.TrainersAccounts;
+import com.example.project.repository.TrainersRepository;
 @Service
 @AllArgsConstructor
 public class TrainersService {
@@ -20,73 +22,72 @@ public class TrainersService {
         return trainersRepository.findById(trainerId).orElse(null);
     }
 
-    public List<Trainers> getListOfTrainers() {
+    public List<Trainers> getAllTrainers() {
         return trainersRepository.findAll();
     }
 
+    public Set<Trainers> getTrainersBySpeciality(String speciality) {
+        return trainersRepository.findBySpecialityContaining(speciality);
+    }
+
+    public Set<Trainers> getTrainersByExperience(int minExperience) {
+        return trainersRepository.findByExperienceGreaterThanEqual(minExperience);
+    }
+
     public String getTrainerFirstName(Integer trainerId) {
-        List<Trainers> trainers = trainersRepository.findAll();
-        for (Trainers trainer : trainers) {
-            if (trainer.getId_trainer() == trainerId) {
-                return trainer.getFirst_name();
-            }
-        }
-        return null;
+        Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
+        return trainer != null ? trainer.getFirstName() : null;
     }
 
     public String getTrainerSecondName(Integer trainerId) {
-        List<Trainers> trainers = trainersRepository.findAll();
-        for (Trainers trainer : trainers) {
-            if (trainer.getId_trainer() == trainerId) {
-                return trainer.getSecond_name();
-            }
-        }
-        return null;
+        Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
+        return trainer != null ? trainer.getSecondName() : null;
     }
 
     public String getTrainerEmail(Integer trainerId) {
-        List<Trainers> trainers = trainersRepository.findAll();
-        for (Trainers trainer : trainers) {
-            if (trainer.getId_trainer() == trainerId) {
-                return trainer.getEmail();
-            }
-        }
-        return null;
+        Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
+        return trainer != null ? trainer.getEmail() : null;
     }
 
     public String getTrainerPhoneNumber(Integer trainerId) {
-        List<Trainers> trainers = trainersRepository.findAll();
-        for (Trainers trainer : trainers) {
-            if (trainer.getId_trainer() == trainerId) {
-                return trainer.getPhone_number();
-            }
-        }
-        return null;
+        Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
+        return trainer != null ? trainer.getPhoneNumber() : null;
     }
 
     public List<TrainingSchedule> getTrainingSchedules(int trainerId) {
-        Trainers trainers = trainersRepository.findById(trainerId).orElse(null);
-        return trainers.getTrainingSchedules();
+        Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
+        return trainer != null ? trainer.getTrainingSchedules() : Collections.emptyList();
     }
 
     public TrainersAccounts getTrainerAccount(int trainerId) {
-        Trainers trainers = trainersRepository.findById(trainerId).orElse(null);
-        return trainers.getTrainerAccounts();
+        Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
+        return trainer != null ? trainer.getTrainersAccount() : null;
     }
 
-    public List<TrainingSchedule> getListOfTrainingSchedule(int trainerId) {
+    public List<TrainingSchedule> getSetOfTrainingSchedule(int trainerId) {
         Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
-        List<TrainingSchedule> trainerTrainings = trainer.getTrainingSchedules();
-        trainerTrainings.sort(Comparator.comparing(TrainingSchedule::getSession_date));
-        return trainerTrainings;
+        if (trainer != null) {
+            List<TrainingSchedule> trainerTrainings = trainer.getTrainingSchedules();
+            trainerTrainings.sort(Comparator.comparing(TrainingSchedule::getSessionDate));
+            return trainerTrainings;
+        }
+        return Collections.emptyList();
     }
 
     public String getPhotoUrl(int trainersId) {
         TrainersAccounts trainerAccount = getTrainerAccount(trainersId);
         try {
-            return trainerAccount.getTrainerPhoto().getImage_url();
+            return trainerAccount.getTrainersPhoto().getImageUrl();
         } catch (Exception e) {
             return "https://i.postimg.cc/Wbznd0qn/1674365371-3-34.jpg";
         }
+    }
+
+    public Trainers saveTrainer(Trainers trainer) {
+        return trainersRepository.save(trainer);
+    }
+
+    public void deleteTrainer(Integer id) {
+        trainersRepository.deleteById(id);
     }
 }

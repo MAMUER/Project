@@ -9,138 +9,14 @@
 
     <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
-    <link rel='stylesheet' href='https://fonts.googleapis.com/css?family=Fira+Sans'>
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'>
 
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.9/index.global.min.js'> </script>
 
-    <!-- jQuery -->
-    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-
-    <script th:if="${role == 'member'}">
-        document.addEventListener('DOMContentLoaded', function () {
-            var calendarEl = document.getElementById('calendar');
-            var calendar = new FullCalendar.Calendar(calendarEl, {
-                locale: 'ru',
-                firstDay: 1,
-                initialView: 'listWeek',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'listWeek,listDay' // user can switch between the two
-                },
-                buttonText: {
-                    prev: '<',
-                    next: '>',
-                    today: 'Сегодня',
-                    week: 'По неделям',
-                    day: 'По дням'
-                },
-                events: function (fetchInfo, successCallback, failureCallback) {
-                    var form = document.getElementById('filterForm');
-                    var formData = new FormData(form);
-                    var url = '/trainings?' + new URLSearchParams(formData).toString();
-                    console.log(url);
-                    fetch(url)
-                        .then(response => response.json())
-                        .then(events => successCallback(events))
-                        .catch(error => failureCallback(error));
-                },
-                eventColor: 'color',
-                eventTimeFormat: { // like '14:30'
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    meridiem: false,
-                    hour12: false
-                },
-                eventClick: function (info) {
-                    var baseUrl = window.location.protocol + "//" + window.location.host + "/";
-                    window.location.href = window.location.origin + '/calendar/training/' + info.event.id;
-                }
-            });
-            calendar.render();
-        });
-    </script>
-
-    <script th:if="${role == 'staff'}">
-        document.addEventListener('DOMContentLoaded', function () {
-            var calendarEl = document.getElementById('calendar');
-            var calendar = new FullCalendar.Calendar(calendarEl, {
-                locale: 'ru',
-                firstDay: 1,
-                initialView: 'listWeek',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'listWeek,dayGridMonth' // user can switch between the two
-                },
-                buttonText: {
-                    prev: '<',
-                    next: '>',
-                    today: 'Сегодня',
-                    week: 'По неделям',
-                    month: 'По месяцам'
-                },
-                events: "/calendar/work/events",
-                eventColor: 'color',
-                eventTimeFormat: { // like '14:30'
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    meridiem: false,
-                    hour12: false
-                },
-            });
-            calendar.render();
-        });
-    </script>
-
-    <script th:if="${role == 'trainer'}" th:inline="javascript">
-        document.addEventListener('DOMContentLoaded', function () {
-            var calendarEl = document.getElementById('calendar');
-            var calendar = new FullCalendar.Calendar(calendarEl, {
-                locale: 'ru',
-                firstDay: 1,
-                initialView: 'dayGridMonth',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'listWeek,dayGridMonth' // user can switch between the two
-                },
-                buttonText: {
-                    prev: '<',
-                    next: '>',
-                    today: 'Сегодня',
-                    week: 'По неделям',
-                    month: 'По месяцам'
-                },
-                events: function (fetchInfo, successCallback, failureCallback) {
-                    var form = document.getElementById('create-trainingForm');
-                    var formData = new FormData(form);
-                    console.log(formData);
-                    var id_trainer = /*[[${trainerId}]]*/[];
-                    //formData.set('id_trainer', id_trainer);
-                    var url = '/trainings?id_trainer=' + id_trainer;
-                    console.log(url);
-                    fetch(url)
-                        .then(response => response.json())
-                        .then(events => successCallback(events))
-                        .catch(error => failureCallback(error));
-                },
-                eventColor: '#3e4684',
-                eventTimeFormat: { // like '14:30'
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    meridiem: false,
-                    hour12: false
-                },
-                eventClick: function (info) {
-                    var baseUrl = window.location.protocol + "//" + window.location.host + "/";
-                    window.location.href = window.location.origin + '/calendar/training/' + info.event.id;
-                }
-            });
-            calendar.render();
-        });
-    </script>
-
+    <script th:src="@{/js/jquery.min.js}"></script>
+    
+    <!-- Запрещаем масштабирование -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 </head>
 
 <body>
@@ -166,10 +42,10 @@
                     </a>
                 </div>
                 <div th:case="'trainer'">
-                    <a class="profile" th:href="'/profile/trainer/' + ${trainerId}">
+                    <a class="profile" th:href="'/profile/trainer/' + ${idTrainer}">
                         <img th:src="@{/icons/profile.svg}" alt="Profile">
                     </a>
-                    <a class="calendar" id="selected" th:href="'/calendar/trainer/' + ${trainerId}">
+                    <a class="calendar" id="selected" th:href="'/calendar/trainer/' + ${idTrainer}">
                         <img th:src="@{/icons/calendar-white.svg}" alt="Calendar">
                     </a>
                 </div>
@@ -198,27 +74,26 @@
                     <div class="filter">
                         <h2>Фильтровать тренировки</h2>
                         <form id="filterForm" method="get">
-                            <!-- select trainer -->
                             <div class="trainer-select">
                                 <p>Тренер</p>
-                                <div th:each="trainer : ${TrainersList}">
-                                    <input type="checkbox" th:id="'trainer-select-' + ${trainer.id_trainer}"
-                                        th:value="${trainer.id_trainer}" name="id_trainer" />
-                                    <label th:for="${'trainer-' + trainer.id_trainer}"
-                                        th:text="${trainer.first_name} + ' ' + ${trainer.second_name}"></label>
+                                <div th:each="trainer : ${TrainersSet}">
+                                    <input type="checkbox" th:id="'trainer-select-' + ${trainer.idTrainer}"
+                                        th:value="${trainer.idTrainer}" name="id_trainer" />
+                                    <label th:for="'trainer-select-' + ${trainer.idTrainer}"
+                                        th:text="${trainer.firstName} + ' ' + ${trainer.secondName}"></label>
                                 </div>
                             </div>
-                            <!-- select training type -->
+
                             <div class="type-select">
                                 <p>Вид тренировки</p>
-                                <div th:each="type : ${TrainingTypeList}">
-                                    <input type="checkbox" th:id="'type-select-' + ${type.id_training_type}"
-                                        th:value="${type.id_training_type}" name="id_training_type" />
-                                    <label th:for="${'type-' + type.id_training_type}"
-                                        th:text="${type.training_type_name}"></label>
+                                <div th:each="type : ${TrainingTypeSet}">
+                                    <input type="checkbox" th:id="'type-select-' + ${type.idTrainingType}"
+                                        th:value="${type.idTrainingType}" name="id_training_type" />
+                                    <label th:for="'type-select-' + ${type.idTrainingType}"
+                                        th:text="${type.trainingTypeName}"></label>
                                 </div>
                             </div>
-                            <!-- select training dates period -->
+                            
                             <div class="training-date">
                                 <p>Показать тренировки</p>
                                 <p class="training-date-block">C</p>
@@ -226,9 +101,9 @@
                                     placeholder="············" name="session_date_start" class="training-date-block">
                                 <p class="training-date-block">По</p>
                                 <input min="1900-01-01" max="9999-12-31" type="date" th:id="'date-select-end'"
-                                    placeholder="············" \ name="session_date_end" class="training-date-block">
+                                    placeholder="············" name="session_date_end" class="training-date-block">
                             </div>
-                            <!-- select training duration period -->
+
                             <div class="session-time">
                                 <p>Продолжительность тренировки</p>
                                 <p class="session-time-block">От</p>
@@ -248,34 +123,31 @@
 
                     <div class="create-training">
                         <h2>Добавить тренировку</h2>
-                        <form id="create-trainingForm" th:action="'/calendar/training/add'" th:object="${AddTraining}"
-                            method="post">
+                        <form id="create-trainingForm" th:action="'/calendar/training/add'"
+                            th:object="${TrainingRequest}" method="post">
 
-                            <input type="hidden" name="id_trainer" th:value="${trainerId}">
-                            <!-- select training type -->
+                            <input type="hidden" name="idTrainer" th:value="${idTrainer}">
                             <div class="type-select">
                                 <p>Вид тренировки</p>
-                                <div th:each="type : ${TrainingTypeList}">
-                                    <div th:if="${type.id_training_type != 5}">
-                                        <input type="radio" th:id="'type-select-' + ${type.id_training_type}"
-                                            th:value="${type.id_training_type}" th:field="*{id_training_type}"
+                                <div th:each="type : ${TrainingTypeSet}">
+                                    <div th:if="${type.idTrainingType != 5}">
+                                        <input type="radio" th:id="'type-select-' + ${type.idTrainingType}"
+                                            th:value="${type.idTrainingType}" th:field="*{idTrainingType}"
                                             class="input-type">
-                                        <label th:for="${'type-' + type.id_training_type}"
-                                            th:text="${type.training_type_name}"></label>
+                                        <label th:for="${'type-' + type.idTrainingType}"
+                                            th:text="${type.trainingTypeName}"></label>
                                     </div>
                                 </div>
                             </div>
-                            <!-- select training date -->
                             <div class="training-date">
                                 <p>Дата тренировки</p>
                                 <input max="9999-12-31T23:59" type="datetime-local" th:id="'date-select'"
                                     placeholder="············" th:field="*{session_date}" id="input-date">
                             </div>
-                            <!-- select training duration -->
                             <div class="session-time">
                                 <p>Продолжительность тренировки</p>
                                 <input type="number" step="1" class="session-time-block" th:id="'time-select'"
-                                    placeholder="··" th:field="*{session_time}" id="input-duration">
+                                    placeholder="··" th:field="*{sessionTime}" id="input-duration">
                                 <p class="session-time-block" th:text="'мин'"></p>
                             </div>
 
@@ -295,7 +167,7 @@
         const dateControl = document.querySelector('input[type="datetime-local"]');
         let now = new Date();
         let dd = String(now.getDate()).padStart(2, '0');
-        let mm = String(now.getMonth() + 1).padStart(2, '0'); //January is 0!
+        let mm = String(now.getMonth() + 1).padStart(2, '0');
         let yyyy = now.getFullYear();
         let hh = String(now.getHours()).padStart(2, '0');
         let min = String(now.getMinutes()).padStart(2, '0');
@@ -310,8 +182,8 @@
 
     <script th:if="${role == 'trainer'}" th:inline="javascript">
         async function checkData(form) {
-            var id_trainer = /*[[${trainerId}]]*/[];
-            var url = '/trainings?id_trainer=' + id_trainer;
+            var idTrainer = /*[[${idTrainer}]]*/[];
+            var url = '/trainings?idTrainer=' + idTrainer;
 
             let newEventStart = new Date(document.getElementById('date-select').value);
             let durationMinutes = parseInt(document.getElementById('time-select').value);
@@ -332,7 +204,7 @@
                                 (newEventEnd > eventStart && newEventEnd <= eventEnd) ||
                                 (newEventStart <= eventStart && newEventEnd >= eventEnd)) {
                                 alert("Тренировка пересекается с существующей");
-                                isOverlapping = true; // Set isOverlapping to true here
+                                isOverlapping = true;
                                 return false;
                             }
                         }
@@ -355,13 +227,11 @@
                     }
                 } else if (inputs[i].value == '' || inputs[i].value == null) {
                     alert("Пожалуйста, введите все параметры тренировки");
-                    //event.preventDefault(); // prevent form from being submitted
                     return false;
                 }
             }
             if (!radioChecked) {
                 alert("Пожалуйста, выберите тип тренировки");
-                //event.preventDefault(); // prevent form from being submitted
                 return false;
             }
         }
@@ -369,18 +239,17 @@
         document.addEventListener('DOMContentLoaded', function () {
             var form = document.getElementById('create-trainingForm');
             form.addEventListener('submit', async function (event) {
-                event.preventDefault(); // prevent form from submitting
-                var a = await checkData(form); // wait for checkData to complete
+                event.preventDefault();
+                var a = await checkData(form);
                 if (a != false) {
-                    form.submit(); // manually submit form
-                } else {
+                    form.submit();
                 }
             });
         });
     </script>
 
     <script>
-        $('input[type="number"][maxlength]').on('change', function() {
+        $('input[type="number"][maxlength]').on('change', function () {
             var value = parseInt(this.value, 10);
             if (value < 30) {
                 this.value = 30;
@@ -391,54 +260,111 @@
     </script>
 
     <script th:if="${role == 'member'}">
-        document.addEventListener('DOMContentLoaded', function () {
-            var calendarEl = document.getElementById('calendar');
-            var calendar = new FullCalendar.Calendar(calendarEl, {
-                locale: 'ru',
-                firstDay: 1,
-                initialView: 'listWeek',
-                headerToolbar: {
-                    left: 'prev,next today',
-                    center: 'title',
-                    right: 'listWeek,listDay' // user can switch between the two
-                },
-                buttonText: {
-                    prev: '<',
-                    next: '>',
-                    today: 'Сегодня',
-                    week: 'По неделям',
-                    day: 'По дням'
-                },
-                events: function (fetchInfo, successCallback, failureCallback) {
-                    var form = document.getElementById('filterForm');
-                    var formData = new FormData(form);
-                    var url = '/trainings?' + new URLSearchParams(formData).toString();
-                    console.log(url);
-                    fetch(url)
-                        .then(response => response.json())
-                        .then(events => successCallback(events))
-                        .catch(error => failureCallback(error));
-                },
-                eventColor: 'color',
-                eventTimeFormat: { // like '14:30'
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    meridiem: false,
-                    hour12: false
-                },
-                eventClick: function (info) {
-                    var baseUrl = window.location.protocol + "//" + window.location.host + "/";
-                    window.location.href = window.location.origin + '/calendar/training/' + info.event.id;
+    document.addEventListener('DOMContentLoaded', function () {
+        var calendarEl = document.getElementById('calendar');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            locale: 'ru',
+            firstDay: 1,
+            initialView: 'listWeek',
+            headerToolbar: {
+                left: 'prev,next today',
+                center: 'title',
+                right: 'listWeek,listDay'
+            },
+            buttonText: {
+                prev: '<',
+                next: '>',
+                today: 'Сегодня',
+                week: 'По неделям',
+                day: 'По дням'
+            },
+            events: function (fetchInfo, successCallback, failureCallback) {
+                var form = document.getElementById('filterForm');
+                var formData = new FormData(form);
+                
+                const params = new URLSearchParams();
+                
+                formData.forEach((value, key) => {
+                    if (value) {
+                        if (key === 'id_trainer' || key === 'id_training_type') {
+                            params.append(key, value);
+                        } else {
+                            params.append(key, value);
+                        }
+                    }
+                });
+                
+                console.log('=== FILTER PARAMETERS ===');
+                console.log('Selected trainers:', Array.from(formData.getAll('id_trainer')));
+                console.log('Selected types:', Array.from(formData.getAll('id_training_type')));
+                console.log('Date start:', formData.get('session_date_start'));
+                console.log('Date end:', formData.get('session_date_end'));
+                console.log('Time start:', formData.get('session_time_start'));
+                console.log('Time end:', formData.get('session_time_end'));
+                console.log('Full URL params:', params.toString());
+                console.log('========================');
+                
+                var url = '/trainings?' + params.toString();
+                console.log('Final URL:', url);
+
+                fetch(url)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok: ' + response.status);
+                        }
+                        return response.json();
+                    })
+                    .then(events => {
+                        console.log('Received events count:', events.length);
+                        successCallback(events);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching events:', error);
+                        failureCallback(error);
+                    });
+            },
+            eventColor: 'color',
+            eventTimeFormat: {
+                hour: '2-digit',
+                minute: '2-digit',
+                meridiem: false,
+                hour12: false
+            },
+            eventClick: function (info) {
+                window.location.href = window.location.origin + '/calendar/training/' + info.event.id;
+            },
+            loading: function(isLoading) {
+                if (isLoading) {
+                    console.log('Calendar is loading...');
+                } else {
+                    console.log('Calendar loaded');
                 }
-            });
-            calendar.render();
-
-            document.getElementById('filterForm').addEventListener('change', function () {
-                calendar.refetchEvents();
-            });
+            }
         });
-    </script>
+        
+        calendar.render();
 
+        document.getElementById('filterForm').addEventListener('change', function (e) {
+            console.log('Filter changed:', e.target.name, e.target.value, e.target.checked);
+            console.log('Refetching events...');
+            calendar.refetchEvents();
+        });
+
+        document.getElementById('filterForm').addEventListener('input', function (e) {
+            if (e.target.type === 'number') {
+                console.log('Number input changed:', e.target.name, e.target.value);
+                calendar.refetchEvents();
+            }
+        });
+        
+        document.getElementById('filterForm').addEventListener('input', function (e) {
+            if (e.target.type === 'date') {
+                console.log('Date input changed:', e.target.name, e.target.value);
+                calendar.refetchEvents();
+            }
+        });
+    });
+</script>
 </body>
 
 </html>

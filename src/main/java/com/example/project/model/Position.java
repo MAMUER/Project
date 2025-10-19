@@ -1,27 +1,27 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
 
-@Entity
-@Table(name = "position")
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "position")
 public class Position {
     @Id
-    private int id_position;
-    
-    private String role_name;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_position", nullable = false)
+    private int idPosition;
 
-    @OneToMany(mappedBy = "position")
-    private List<Staff> staffs = new ArrayList<>();
+    @Column(name = "role_name", nullable = false, length = 45)
+    private String roleName;
+
+    @OneToMany(mappedBy = "position", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Staff> staff = new HashSet<>();
 }

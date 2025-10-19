@@ -1,31 +1,30 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.*;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.HashSet;
+import java.util.Set;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
 
-@Entity
-@Table(name = "news")
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "news")
 public class News {
     @Id
-    private int id_news;
-    
-    private String news_title;
-    private String news_text;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_news", nullable = false)
+    private int idNews;
 
-    @JsonIgnore
-    @ManyToMany(mappedBy = "clubNews")
-    private List<Clubs> clubs = new ArrayList<>();
+    @Column(name = "news_title", nullable = false, length = 45)
+    private String newsTitle;
+
+    @Column(name = "news_text", length = 200)
+    private String newsText;
+
+    @ManyToMany(mappedBy = "news")
+    private Set<Clubs> clubs = new HashSet<>();
 }

@@ -1,24 +1,27 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-@Entity
-@Table(name = "activity_type")
+import java.util.HashSet;
+import java.util.Set;
+
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "activity_type")
 public class ActivityType {
     @Id
-    private int id_activity;
-    
-    private String activity_name;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_activity", nullable = false)
+    private int idActivity;
 
-    @OneToOne(mappedBy = "activityType")
-    private EquipmentStatistics memberEquipmentStatistics;
+    @Column(name = "activity_name", nullable = false)
+    private String activityName;
+
+    @OneToMany(mappedBy = "activityType", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<EquipmentStatistics> equipmentStatistics = new HashSet<>();
 }

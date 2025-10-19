@@ -1,43 +1,40 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.*;
 
-import jakarta.persistence.CascadeType;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
 
-@Entity
-@Table(name = "clubs")
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "clubs")
 public class Clubs {
     @Id
-    private String club_name;
-    
+    @Column(name = "club_name", nullable = false, length = 45)
+    private String clubName;
+
+    @Column(name = "address", nullable = false, length = 45)
     private String address;
 
-    @OneToMany(mappedBy = "club")
-    private List<Members> members;
+    @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Members> members = new HashSet<>();
 
-    @OneToMany(mappedBy = "club")
-    private List<StaffSchedule> staffSchedule;
+    @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Gyms> gyms = new HashSet<>();
 
-    @OneToMany(mappedBy = "club")
-    private List<Gyms> gyms;
+    @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<StaffSchedule> staffSchedules = new HashSet<>();
 
-    @ManyToMany(cascade = { CascadeType.ALL })
-    @JoinTable(name = "clubs_have_news", 
-            joinColumns = { @JoinColumn(name = "club_name") }, 
-            inverseJoinColumns = { @JoinColumn(name = "id_news") })
-    private List<News> clubNews = new ArrayList<>();
+    @ManyToMany
+    @JoinTable(
+        name = "clubs_have_news",
+        joinColumns = @JoinColumn(name = "club_name"),
+        inverseJoinColumns = @JoinColumn(name = "id_news")
+    )
+    private Set<News> news = new HashSet<>();
 }

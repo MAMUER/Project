@@ -1,8 +1,29 @@
-package ru.mirea.app.fitness_club.Repository;
+package com.example.project.repository;
+
+import java.time.LocalDate;
+import java.util.Set;
+
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
-import ru.mirea.app.fitness_club.ORM.Staff;
+import com.example.project.model.Staff;
 
+@Repository
 public interface StaffRepository extends JpaRepository<Staff, Integer> {
-    
+
+    Set<Staff> findByFirstNameContaining(String firstName);
+
+    Set<Staff> findBySecondNameContaining(String secondName);
+
+    Set<Staff> findByEmail(String email);
+
+    Set<Staff> findByPositionIdPosition(Integer positionId);
+
+    Set<Staff> findByHireDateAfter(LocalDate hireDate);
+
+    Set<Staff> findByGender(Integer gender);
+
+    Set<Staff> findByStaffAboutIsNotNull();
+
+    Set<Staff> findByFirstNameContainingAndSecondNameContaining(String firstName, String secondName);
 }

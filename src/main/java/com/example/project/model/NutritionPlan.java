@@ -1,28 +1,33 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.sql.Date;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-@Entity
-@Table(name = "nutrition_plan")
+import java.time.LocalDate;
+
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "nutrition_plan")
 public class NutritionPlan {
     @Id
-    private int id_plan;   
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_plan", nullable = false)
+    private int idPlan;
 
-    @OneToOne
-    @JoinColumn(name = "id_member")
+    @ManyToOne
+    @JoinColumn(name = "id_member", nullable = false)
     private Members member;
 
-    private String nutrition_description;
-    private Date start_date;
+    @Column(name = "nutrition_description", length = 100)
+    private String nutritionDescription;
+
+    @Column(name = "start_date", nullable = false)
+    private LocalDate startDate;
+
+    @Column(name = "end_date")
+    private LocalDate endDate;
 }

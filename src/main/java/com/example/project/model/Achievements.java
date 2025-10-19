@@ -1,31 +1,33 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
 
-@Entity
-@Table(name = "achievements")
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "achievements")
 public class Achievements {
     @Id
-    @GeneratedValue
-    private int id_achievement;
-    
-    private String achievement_description;
-    private String achievement_title;
-    private String achievement_icon_url;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_achievement", nullable = false)
+    private int idAchievement;
 
-    @ManyToMany(mappedBy = "memberAchievements")
-    private List<Members> members = new ArrayList<>();
+    @Column(name = "achievement_description")
+    private String achievementDescription;
+
+    @Column(name = "achievement_title", nullable = false)
+    private String achievementTitle;
+
+    @Column(name = "achievement_icon_url", nullable = false)
+    private String achievementIconUrl;
+
+    @OneToMany(mappedBy = "achievement", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<MembersHaveAchievements> membersHaveAchievements = new HashSet<>();
 }

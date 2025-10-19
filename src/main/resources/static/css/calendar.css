@@ -1,20 +1,44 @@
 * {
-    font-family: "Fira Sans";
+    font-family: "Open Sans";
+    font-size: 16px;
+    line-height: 21.8px;
+    color: #000000;
+    box-sizing: border-box;
+}
+
+/* Запрещаем масштабирование на мобильных */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    height: 100%;
+    overflow: hidden;
 }
 
 body {
     margin: 0;
     padding: 0;
-    background: #dde5f4;
+    background: #E8EEFB;
+    height: 100vh;
+    overflow: hidden;
+    
+    /* Запрещаем масштабирование жестами */
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 #selected {
     width: 70px;
     height: 70px;
-    background-color: #3e4684;
+    background-color: #0795E8;
     border-radius: 10px;
-    box-shadow: 0 0 2em #e6e9f9;
+    box-shadow: 0 0 2em rgba(7, 7, 232, 0.1);
     gap: 2em;
+    
 }
 
 #selected img {
@@ -28,6 +52,14 @@ body {
     flex-grow: 1;
     width: calc(100% - 140px);
     padding-left: 140px;
+    height: 100vh;
+    overflow: hidden;
+
+    /* Критически важные стили */
+    overflow: hidden;
+    min-width: min-content; /* Минимальная ширина по контенту */
+    box-sizing: border-box;
+    margin: 0 auto;
 }
 
 .container {
@@ -35,26 +67,34 @@ body {
     display: flex;
     padding-right: 0;
     margin: 0;
+    height: calc(100vh - 30px);
 }
 
 #calendar.member-calendar,
 #calendar.trainer-calendar {
     width: 800px;
     position: fixed;
+    height: calc(100vh - 60px);
 }
 
 #calendar.staff-calendar {
     width: 1350px;
+    height: calc(100vh - 60px);
 }
 
 :root {
-    --fc-button-bg-color: #3e4684;
-    --fc-neutral-bg-color: #f1f7fe;
-    --fc-list-event-hover-bg-color: #f1f7fe;
+    --fc-button-bg-color: #0795E8;
+    --fc-button-border-color: #0795E8;
+    --fc-button-hover-bg-color: #074EE8;
+    --fc-button-hover-border-color: #074EE8;
+    --fc-button-active-bg-color: #0707E8;
+    --fc-button-active-border-color: #0707E8;
+    --fc-neutral-bg-color: #FFFFFF;
+    --fc-list-event-hover-bg-color: #E8EEFB;
 }
 
 .fc-day-today {
-    background: #b2b4d4 !important;
+    background: #07DCE8 !important;
     border: none !important;
 }
 
@@ -65,72 +105,126 @@ body {
 #calendar.member-calendar .fc-event:hover,
 #calendar.trainer-calendar .fc-event:hover{
     cursor: pointer;
+    background-color: #074EE8;
 }
 
 .fc-list-day-cushion {
-    background-color: #f1f7fe;
+    background-color: #FFFFFF;
+    color: #0707E8;
+    font-weight: 600;
+}
+
+.fc .fc-toolbar-title {
+    font-size: 24px;
+    line-height: 32.7px;
+    color: #0707E8;
+    font-weight: 600;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
 }
 
 .filter, .create-training {
     width: 390px;
     margin-left: 850px;
-    background: #f1f7fe;
-    padding: 0 2em;
-    padding-top: 0;
-    padding-bottom: 0;
+    background: #FFFFFF;
+    padding: 24px;
     display: flex;
     flex-direction: column;
-    border-radius: 30px;
-    box-shadow: 0 0 2em #e6e9f9;
-    gap: 2em;
+    border-radius: 24px;
+    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.1);
+    gap: 24px;
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
 }
 
-.filter p, create-training p {
+.filter h2, .create-training h2 {
+    font-size: 24px;
+    line-height: 32.7px;
+    color: #0707E8;
+    margin: 0 0 16px 0;
+    font-weight: 600;
+    text-align: center;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+.filter p, .create-training p {
     padding-left: 10px;
+    font-weight: 600;
+    margin-bottom: 12px;
+    color: #000000;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
 }
 
 input[id='date-select-start'],
 input[id='date-select-end'] {
-    background-color: white;
-    box-shadow: 0 0 2em #e6e9f9;
-    padding: 5px;
-    margin: 10px;
+    background-color: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    padding: 12px;
+    margin: 8px;
     width: 110px;
-    border-radius: 10px;
+    border-radius: 12px;
     overflow-y: hidden;
-    border: none;
+    border: 2px solid #E8EEFB;
     text-align: left;
+    transition: border-color 0.3s ease;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+input[id='date-select-start']:focus,
+input[id='date-select-end']:focus {
+    border-color: #0795E8;
+    outline: none;
+}
+
+.training-date {
+    display: flex;
+    align-items: center;
 }
 
 .training-date .training-date-block {
-    display: inline-block;
-    float: left;
     margin-right: 10px;
 }
 
 .training-date #date-select {
     display: block;
-    background-color: white;
-    box-shadow: 0 0 2em #e6e9f9;
+    background-color: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
     gap: 0em;
     margin: auto;
     width: 300px;
-    border-radius: 10px;
+    border-radius: 12px;
+    padding: 12px;
+    border: 2px solid #E8EEFB;
+    transition: border-color 0.3s ease;
+}
+
+.training-date #date-select:focus {
+    border-color: #0795E8;
+    outline: none;
 }
 
 .session-time input {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    background-color: white;
-    box-shadow: 0 0 2em #e6e9f9;
+    background-color: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
     gap: 2em;
-    padding: 10px;
+    padding: 12px;
     margin: auto;
     width: 50px;
-    border-radius: 10px;
+    border-radius: 12px;
     overflow-y: hidden;
-    border: none;
+    border: 2px solid #E8EEFB;
+    transition: border-color 0.3s ease;
+}
+
+.session-time input:focus {
+    border-color: #0795E8;
+    outline: none;
 }
 
 .session-time,
@@ -140,12 +234,14 @@ input[id='date-select-end'] {
     display: inline-block;
     flex-direction: row;
     justify-content: start;
-    background-color: white;
-    padding: 0 10px 10px;
-    margin: 10px;
+    background-color: #FFFFFF;
+    padding: 16px;
+    margin: 12px 0;
     width: 350px;
-    border-radius: 10px;
+    border-radius: 16px;
     overflow-y: hidden;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    border: 2px solid #E8EEFB;
 }
 
 .session-time-block {
@@ -163,17 +259,117 @@ input[id='date-select-end'] {
 
 .create-training button {
     margin-top: 15px;
-    background-color: #3e4684;
+    background-color: #0795E8;
     border: none;
-    color: white;
-    padding: 15px 32px;
+    color: #FFFFFF;
+    padding: 16px 32px;
     text-align: center;
     text-decoration: none;
     display: inline-block;
     font-size: 16px;
-    margin: 20px;
+    font-weight: 600;
+    margin: 20px auto;
     cursor: pointer;
-    border-radius: 10px;
-    box-shadow: 0 0 2em #e6e9f9;
+    border-radius: 24px;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.2);
     overflow-y: hidden;
+    transition: all 0.3s ease;
+    width: calc(100% - 40px);
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+.create-training button:hover {
+    background-color: #074EE8;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(7, 7, 232, 0.3);
+}
+
+/* Стили для чекбоксов и радиокнопок */
+input[type="checkbox"],
+input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #0795E8;
+    margin-right: 8px;
+}
+
+.trainer-select label,
+.type-select label {
+    color: #000000;
+    font-size: 16px;
+    cursor: pointer;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+.trainer-select div,
+.type-select div {
+    margin-bottom: 8px;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .content {
+        width: calc(100% - 80px);
+        padding-left: 80px;
+    }
+    
+    .container {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    #calendar.member-calendar,
+    #calendar.trainer-calendar {
+        width: 100%;
+        position: relative;
+        height: 400px;
+    }
+    
+    .filter, .create-training {
+        width: 100%;
+        margin-left: 0;
+        margin-top: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .content {
+        width: calc(100% - 70px);
+        padding-left: 70px;
+    }
+    
+    .filter, .create-training {
+        padding: 16px;
+    }
+    
+    .training-date,
+    .session-time,
+    .trainer-select,
+    .type-select {
+        width: 100%;
+    }
+}
+
+/* Запрет выделения текста */
+* {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Разрешаем выделение для полей ввода */
+input, textarea, select {
+    -webkit-user-select: text;
+    -khtml-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
 }

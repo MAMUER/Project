@@ -1,12 +1,11 @@
-package ru.mirea.app.fitness_club.Service;
-
-import org.springframework.stereotype.Service;
+package com.example.project.service;
 
 import lombok.AllArgsConstructor;
-import ru.mirea.app.fitness_club.Repository.EquipmentStatisticsRepository;
+import org.springframework.stereotype.Service;
 
-@Service
+import com.example.project.repository.EquipmentStatisticsRepository;
 @AllArgsConstructor
+@Service
 public class EquipmentStatisticsService {
     private final EquipmentStatisticsRepository equipmentStatisticsRepository;
 
@@ -29,6 +28,6 @@ public class EquipmentStatisticsService {
             .findById(statisticId)
             .orElse(null)
             .getActivityType()
-            .getActivity_name();
+            .getActivityName();
     }
 }

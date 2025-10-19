@@ -1,31 +1,35 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.sql.Date;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import ru.mirea.app.fitness_club.ORM.Accounts.MembersAccounts;
+import java.time.LocalDate;
 
-@Entity
-@Table(name = "feedback")
+import com.example.project.model.Accounts.MembersAccounts;
+
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "feedback")
 public class Feedback {
     @Id
-    private int id_feedback;
-    
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_feedback", nullable = false)
+    private int idFeedback;
+
     @ManyToOne
-    @JoinColumn(name = "username")
+    @JoinColumn(name = "username", nullable = false)
     private MembersAccounts memberAccount;
 
-    private String feedback_text;
-    private Date feedback_date;
-    private int rating;
+    @Column(name = "feedback_text", length = 45)
+    private String feedbackText;
+
+    @Column(name = "feedback_date", nullable = false)
+    private LocalDate feedbackDate;
+
+    @Column(name = "rating", nullable = false)
+    private short rating;
 }

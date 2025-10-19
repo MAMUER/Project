@@ -1,40 +1,54 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
+import lombok.*;
+
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
-import java.sql.Date;
+import com.example.project.model.Accounts.TrainersAccounts;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import ru.mirea.app.fitness_club.ORM.Accounts.TrainersAccounts;
+import jakarta.persistence.*;
 
-@Entity
-@Table(name = "trainers")
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "trainers")
 public class Trainers {
     @Id
-    private int id_trainer;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_trainer", nullable = false)
+    private int idTrainer;
 
-    private String first_name;
-    private String second_name;
+    @Column(name = "first_name", nullable = false, length = 45)
+    private String firstName;
+
+    @Column(name = "second_name", nullable = false, length = 45)
+    private String secondName;
+
+    @Column(name = "speciality", length = 45)
     private String speciality;
-    private int experience;
-    private int certifications;
-    private String phone_number;
+
+    @Column(name = "experience")
+    private Integer experience;
+
+    @Column(name = "certifications")
+    private Integer certifications;
+
+    @Column(name = "phone_number", nullable = false, length = 11)
+    private String phoneNumber;
+
+    @Column(name = "email", nullable = false, length = 45)
     private String email;
-    private Date hire_date;
 
-    @OneToOne(mappedBy = "trainers")
-    private TrainersAccounts trainerAccounts;
+    @Column(name = "hire_date", nullable = false)
+    private LocalDate hireDate;
 
-    @OneToMany(mappedBy = "trainers")
-    private List<TrainingSchedule> trainingSchedules;
+    @OneToOne(mappedBy = "trainer", cascade = CascadeType.ALL, orphanRemoval = true)
+    private TrainersAccounts trainersAccount;
+
+    @OneToMany(mappedBy = "trainer", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<TrainingSchedule> trainingSchedules = new ArrayList<>();
 }

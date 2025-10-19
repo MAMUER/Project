@@ -1,53 +1,47 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
-@Entity
-@Table(name = "training_schedule")
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "training_schedule")
 public class TrainingSchedule {
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id_session;
+    @Column(name = "id_session", nullable = false)
+    private int idSession;
 
     @ManyToOne
-    @JoinColumn(name = "id_trainer")
-    private Trainers trainers;
+    @JoinColumn(name = "id_trainer", nullable = false)
+    private Trainers trainer;
 
     @ManyToOne
     @JoinColumn(name = "id_training_type")
     private TrainingType trainingType;
 
-    private Date session_date;
-    private int session_time;
+    @Column(name = "session_date", nullable = false)
+    private LocalDateTime sessionDate;
 
-    @ManyToMany(mappedBy = "memberTrainingSchedules")
-    private List<Members> members = new ArrayList<>();
+    @Column(name = "session_time", nullable = false)
+    private int sessionTime;
 
-    public TrainingSchedule(Trainers trainers, TrainingType trainingType, Date session_date, int session_time,
-            List<Members> members) {
-        this.trainers = trainers;
-        this.trainingType = trainingType;
-        this.session_date = session_date;
-        this.session_time = session_time;
+    @ManyToMany(mappedBy = "trainingSchedules", fetch = FetchType.LAZY)
+    private Set<Members> members = new HashSet<>();
+
+    public Set<Members> getMembers() {
+        return members;
+    }
+    
+    public void setMembers(Set<Members> members) {
         this.members = members;
     }
-
 }

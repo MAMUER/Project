@@ -1,19 +1,29 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-@Entity
-@Table(name = "trainers_photo")
+import java.util.HashSet;
+import java.util.Set;
+
+import com.example.project.model.Accounts.TrainersAccounts;
+
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "trainers_photo")
 public class TrainersPhoto {
     @Id
-    private int id_trainers_photo;
-    private String image_url;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_trainers_photo", nullable = false)
+    private int idTrainersPhoto;
+
+    @Column(name = "image_url", nullable = false, length = 250)
+    private String imageUrl;
+
+    @OneToMany(mappedBy = "trainersPhoto", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<TrainersAccounts> trainersAccounts = new HashSet<>();
 }

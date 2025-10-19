@@ -1,26 +1,26 @@
-package ru.mirea.app.fitness_club.Repository;
+package com.example.project.repository;
+
+import java.time.LocalDateTime;
+import java.util.Set;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.Param;
-import ru.mirea.app.fitness_club.ORM.TrainingSchedule;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.stereotype.Repository;
 
-import java.util.Date;
-import java.util.List;
+import com.example.project.model.TrainingSchedule;
 
-public interface TrainingScheduleRepository extends JpaRepository<TrainingSchedule, Integer> {
+@Repository
+public interface TrainingScheduleRepository
+                extends JpaRepository<TrainingSchedule, Integer>, 
+                                                   JpaSpecificationExecutor<TrainingSchedule> {
 
-        @Query("SELECT ts FROM TrainingSchedule ts " +
-                "WHERE (:id_trainer IS NULL OR ts.trainers.id IN :id_trainer) " +
-                "AND (:id_training_type IS NULL OR ts.trainingType.id IN :id_training_type) " +
-                "AND (:session_date_start IS NULL OR ts.session_date >= :session_date_start) " +
-                "AND (:session_date_end IS NULL OR ts.session_date <= :session_date_end) " +
-                "AND (:session_time_start IS NULL OR ts.session_time >= :session_time_start) " +
-                "AND (:session_time_end IS NULL OR ts.session_time <= :session_time_end)")
-        List<TrainingSchedule> findByFilter(@Param("id_trainer") List<Integer> id_trainer,
-                                @Param("id_training_type") List<Integer> id_training_type,
-                                @Param("session_date_start") Date session_date_start,
-                                @Param("session_date_end") Date session_date_end,
-                                @Param("session_time_start") Integer session_time_start,
-                                @Param("session_time_end") Integer session_time_end);
+        Set<TrainingSchedule> findByTrainerIdTrainer(Integer trainerId);
+
+        Set<TrainingSchedule> findByTrainingTypeIdTrainingType(Integer trainingTypeId);
+
+        Set<TrainingSchedule> findBySessionDateBetween(LocalDateTime start, LocalDateTime end);
+
+        Set<TrainingSchedule> findBySessionTimeGreaterThan(Integer minTime);
+
+        Set<TrainingSchedule> findByMembersIdMember(Integer memberId);
 }

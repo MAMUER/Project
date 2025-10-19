@@ -1,58 +1,83 @@
-package ru.mirea.app.fitness_club.Service;
+package com.example.project.service;
 
+import lombok.AllArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
-import lombok.AllArgsConstructor;
-import ru.mirea.app.fitness_club.ORM.Clubs;
-import ru.mirea.app.fitness_club.ORM.Equipment;
-import ru.mirea.app.fitness_club.ORM.Gyms;
-import ru.mirea.app.fitness_club.ORM.News;
-import ru.mirea.app.fitness_club.ORM.StaffSchedule;
-import ru.mirea.app.fitness_club.Repository.ClubsRepository;
+import com.example.project.model.Clubs;
+import com.example.project.model.Equipment;
+import com.example.project.model.Gyms;
+import com.example.project.model.News;
+import com.example.project.model.StaffSchedule;
+import com.example.project.repository.ClubsRepository;
 
 @Service
 @AllArgsConstructor
 public class ClubsService {
     private final ClubsRepository clubsRepository;
 
-    public Clubs getClubs(String id) {
+    public Clubs getClub(String id) {
         return clubsRepository.findById(id).orElse(null);
     }
 
+    public List<Clubs> getAllClubs() {
+        return clubsRepository.findAll();
+    }
+
+    public Set<Clubs> getClubsByAddress(String address) {
+        return clubsRepository.findByAddressContaining(address);
+    }
+
     public List<News> getListOfClubNews(String id) {
-        Clubs clubs = clubsRepository.findById(id).orElse(null); 
-        return clubs.getClubNews();
+        Clubs club = clubsRepository.findById(id).orElse(null);
+        return club != null ? new ArrayList<>(club.getNews()) : Collections.emptyList();
     }
 
-    public List<Gyms> getListOfGyms(String id) {
-        Clubs clubs = clubsRepository.findById(id).orElse(null);
-        return clubs.getGyms();
+    public Set<Gyms> getSetOfGyms(String id) {
+        Clubs club = clubsRepository.findById(id).orElse(null);
+        return club != null ? club.getGyms() : Collections.emptySet();
     }
 
-    public List<Equipment> getListOfEquipments(String clubsId, int gymId) {
-        List<Gyms> gyms = getListOfGyms(clubsId);
+    public Set<Equipment> getSetOfEquipments(String clubsId, int gymId) {
+        Set<Gyms> gyms = getSetOfGyms(clubsId);
         for (Gyms gym : gyms) {
-            if (gym.getId_gym() == gymId) {
-                return gym.getGymEquipments();
+            if (gym.getIdGym() == gymId) {
+                return new HashSet<>(gym.getEquipment());
             }
         }
-        return null;
+        return Collections.emptySet();
     }
 
     public String getEquipmentTypeName(String clubsId, int gymId, int equipmentId) {
-        List<Equipment> equipments = getListOfEquipments(clubsId, gymId);
+        Set<Equipment> equipments = getSetOfEquipments(clubsId, gymId);
         for (Equipment equipment : equipments) {
-            if (equipment.getId_equipment() == equipmentId) {
-                return equipment.getEquipmentType().getType_name();
+            if (equipment.getIdEquipment() == equipmentId) {
+                return equipment.getEquipmentType().getTypeName();
             }
         }
         return null;
     }
 
-    public List<StaffSchedule> getListOfStaffSchedules(String clubsId) {
-        Clubs clubs = clubsRepository.findById(clubsId).orElse(null);
-        return clubs.getStaffSchedule();
+    public Set<StaffSchedule> getSetOfStaffSchedules(String clubsId) {
+        Clubs club = clubsRepository.findById(clubsId).orElse(null);
+        return club != null ? club.getStaffSchedules() : Collections.emptySet();
+    }
+
+    public Clubs saveClub(Clubs club) {
+        return clubsRepository.save(club);
+    }
+
+    public void deleteClub(String id) {
+        clubsRepository.deleteById(id);
+    }
+
+    public Clubs getClubByName(String clubName) {
+        return clubsRepository.findById(clubName).orElse(null);
     }
 }

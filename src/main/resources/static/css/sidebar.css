@@ -1,21 +1,24 @@
 * {
-    font-family: "Fira Sans";
+    font-family: "Open Sans";
+    font-size: 16px;
+    line-height: 21.8px;
 }
 
 .sidebar {
     width: 100px;
     height: 100vh;
-    background-color: #f1f7fe;
+    background-color: #FFFFFF;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
     align-items: center;
     align-content: center;
     padding-top: 30px;
-    border-right: solid #d1dbe7;
+    border-right: 2px solid #E8EEFB;
     position: fixed;
     gap: 2em;
     z-index: 2;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
 }
 
 .profile,
@@ -24,23 +27,50 @@
 .trainers {
     width: 70px;
     height: 60px;
-    background-color: #dde5f4;
-    box-shadow: 0 0 2em #e6e9f9;
-    border-radius: 10px;
+    background-color: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    border-radius: 12px;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.profile:hover,
+.calendar:hover,
+.statistic:hover,
+.trainers:hover {
+    background-color: #E8EEFB;
+    border-color: #0795E8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.15);
 }
 
 .logout {
     width: 70px;
     height: 60px;
-    background-color: #dde5f4;
-    border-radius: 10px;
+    background-color: #FFFFFF;
+    border-radius: 12px;
     position: absolute;
     left: auto;
-	bottom: 10px;
+    bottom: 10px;
+    border: 2px solid #E8EEFB;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    transition: all 0.3s ease;
+}
+
+.logout:hover {
+    background-color: #FF6B6B;
+    border-color: #FF6B6B;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.2);
 }
 
 .logo {
     margin-bottom: 15%;
+}
+
+.logo img {
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.1);
 }
 
 .icons a {
@@ -49,7 +79,8 @@
     height: 70px;
     margin-bottom: 40px;
     justify-content: center;
-    align-items: center
+    align-items: center;
+    text-decoration: none;
 }
 
 .icons img {
@@ -60,4 +91,83 @@
     user-select: none;
     width: 50px;
     height: 50px;
+    transition: all 0.3s ease;
+}
+
+/* Стили для выбранного элемента */
+#selected {
+    width: 70px;
+    height: 70px;
+    background-color: #0795E8;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.2);
+    gap: 2em;
+    border: 2px solid #074EE8;
+}
+
+#selected img {
+    display: block;
+    margin: auto;
+    width: 50px;
+    height: 50px;
+    filter: brightness(0) invert(1);
+}
+
+/* Стили для текстовых элементов */
+.small-text {
+    font-size: 12px;
+    line-height: 16.4px;
+}
+
+.medium-text {
+    font-size: 16px;
+    line-height: 21.8px;
+}
+
+.large-text {
+    font-size: 24px;
+    line-height: 32.7px;
+}
+
+.xlarge-text {
+    font-size: 32px;
+    line-height: 43.6px;
+}
+
+.xxlarge-text {
+    font-size: 40px;
+    line-height: 54.5px;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 80px;
+        padding-top: 20px;
+    }
+    
+    .profile,
+    .calendar,
+    .statistic,
+    .trainers,
+    .logout {
+        width: 60px;
+        height: 50px;
+    }
+    
+    .icons a {
+        width: 60px;
+        height: 60px;
+        margin-bottom: 30px;
+    }
+    
+    .icons img {
+        width: 40px;
+        height: 40px;
+    }
+    
+    #selected {
+        width: 60px;
+        height: 60px;
+    }
 }

@@ -1,34 +1,34 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
-import java.util.ArrayList;
-import java.util.List;
+import lombok.*;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToMany;
-import jakarta.persistence.OneToOne;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import java.util.HashSet;
+import java.util.Set;
 
-@Entity
-@Table(name = "equipment_statistics")
+import jakarta.persistence.*;
+
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "equipment_statistics")
 public class EquipmentStatistics {
     @Id
-    private int id_statistics;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_statistics", nullable = false)
+    private int idStatistics;
 
-    @OneToOne
-    @JoinColumn(name = "id_activity")
+    @ManyToOne
+    @JoinColumn(name = "id_activity", nullable = false)
     private ActivityType activityType;
 
-    private int approaches;
-    private int kilocalories;
+    @Column(name = "approaches")
+    private Integer approaches;
 
-    @ManyToMany(mappedBy = "memberEquipmentStatistics")
-    private List<Members> members = new ArrayList<>();
+    @Column(name = "kilocalories")
+    private Integer kilocalories;
+
+    @ManyToMany(mappedBy = "equipmentStatistics")
+    private Set<Members> members = new HashSet<>();
 }

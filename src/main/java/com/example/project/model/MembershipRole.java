@@ -1,26 +1,27 @@
-package ru.mirea.app.fitness_club.ORM;
+package com.example.project.model;
 
+import lombok.*;
+
+import java.util.HashSet;
 import java.util.Set;
 
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
-import jakarta.persistence.Table;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import jakarta.persistence.*;
 
-@Entity
-@Table(name = "membership_role")
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Getter
+@Entity
+@Table(name = "membership_role")
 public class MembershipRole {
     @Id
-    private int id_role;
-    
-    private String role_name;
-    
-    @OneToMany(mappedBy = "membershipRole")
-    private Set<Members> members;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_role", nullable = false)
+    private int idRole;
+
+    @Column(name = "role_name", nullable = false, length = 45)
+    private String roleName;
+
+    @OneToMany(mappedBy = "membershipRole", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<Members> members = new HashSet<>();
 }
