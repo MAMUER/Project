@@ -1,0 +1,63 @@
+* {
+    font-family: "Fira Sans";
+}
+
+.sidebar {
+    width: 100px;
+    height: 100vh;
+    background-color: #f1f7fe;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    align-content: center;
+    padding-top: 30px;
+    border-right: solid #d1dbe7;
+    position: fixed;
+    gap: 2em;
+    z-index: 2;
+}
+
+.profile,
+.calendar,
+.statistic,
+.trainers {
+    width: 70px;
+    height: 60px;
+    background-color: #dde5f4;
+    box-shadow: 0 0 2em #e6e9f9;
+    border-radius: 10px;
+}
+
+.logout {
+    width: 70px;
+    height: 60px;
+    background-color: #dde5f4;
+    border-radius: 10px;
+    position: absolute;
+    left: auto;
+	bottom: 10px;
+}
+
+.logo {
+    margin-bottom: 15%;
+}
+
+.icons a {
+    display: flex;
+    width: 70px;
+    height: 70px;
+    margin-bottom: 40px;
+    justify-content: center;
+    align-items: center
+}
+
+.icons img {
+    display: flex;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    width: 50px;
+    height: 50px;
+}

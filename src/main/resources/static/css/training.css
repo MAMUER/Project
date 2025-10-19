@@ -1,0 +1,254 @@
+* {
+    font-family: "Fira Sans";
+}
+
+body {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    background: #dde5f4;      
+}
+
+#selected {
+    width: 70px;
+    height: 70px;
+    background-color: #3e4684;
+    border-radius: 10px;
+    box-shadow: 0 0 2em #e6e9f9;
+    gap: 2em;
+}
+
+#selected img {
+    display: block;
+    margin: auto;
+    width: 50px;
+    height: 50px;
+}
+
+.content {
+    flex-grow: 1;
+    padding: 140px;
+    padding-top: 0px;
+}
+
+.containers {
+    display: grid;
+    grid-template-columns: 450px 270px;
+    grid-template-rows: 1fr 1fr 1fr;
+}
+
+.club {
+    color: #555555;
+    font-size: 90%;
+    position: relative;
+    top: -15px;
+}
+
+.info-container {
+    display: flex;
+    justify-content: last baseline;
+}
+
+.workout-info {
+    margin-top: -15px;
+    background-color: #f1f7fe;
+    box-shadow: 0 0 2em #e6e9f9;
+    gap: 2em;
+    padding: 15px;
+    padding-top: 0;
+    width: 450px;
+    border-radius: 10px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    display: inline-block;
+}
+
+.workout-prop {
+    display: flex;
+}
+
+.date {
+    margin-right: 15px;
+    padding: 7px;
+    background-color: #dde5f4;
+    max-width: 110px;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 5px;
+}
+
+.duration {
+    padding: 7px;
+    background-color: #dde5f4;
+    max-width: 60px;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 5px;
+}
+
+.trainer-container {
+    margin-top: -15px;
+    margin-left: 30px;
+    background-color: #f1f7fe;
+    box-shadow: 0 0 2em #e6e9f9;
+    gap: 2em;
+    padding-left: 15px;
+    padding-right: 15px;
+    width: 270px;
+    border-radius: 10px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    grid-row-start: 1;
+    grid-column-start: 2;
+    grid-row-end: 3;
+}
+
+.members-container {
+    margin-top: -15px;
+    margin-left: 30px;
+    background-color: #f1f7fe;
+    box-shadow: 0 0 2em #e6e9f9;
+    gap: 2em;
+    padding-left: 15px;
+    padding-right: 15px;
+    width: 270px;
+    border-radius: 10px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    grid-row-start: 1;
+    grid-column-start: 2;
+    grid-row-end: 3;
+}
+
+.members-container h2 {
+    font-size: 1.2em;
+    margin-bottom: 10px;
+}
+
+.members-list {
+    list-style-type: none;
+    padding: 0;
+}
+
+.members-list li {
+    margin-bottom: 5px;
+    padding: 10px;
+    background-color: #dde5f4;
+    border-radius: 5px;
+}
+
+.trainer-photo {
+    width: 250px;
+    height: 250px;
+    max-height: 270px;
+    display: block;
+    margin: auto;
+    padding-bottom: 30px;
+}
+
+.trainer-photo img {
+    height: 100%;
+    max-width: 100%;
+    border-radius: 10px;
+}
+
+.workout-program-container {
+    margin-top: 30px;
+    background-color: #f1f7fe;
+    box-shadow: 0 0 2em #e6e9f9;
+    padding: 15px;
+    padding-top: 5px;
+    width: 420px;
+    border-radius: 10px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    grid-row-start: 2;
+    grid-column-start: 1;
+    grid-row-end: 3;
+}
+
+.buttons-container {
+    margin-top: 15px;
+    grid-column-start: 1;
+    grid-row-start: 2;
+}
+
+.signup-button {
+    margin-top: 15px;
+    background-color: #3e4684;
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 10px;
+    box-shadow: 0 0 2em #e6e9f9;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    overflow-y: hidden;
+}
+.unsubscribe-button {
+    background-color: rgb(178, 61, 61);
+    border: none;
+    color: white;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: pointer;
+    border-radius: 10px;
+    box-shadow: 0 0 2em #e6e9f9;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    overflow-y: hidden;
+}
+
+.gray-button {
+    background-color: #bbc6da;
+    color: #3a3c50;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    overflow-y: hidden;
+    cursor: default;
+}
+
+.trainer-button {
+    margin-top: 15px;
+    background-color: #bbc6da;
+    border: none;
+    color: #3a3c50;
+    padding: 15px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    margin: 4px 2px;
+    cursor: default;
+    border-radius: 10px;
+    box-shadow: 0 0 2em #e6e9f9;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    overflow-y: hidden;
+}
