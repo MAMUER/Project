@@ -65,7 +65,6 @@ public class MainController {
     private final NewsService newsService;
     private final CustomUserDetailsService userDetailsService;
     private final AccountService accountService;
-
     private final MembersAccountsRepository membersAccountsRepo;
     private final TrainersAccountsRepository trainersAccountsRepo;
     private final StaffAccountsRepository staffAccountsRepo;

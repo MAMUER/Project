@@ -11,15 +11,14 @@ html {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     height: 100%;
-    overflow: hidden;
 }
 
 body {
     margin: 0;
     padding: 0;
     background: #E8EEFB;
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
+    overflow-x: hidden;
     
     /* Запрещаем масштабирование жестами */
     touch-action: pan-x pan-y;
@@ -38,7 +37,6 @@ body {
     border-radius: 10px;
     box-shadow: 0 0 2em rgba(7, 7, 232, 0.1);
     gap: 2em;
-    
 }
 
 #selected img {
@@ -48,38 +46,101 @@ body {
     height: 50px;
 }
 
+/* ОСНОВНОЙ КОНТЕНТ - ИСПРАВЛЕНИЯ ДЛЯ МАЛЕНЬКИХ ЭКРАНОВ */
 .content {
-    flex-grow: 1;
-    width: calc(100% - 140px);
+    width: 100%;
+    padding: 20px;
     padding-left: 140px;
-    height: 100vh;
-    overflow: hidden;
-
-    /* Критически важные стили */
-    overflow: hidden;
-    min-width: min-content; /* Минимальная ширина по контенту */
+    min-height: 100vh;
     box-sizing: border-box;
-    margin: 0 auto;
+    margin: 0;
+    overflow-x: hidden;
 }
 
 .container {
     padding-top: 30px;
     display: flex;
-    padding-right: 0;
+    gap: 20px;
+    align-items: flex-start;
+    min-height: auto;
+    width: 100%;
+    max-width: 100%;
     margin: 0;
-    height: calc(100vh - 30px);
 }
 
+/* СТИЛИ ДЛЯ РАЗНЫХ РОЛЕЙ */
+.member-container,
+.trainer-container {
+    display: flex;
+    gap: 20px;
+    width: 100%;
+    align-items: flex-start;
+}
+
+.staff-container {
+    width: 100%;
+}
+
+/* Основная секция с календарем */
+.calendar-section {
+    flex: 1;
+    min-width: 300px;
+    max-width: 100%;
+}
+
+/* Боковая секция с фильтром/формой */
+.sidebar-section {
+    width: 390px;
+    min-width: 320px;
+    position: sticky;
+    top: 20px;
+    max-width: 100%;
+}
+
+/* АДАПТИВНЫЕ СТИЛИ ДЛЯ КАЛЕНДАРЯ */
 #calendar.member-calendar,
-#calendar.trainer-calendar {
-    width: 800px;
-    position: fixed;
-    height: calc(100vh - 60px);
+#calendar.trainer-calendar,
+#calendar.staff-calendar {
+    width: 100%;
+    height: 70vh;
+    min-height: 500px;
+    max-width: 100%;
 }
 
 #calendar.staff-calendar {
-    width: 1350px;
-    height: calc(100vh - 60px);
+    height: 80vh;
+}
+
+/* Стили для FullCalendar чтобы он масштабировался */
+.fc {
+    height: 100% !important;
+    max-width: 100% !important;
+}
+
+.fc-view {
+    height: 100% !important;
+    max-width: 100% !important;
+}
+
+.fc-scroller {
+    overflow-y: auto !important;
+}
+
+/* Уменьшаем размеры элементов календаря на мобильных */
+.fc .fc-toolbar {
+    flex-wrap: wrap;
+    gap: 10px;
+    max-width: 100%;
+}
+
+.fc .fc-toolbar-title {
+    font-size: 20px;
+    line-height: 28px;
+}
+
+.fc .fc-button {
+    padding: 6px 12px;
+    font-size: 14px;
 }
 
 :root {
@@ -91,6 +152,7 @@ body {
     --fc-button-active-border-color: #0707E8;
     --fc-neutral-bg-color: #FFFFFF;
     --fc-list-event-hover-bg-color: #E8EEFB;
+    --fc-page-bg-color: #E8EEFB;
 }
 
 .fc-day-today {
@@ -100,6 +162,7 @@ body {
 
 .fc-event {
     padding: 2px;
+    font-size: 12px;
 }
 
 #calendar.member-calendar .fc-event:hover,
@@ -123,9 +186,8 @@ body {
     text-size-adjust: 100%;
 }
 
+/* СТИЛИ ДЛЯ ФИЛЬТРОВ И ФОРМ */
 .filter, .create-training {
-    width: 390px;
-    margin-left: 850px;
     background: #FFFFFF;
     padding: 24px;
     display: flex;
@@ -133,8 +195,10 @@ body {
     border-radius: 24px;
     box-shadow: 0 8px 24px rgba(7, 7, 232, 0.1);
     gap: 24px;
-    max-height: calc(100vh - 100px);
+    max-height: 70vh;
     overflow-y: auto;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .filter h2, .create-training h2 {
@@ -157,26 +221,83 @@ body {
     text-size-adjust: 100%;
 }
 
+/* Стили для выбора дат */
+.date-range {
+    display: flex;
+    flex-direction: column;
+    background-color: #FFFFFF;
+    padding: 16px;
+    margin: 12px 0;
+    width: 100%;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    border: 2px solid #E8EEFB;
+    box-sizing: border-box;
+}
+
+.date-range-block {
+    display: flex;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.date-range-block:last-child {
+    margin-bottom: 0;
+}
+
+.date-range-label {
+    min-width: 80px;
+    font-weight: 600;
+    margin-right: 10px;
+    color: #000000;
+}
+
 input[id='date-select-start'],
 input[id='date-select-end'] {
     background-color: #FFFFFF;
     box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
     padding: 12px;
-    margin: 8px;
-    width: 110px;
+    width: 150px;
     border-radius: 12px;
-    overflow-y: hidden;
     border: 2px solid #E8EEFB;
     text-align: left;
     transition: border-color 0.3s ease;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    box-sizing: border-box;
 }
 
 input[id='date-select-start']:focus,
 input[id='date-select-end']:focus {
     border-color: #0795E8;
     outline: none;
+}
+
+/* Стили для времени */
+.time-range {
+    display: flex;
+    gap: 15px;
+}
+
+.time-block {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.time-label {
+    font-weight: 600;
+    min-width: 30px;
+}
+
+.duration-input {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.duration-label {
+    font-weight: 600;
 }
 
 .training-date {
@@ -199,6 +320,7 @@ input[id='date-select-end']:focus {
     padding: 12px;
     border: 2px solid #E8EEFB;
     transition: border-color 0.3s ease;
+    box-sizing: border-box;
 }
 
 .training-date #date-select:focus {
@@ -220,6 +342,7 @@ input[id='date-select-end']:focus {
     overflow-y: hidden;
     border: 2px solid #E8EEFB;
     transition: border-color 0.3s ease;
+    box-sizing: border-box;
 }
 
 .session-time input:focus {
@@ -227,21 +350,22 @@ input[id='date-select-end']:focus {
     outline: none;
 }
 
+/* Стили для блоков выбора */
 .session-time,
 .trainer-select, 
 .type-select,
-.training-date {
-    display: inline-block;
-    flex-direction: row;
-    justify-content: start;
+.training-date,
+.show-trainings {
+    display: flex;
+    flex-direction: column;
     background-color: #FFFFFF;
     padding: 16px;
     margin: 12px 0;
-    width: 350px;
+    width: 100%;
     border-radius: 16px;
-    overflow-y: hidden;
     box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
     border: 2px solid #E8EEFB;
+    box-sizing: border-box;
 }
 
 .session-time-block {
@@ -255,6 +379,42 @@ input[id='date-select-end']:focus {
     padding: 10px;
     display: block;
     float: left;
+}
+
+/* Стили для чекбоксов в одну линию */
+.trainer-option,
+.type-option {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+    padding: 4px 0;
+}
+
+.trainer-option:last-child,
+.type-option:last-child {
+    margin-bottom: 0;
+}
+
+.trainer-option input[type="checkbox"],
+.type-option input[type="checkbox"],
+.type-option input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #0795E8;
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.trainer-option label,
+.type-option label {
+    color: #000000;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    margin: 0;
 }
 
 .create-training button {
@@ -277,6 +437,7 @@ input[id='date-select-end']:focus {
     width: calc(100% - 40px);
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    box-sizing: border-box;
 }
 
 .create-training button:hover {
@@ -285,74 +446,435 @@ input[id='date-select-end']:focus {
     box-shadow: 0 6px 16px rgba(7, 7, 232, 0.3);
 }
 
-/* Стили для чекбоксов и радиокнопок */
-input[type="checkbox"],
-input[type="radio"] {
-    width: 18px;
-    height: 18px;
-    accent-color: #0795E8;
-    margin-right: 8px;
-}
+/* АДАПТИВНОСТЬ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ */
 
-.trainer-select label,
-.type-select label {
-    color: #000000;
-    font-size: 16px;
-    cursor: pointer;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-}
-
-.trainer-select div,
-.type-select div {
-    margin-bottom: 8px;
-}
-
-/* Адаптивность для мобильных устройств */
-@media (max-width: 768px) {
+/* Планшеты и маленькие ноутбуки */
+@media (max-width: 1200px) {
     .content {
-        width: calc(100% - 80px);
-        padding-left: 80px;
+        width: 100%;
+        padding-left: 100px;
+        padding-right: 20px;
+        box-sizing: border-box;
     }
     
     .container {
         flex-direction: column;
-        height: auto;
+        gap: 20px;
+        width: 100%;
+    }
+    
+    .member-container,
+    .trainer-container {
+        flex-direction: column;
+        gap: 20px;
+        width: 100%;
+    }
+    
+    .calendar-section {
+        min-width: unset;
+        width: 100%;
+    }
+    
+    .sidebar-section {
+        width: 100%;
+        position: static;
+        min-width: unset;
     }
     
     #calendar.member-calendar,
-    #calendar.trainer-calendar {
-        width: 100%;
-        position: relative;
-        height: 400px;
+    #calendar.trainer-calendar,
+    #calendar.staff-calendar {
+        width: 100% !important;
+        min-width: unset;
+        height: 60vh;
+        min-height: 400px;
+        margin: 0;
+        padding: 0;
     }
     
     .filter, .create-training {
         width: 100%;
-        margin-left: 0;
-        margin-top: 20px;
+        max-height: none;
+        position: static;
+    }
+    
+    .fc .fc-toolbar-title {
+        font-size: 22px;
+    }
+    
+    .fc .fc-toolbar {
+        gap: 12px;
+        padding: 10px;
+    }
+    
+    .fc .fc-button {
+        padding: 8px 16px;
+        font-size: 14px;
     }
 }
 
-@media (max-width: 480px) {
+/* Мобильные устройства */
+@media (max-width: 768px) {
     .content {
-        width: calc(100% - 70px);
-        padding-left: 70px;
+        width: 100%;
+        padding: 15px;
+        padding-left: 80px;
+        padding-right: 15px;
+        box-sizing: border-box;
+    }
+    
+    .container {
+        padding-top: 15px;
+        gap: 15px;
+    }
+    
+    .member-container,
+    .trainer-container {
+        gap: 15px;
+    }
+    
+    #calendar.member-calendar,
+    #calendar.trainer-calendar,
+    #calendar.staff-calendar {
+        width: 100% !important;
+        height: 55vh !important;
+        min-height: 380px;
+        margin: 0;
+        padding: 0;
     }
     
     .filter, .create-training {
-        padding: 16px;
-    }
-    
-    .training-date,
-    .session-time,
-    .trainer-select,
-    .type-select {
+        padding: 18px;
+        gap: 18px;
         width: 100%;
     }
+    
+    .time-range {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    /* Улучшаем отображение FullCalendar на планшетах */
+    .fc .fc-toolbar {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding: 8px;
+    }
+    
+    .fc .fc-toolbar-title {
+        font-size: 20px;
+        line-height: 26px;
+    }
+    
+    .fc .fc-button {
+        padding: 7px 14px;
+        font-size: 13px;
+    }
+    
+    .fc-event {
+        font-size: 11px;
+        padding: 3px 6px;
+    }
+    
+    .fc-list-event {
+        font-size: 14px;
+        padding: 10px;
+    }
+}
+
+/* КРИТИЧЕСКИЕ ИСПРАВЛЕНИЯ ДЛЯ ОЧЕНЬ МАЛЕНЬКИХ ЭКРАНОВ */
+@media (max-width: 480px) {
+    /* Исправляем сайдбар */
+    .sidebar {
+        width: 60px;
+        z-index: 1000;
+    }
+    
+    .content {
+        width: 100vw; /* Важно: занимаем всю ширину viewport */
+        padding: 10px;
+        padding-left: 70px; /* Увеличиваем отступ от сайдбара */
+        padding-right: 10px;
+        margin: 0;
+        margin-left: 0;
+        box-sizing: border-box;
+    }
+    
+    .container {
+        padding-top: 10px;
+        gap: 10px;
+        width: 100%;
+        margin: 0;
+        box-sizing: border-box;
+    }
+    
+    .member-container,
+    .trainer-container {
+        gap: 10px;
+        width: 100%;
+        flex-direction: column;
+    }
+    
+    /* КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ КАЛЕНДАРЯ */
+    #calendar.member-calendar,
+    #calendar.trainer-calendar,
+    #calendar.staff-calendar {
+        width: calc(100vw - 80px) !important; /* Занимаем всю ширину минус отступы */
+        height: 50vh !important; /* Увеличиваем высоту */
+        min-height: 300px;
+        margin: 0;
+        padding: 0;
+        margin-left: 0;
+        position: relative;
+        left: 0;
+        box-sizing: border-box;
+    }
+    
+    /* Исправляем контейнер календаря */
+    .calendar-section {
+        width: 100%;
+        min-width: unset;
+        margin: 0;
+        padding: 0;
+    }
+    
+    /* Исправляем FullCalendar */
+    .fc {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .fc-view-harness {
+        width: 100% !important;
+    }
+    
+    .fc-scroller {
+        width: 100% !important;
+    }
+    
+    .fc .fc-toolbar {
+        flex-direction: column;
+        gap: 8px;
+        padding: 8px;
+        width: 100%;
+    }
+    
+    .fc .fc-toolbar-title {
+        font-size: 16px !important; /* Увеличиваем шрифт */
+        line-height: 20px;
+        text-align: center;
+        width: 100%;
+    }
+    
+    .fc .fc-toolbar-chunk {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 5px;
+        width: 100%;
+    }
+    
+    .fc .fc-button {
+        padding: 6px 10px !important;
+        font-size: 12px !important;
+        margin: 2px;
+    }
+    
+    .fc-header-toolbar {
+        margin-bottom: 10px !important;
+        padding: 0 5px;
+    }
+    
+    .fc-event {
+        font-size: 11px !important; /* Увеличиваем шрифт событий */
+        padding: 3px 5px !important;
+        margin: 1px;
+    }
+    
+    .fc-list-event {
+        font-size: 14px !important;
+        padding: 8px !important;
+    }
+    
+    /* Увеличиваем кликабельную область */
+    .fc-event-title {
+        font-size: 11px !important;
+    }
+    
+    .fc-daygrid-event {
+        min-height: 20px !important;
+    }
+    
+    /* Исправляем фильтр */
+    .filter, .create-training {
+        width: calc(100vw - 80px); /* Такая же ширина как у календаря */
+        padding: 15px;
+        gap: 15px;
+        margin: 0;
+        border-radius: 16px;
+        box-sizing: border-box;
+    }
+    
+    .filter h2, .create-training h2 {
+        font-size: 18px;
+        margin-bottom: 12px;
+        padding: 0;
+    }
+    
+    .filter p, .create-training p {
+        padding-left: 0;
+        margin-bottom: 10px;
+        font-size: 15px;
+    }
+    
+    .session-time,
+    .trainer-select, 
+    .type-select,
+    .training-date,
+    .show-trainings,
+    .date-range {
+        padding: 12px;
+        margin: 10px 0;
+        width: 100%;
+    }
+    
+    .date-range-block {
+        flex-direction: column;
+        align-items: stretch;
+        margin-bottom: 12px;
+    }
+    
+    .date-range-label {
+        margin-bottom: 6px;
+        margin-right: 0;
+        min-width: auto;
+        font-size: 15px;
+    }
+    
+    input[id='date-select-start'],
+    input[id='date-select-end'] {
+        width: 100%;
+        padding: 10px;
+        margin: 0;
+        font-size: 14px;
+    }
+    
+    .time-range {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .time-block {
+        justify-content: space-between;
+    }
+    
+    .time-label {
+        min-width: 40px;
+        font-size: 15px;
+    }
+    
+    .trainer-option,
+    .type-option {
+        margin-bottom: 8px;
+        padding: 4px 0;
+    }
+    
+    .trainer-option label,
+    .type-option label {
+        font-size: 14px;
+    }
+    
+    .create-training button {
+        padding: 14px 28px;
+        font-size: 15px;
+        margin: 15px auto;
+        width: calc(100% - 20px);
+    }
+}
+
+/* Дополнительные исправления для экранов 375px */
+@media (max-width: 375px) {
+    .content {
+        padding-left: 65px; /* Чуть меньше отступ для очень узких экранов */
+        padding-right: 8px;
+    }
+    
+    #calendar.member-calendar,
+    #calendar.trainer-calendar,
+    #calendar.staff-calendar {
+        width: calc(100vw - 73px) !important; /* Корректируем ширину */
+        height: 45vh !important;
+        min-height: 280px;
+    }
+    
+    .fc .fc-toolbar-title {
+        font-size: 15px !important;
+    }
+    
+    .fc .fc-button {
+        padding: 5px 8px !important;
+        font-size: 11px !important;
+    }
+    
+    .filter, .create-training {
+        width: calc(100vw - 73px);
+        padding: 12px;
+    }
+    
+    .filter h2, .create-training h2 {
+        font-size: 17px;
+    }
+}
+
+/* Исправления для высоты экрана 667px */
+@media (max-height: 667px) and (max-width: 480px) {
+    #calendar.member-calendar,
+    #calendar.trainer-calendar,
+    #calendar.staff-calendar {
+        height: 55vh !important; /* Еще больше высота на коротких экранах */
+        min-height: 320px;
+    }
+    
+    .filter, .create-training {
+        max-height: 40vh;
+    }
+}
+
+/* Гарантируем, что календарь не заходит под сайдбар */
+.calendar-section {
+    position: relative;
+    z-index: 1;
+}
+
+.sidebar {
+    z-index: 1000;
+}
+
+/* Убираем любые возможные отступы слева у календаря */
+.fc,
+.fc-view,
+.fc-scroller,
+.fc-daygrid-body,
+.fc-scrollgrid {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+
+/* Запрещаем горизонтальную прокрутку */
+html, body {
+    overflow-x: hidden;
+    width: 100%;
+}
+
+.content,
+.container,
+.member-container,
+.trainer-container,
+.calendar-section,
+.sidebar-section {
+    overflow-x: hidden;
+    max-width: 100%;
 }
 
 /* Запрет выделения текста */

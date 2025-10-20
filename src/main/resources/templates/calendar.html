@@ -13,10 +13,11 @@
 
     <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.9/index.global.min.js'> </script>
 
-    <script th:src="@{/js/jquery.min.js}"></script>
-    
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+
     <!-- Запрещаем масштабирование -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 </head>
 
 <body>
@@ -25,9 +26,10 @@
         <div class="logo">
             <img th:src="@{/icons/logo.png}" alt="Logo">
         </div>
+
         <div class="icons">
             <th:block th:switch="${role}">
-                <div th:case="'member'">
+                <div th:case="'member'" class="icon-group">
                     <a class="profile" th:href="'/profile/member/' + ${memberId}">
                         <img th:src="@{/icons/profile.svg}" alt="Profile">
                     </a>
@@ -41,23 +43,26 @@
                         <img th:src="@{/icons/trainers.svg}" alt="trainers">
                     </a>
                 </div>
-                <div th:case="'trainer'">
-                    <a class="profile" th:href="'/profile/trainer/' + ${idTrainer}">
-                        <img th:src="@{/icons/profile.svg}" alt="Profile">
+                <div th:case="'trainer'" class="icon-group">
+                    <a class="profile" th:href="'/profile/trainer/' + ${trainerId}">
+                        <img th:src="@{/icons/profile-white.svg}" alt="Profile">
                     </a>
-                    <a class="calendar" id="selected" th:href="'/calendar/trainer/' + ${idTrainer}">
+                    <a class="calendar" id="selected" th:href="'/calendar/trainer/' + ${trainerId}">
                         <img th:src="@{/icons/calendar-white.svg}" alt="Calendar">
                     </a>
                 </div>
-                <div th:case="'staff'">
+                <div th:case="'staff'" class="icon-group">
                     <a class="profile" th:href="'/profile/staff/' + ${staffId}">
-                        <img th:src="@{/icons/profile.svg}" alt="Profile">
+                        <img th:src="@{/icons/profile-white.svg}" alt="Profile">
                     </a>
                     <a class="calendar" id="selected" th:href="'/calendar/staff/' + ${staffId}">
                         <img th:src="@{/icons/calendar-white.svg}" alt="Calendar">
                     </a>
                 </div>
             </th:block>
+        </div>
+
+        <div class="logout-container">
             <a class="logout" th:href="'/logout'">
                 <img th:src="@{/icons/logout.svg}" alt="Log out">
             </a>
@@ -67,99 +72,121 @@
     <div class="content">
         <div class="container">
             <th:block th:switch="${role}">
-                <div th:case="'member'">
-
-                    <div id='calendar' class="member-calendar"></div>
-
-                    <div class="filter">
-                        <h2>Фильтровать тренировки</h2>
-                        <form id="filterForm" method="get">
-                            <div class="trainer-select">
-                                <p>Тренер</p>
-                                <div th:each="trainer : ${TrainersSet}">
-                                    <input type="checkbox" th:id="'trainer-select-' + ${trainer.idTrainer}"
-                                        th:value="${trainer.idTrainer}" name="id_trainer" />
-                                    <label th:for="'trainer-select-' + ${trainer.idTrainer}"
-                                        th:text="${trainer.firstName} + ' ' + ${trainer.secondName}"></label>
-                                </div>
-                            </div>
-
-                            <div class="type-select">
-                                <p>Вид тренировки</p>
-                                <div th:each="type : ${TrainingTypeSet}">
-                                    <input type="checkbox" th:id="'type-select-' + ${type.idTrainingType}"
-                                        th:value="${type.idTrainingType}" name="id_training_type" />
-                                    <label th:for="'type-select-' + ${type.idTrainingType}"
-                                        th:text="${type.trainingTypeName}"></label>
-                                </div>
-                            </div>
-                            
-                            <div class="training-date">
-                                <p>Показать тренировки</p>
-                                <p class="training-date-block">C</p>
-                                <input min="1900-01-01" max="9999-12-31" type="date" th:id="'date-select-start'"
-                                    placeholder="············" name="session_date_start" class="training-date-block">
-                                <p class="training-date-block">По</p>
-                                <input min="1900-01-01" max="9999-12-31" type="date" th:id="'date-select-end'"
-                                    placeholder="············" name="session_date_end" class="training-date-block">
-                            </div>
-
-                            <div class="session-time">
-                                <p>Продолжительность тренировки</p>
-                                <p class="session-time-block">От</p>
-                                <input type="number" min="30" max="120" maxlength="3" step="1"
-                                    class="session-time-block" th:id="'time-select-start'" placeholder="··"
-                                    name="session_time_start">
-                                <p class="session-time-block">До</p>
-                                <input type="number" min="30" max="120" maxlength="3" step="1"
-                                    class="session-time-block" th:id="'time-select-end'" placeholder="··"
-                                    name="session_time_end">
-                            </div>
-                        </form>
+                <div th:case="'member'" class="member-container">
+                    <!-- Основной контент с календарем -->
+                    <div class="calendar-section">
+                        <div id='calendar' class="member-calendar"></div>
                     </div>
-                </div>
-                <div th:case="'trainer'">
-                    <div id='calendar' class="trainer-calendar"></div>
 
-                    <div class="create-training">
-                        <h2>Добавить тренировку</h2>
-                        <form id="create-trainingForm" th:action="'/calendar/training/add'"
-                            th:object="${TrainingRequest}" method="post">
+                    <!-- Боковая панель с фильтром -->
+                    <div class="sidebar-section">
+                        <div class="filter">
+                            <h2>Фильтровать тренировки</h2>
+                            <form id="filterForm" method="get">
+                                <div class="trainer-select">
+                                    <p>Тренер</p>
+                                    <div th:each="trainer : ${TrainersSet}" class="trainer-option">
+                                        <input type="checkbox" th:id="'trainer-select-' + ${trainer.idTrainer}"
+                                            th:value="${trainer.idTrainer}" name="id_trainer" />
+                                        <label th:for="'trainer-select-' + ${trainer.idTrainer}"
+                                            th:text="${trainer.firstName} + ' ' + ${trainer.secondName}"></label>
+                                    </div>
+                                </div>
 
-                            <input type="hidden" name="idTrainer" th:value="${idTrainer}">
-                            <div class="type-select">
-                                <p>Вид тренировки</p>
-                                <div th:each="type : ${TrainingTypeSet}">
-                                    <div th:if="${type.idTrainingType != 5}">
-                                        <input type="radio" th:id="'type-select-' + ${type.idTrainingType}"
-                                            th:value="${type.idTrainingType}" th:field="*{idTrainingType}"
-                                            class="input-type">
-                                        <label th:for="${'type-' + type.idTrainingType}"
+                                <div class="type-select">
+                                    <p>Вид тренировки</p>
+                                    <div th:each="type : ${TrainingTypeSet}" class="type-option">
+                                        <input type="checkbox" th:id="'type-select-' + ${type.idTrainingType}"
+                                            th:value="${type.idTrainingType}" name="id_training_type" />
+                                        <label th:for="'type-select-' + ${type.idTrainingType}"
                                             th:text="${type.trainingTypeName}"></label>
                                     </div>
                                 </div>
-                            </div>
-                            <div class="training-date">
-                                <p>Дата тренировки</p>
-                                <input max="9999-12-31T23:59" type="datetime-local" th:id="'date-select'"
-                                    placeholder="············" th:field="*{session_date}" id="input-date">
-                            </div>
-                            <div class="session-time">
-                                <p>Продолжительность тренировки</p>
-                                <input type="number" step="1" class="session-time-block" th:id="'time-select'"
-                                    placeholder="··" th:field="*{sessionTime}" id="input-duration">
-                                <p class="session-time-block" th:text="'мин'"></p>
-                            </div>
 
-                            <button type="submit" id="create-trainingForm-button">Добавить</button>
-                        </form>
+                                <div class="date-range">
+                                    <p>Показать тренировки</p>
+                                    <div class="date-range-block">
+                                        <span class="date-range-label">С дата</span>
+                                        <input min="1900-01-01" max="9999-12-31" type="date" th:id="'date-select-start'"
+                                            placeholder="············" name="session_date_start">
+                                    </div>
+                                    <div class="date-range-block">
+                                        <span class="date-range-label">По дата</span>
+                                        <input min="1900-01-01" max="9999-12-31" type="date" th:id="'date-select-end'"
+                                            placeholder="············" name="session_date_end">
+                                    </div>
+                                </div>
+
+                                <div class="session-time">
+                                    <p>Продолжительность тренировки</p>
+                                    <div class="time-range">
+                                        <div class="time-block">
+                                            <span class="time-label">От</span>
+                                            <input type="number" min="30" max="120" maxlength="3" step="1"
+                                                th:id="'time-select-start'" placeholder="··" name="session_time_start">
+                                        </div>
+                                        <div class="time-block">
+                                            <span class="time-label">До</span>
+                                            <input type="number" min="30" max="120" maxlength="3" step="1"
+                                                th:id="'time-select-end'" placeholder="··" name="session_time_end">
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
-                <div th:case="'staff'">
+
+                <div th:case="'trainer'" class="trainer-container">
+                    <!-- Основной контент с календарем -->
+                    <div class="calendar-section">
+                        <div id='calendar' class="trainer-calendar"></div>
+                    </div>
+
+                    <!-- Боковая панель с формой -->
+                    <div class="sidebar-section">
+                        <div class="create-training">
+                            <h2>Добавить тренировку</h2>
+                            <form id="create-trainingForm" th:action="'/calendar/training/add'"
+                                th:object="${TrainingRequest}" method="post">
+
+                                <input type="hidden" name="idTrainer" th:value="${idTrainer}">
+                                <div class="type-select">
+                                    <p>Вид тренировки</p>
+                                    <div th:each="type : ${TrainingTypeSet}">
+                                        <div th:if="${type.idTrainingType != 5}" class="type-option">
+                                            <input type="radio" th:id="'type-select-' + ${type.idTrainingType}"
+                                                th:value="${type.idTrainingType}" th:field="*{idTrainingType}"
+                                                class="input-type">
+                                            <label th:for="'type-select-' + ${type.idTrainingType}"
+                                                th:text="${type.trainingTypeName}"></label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="training-date">
+                                    <p>Дата тренировки</p>
+                                    <input max="9999-12-31T23:59" type="datetime-local" th:id="'date-select'"
+                                        placeholder="············" th:field="*{session_date}" id="input-date">
+                                </div>
+                                <div class="session-time">
+                                    <p>Продолжительность тренировки</p>
+                                    <div class="duration-input">
+                                        <input type="number" step="1" th:id="'time-select'" placeholder="··"
+                                            th:field="*{sessionTime}" id="input-duration">
+                                        <span class="duration-label">мин</span>
+                                    </div>
+                                </div>
+
+                                <button type="submit" id="create-trainingForm-button">Добавить</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div th:case="'staff'" class="staff-container">
                     <div id='calendar' class='staff-calendar'></div>
                 </div>
             </th:block>
-
         </div>
     </div>
 
@@ -260,111 +287,111 @@
     </script>
 
     <script th:if="${role == 'member'}">
-    document.addEventListener('DOMContentLoaded', function () {
-        var calendarEl = document.getElementById('calendar');
-        var calendar = new FullCalendar.Calendar(calendarEl, {
-            locale: 'ru',
-            firstDay: 1,
-            initialView: 'listWeek',
-            headerToolbar: {
-                left: 'prev,next today',
-                center: 'title',
-                right: 'listWeek,listDay'
-            },
-            buttonText: {
-                prev: '<',
-                next: '>',
-                today: 'Сегодня',
-                week: 'По неделям',
-                day: 'По дням'
-            },
-            events: function (fetchInfo, successCallback, failureCallback) {
-                var form = document.getElementById('filterForm');
-                var formData = new FormData(form);
-                
-                const params = new URLSearchParams();
-                
-                formData.forEach((value, key) => {
-                    if (value) {
-                        if (key === 'id_trainer' || key === 'id_training_type') {
-                            params.append(key, value);
-                        } else {
-                            params.append(key, value);
-                        }
-                    }
-                });
-                
-                console.log('=== FILTER PARAMETERS ===');
-                console.log('Selected trainers:', Array.from(formData.getAll('id_trainer')));
-                console.log('Selected types:', Array.from(formData.getAll('id_training_type')));
-                console.log('Date start:', formData.get('session_date_start'));
-                console.log('Date end:', formData.get('session_date_end'));
-                console.log('Time start:', formData.get('session_time_start'));
-                console.log('Time end:', formData.get('session_time_end'));
-                console.log('Full URL params:', params.toString());
-                console.log('========================');
-                
-                var url = '/trainings?' + params.toString();
-                console.log('Final URL:', url);
+        document.addEventListener('DOMContentLoaded', function () {
+            var calendarEl = document.getElementById('calendar');
+            var calendar = new FullCalendar.Calendar(calendarEl, {
+                locale: 'ru',
+                firstDay: 1,
+                initialView: 'listWeek',
+                headerToolbar: {
+                    left: 'prev,next today',
+                    center: 'title',
+                    right: 'listWeek,listDay'
+                },
+                buttonText: {
+                    prev: '<',
+                    next: '>',
+                    today: 'Сегодня',
+                    week: 'По неделям',
+                    day: 'По дням'
+                },
+                events: function (fetchInfo, successCallback, failureCallback) {
+                    var form = document.getElementById('filterForm');
+                    var formData = new FormData(form);
 
-                fetch(url)
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Network response was not ok: ' + response.status);
+                    const params = new URLSearchParams();
+
+                    formData.forEach((value, key) => {
+                        if (value) {
+                            if (key === 'id_trainer' || key === 'id_training_type') {
+                                params.append(key, value);
+                            } else {
+                                params.append(key, value);
+                            }
                         }
-                        return response.json();
-                    })
-                    .then(events => {
-                        console.log('Received events count:', events.length);
-                        successCallback(events);
-                    })
-                    .catch(error => {
-                        console.error('Error fetching events:', error);
-                        failureCallback(error);
                     });
-            },
-            eventColor: 'color',
-            eventTimeFormat: {
-                hour: '2-digit',
-                minute: '2-digit',
-                meridiem: false,
-                hour12: false
-            },
-            eventClick: function (info) {
-                window.location.href = window.location.origin + '/calendar/training/' + info.event.id;
-            },
-            loading: function(isLoading) {
-                if (isLoading) {
-                    console.log('Calendar is loading...');
-                } else {
-                    console.log('Calendar loaded');
+
+                    console.log('=== FILTER PARAMETERS ===');
+                    console.log('Selected trainers:', Array.from(formData.getAll('id_trainer')));
+                    console.log('Selected types:', Array.from(formData.getAll('id_training_type')));
+                    console.log('Date start:', formData.get('session_date_start'));
+                    console.log('Date end:', formData.get('session_date_end'));
+                    console.log('Time start:', formData.get('session_time_start'));
+                    console.log('Time end:', formData.get('session_time_end'));
+                    console.log('Full URL params:', params.toString());
+                    console.log('========================');
+
+                    var url = '/trainings?' + params.toString();
+                    console.log('Final URL:', url);
+
+                    fetch(url)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Network response was not ok: ' + response.status);
+                            }
+                            return response.json();
+                        })
+                        .then(events => {
+                            console.log('Received events count:', events.length);
+                            successCallback(events);
+                        })
+                        .catch(error => {
+                            console.error('Error fetching events:', error);
+                            failureCallback(error);
+                        });
+                },
+                eventColor: 'color',
+                eventTimeFormat: {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    meridiem: false,
+                    hour12: false
+                },
+                eventClick: function (info) {
+                    window.location.href = window.location.origin + '/calendar/training/' + info.event.id;
+                },
+                loading: function (isLoading) {
+                    if (isLoading) {
+                        console.log('Calendar is loading...');
+                    } else {
+                        console.log('Calendar loaded');
+                    }
                 }
-            }
-        });
-        
-        calendar.render();
+            });
 
-        document.getElementById('filterForm').addEventListener('change', function (e) {
-            console.log('Filter changed:', e.target.name, e.target.value, e.target.checked);
-            console.log('Refetching events...');
-            calendar.refetchEvents();
-        });
+            calendar.render();
 
-        document.getElementById('filterForm').addEventListener('input', function (e) {
-            if (e.target.type === 'number') {
-                console.log('Number input changed:', e.target.name, e.target.value);
+            document.getElementById('filterForm').addEventListener('change', function (e) {
+                console.log('Filter changed:', e.target.name, e.target.value, e.target.checked);
+                console.log('Refetching events...');
                 calendar.refetchEvents();
-            }
+            });
+
+            document.getElementById('filterForm').addEventListener('input', function (e) {
+                if (e.target.type === 'number') {
+                    console.log('Number input changed:', e.target.name, e.target.value);
+                    calendar.refetchEvents();
+                }
+            });
+
+            document.getElementById('filterForm').addEventListener('input', function (e) {
+                if (e.target.type === 'date') {
+                    console.log('Date input changed:', e.target.name, e.target.value);
+                    calendar.refetchEvents();
+                }
+            });
         });
-        
-        document.getElementById('filterForm').addEventListener('input', function (e) {
-            if (e.target.type === 'date') {
-                console.log('Date input changed:', e.target.name, e.target.value);
-                calendar.refetchEvents();
-            }
-        });
-    });
-</script>
+    </script>
 </body>
 
 </html>

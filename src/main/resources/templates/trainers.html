@@ -20,9 +20,10 @@
         <div class="logo">
             <img th:src="@{/icons/logo.png}" alt="Logo">
         </div>
+
         <div class="icons">
             <th:block th:switch="${role}">
-                <div th:case="'member'">
+                <div th:case="'member'" class="icon-group">
                     <a class="profile" th:href="'/profile/member/' + ${memberId}">
                         <img th:src="@{/icons/profile.svg}" alt="Profile">
                     </a>
@@ -32,27 +33,14 @@
                     <a class="statistic" th:href="'/statistic/member/' + ${memberId}">
                         <img th:src="@{/icons/statistic.svg}" alt="Statistic">
                     </a>
-                    <a class="trainers" th:href="'/trainers'" id="selected">
+                    <a class="trainers" id="selected" th:href="'/trainers'">
                         <img th:src="@{/icons/trainers-white.svg}" alt="trainers">
                     </a>
                 </div>
-                <div th:case="'trainer'">
-                    <a class="profile" th:href="'/profile/trainer/' + ${trainerId}">
-                        <img th:src="@{/icons/profile.svg}" alt="Profile">
-                    </a>
-                    <a class="calendar" th:href="'/calendar/trainer/' + ${trainerId}">
-                        <img th:src="@{/icons/calendar.svg}" alt="Calendar">
-                    </a>
-                </div>
-                <div th:case="'staff'">
-                    <a class="profile" th:href="'/profile/staff/' + ${staffId}">
-                        <img th:src="@{/icons/profile.svg}" alt="Profile">
-                    </a>
-                    <a class="calendar" th:href="'/calendar/staff/' + ${staffId}">
-                        <img th:src="@{/icons/calendar.svg}" alt="Calendar">
-                    </a>
-                </div>
             </th:block>
+        </div>
+
+        <div class="logout-container">
             <a class="logout" th:href="'/logout'">
                 <img th:src="@{/icons/logout.svg}" alt="Log out">
             </a>
@@ -70,8 +58,6 @@
                 <div class="trainer-description">
                     <p class="trainer-name" th:text="${trainer.firstName} + ' ' + ${trainer.secondName}"></p>
                 </div>
-
-                <!-- ВОТ ЭТОТ БЛОК БЫЛ УДАЛЕН - ВЕРНИТЕ ЕГО! -->
                 <div class="buttons" th:if="${role == 'member'}">
                     <form th:action="'/trainers/subscribe'" method="post" th:object="${trainingRequest}"
                         class="subscribe-form">
@@ -86,13 +72,11 @@
             </div>
         </div>
     </div>
-
-    <!-- Все sidebar выносятся отдельно -->
     <div th:each="trainer, iter : ${trainers}" th:if="${role == 'member'}">
         <div class="trainer-sidebar" th:id="'sidebar-' + ${iter.index}">
             <h2>Выберите время тренировки</h2>
             <div class="registration">
-                <input max="9999-12-31T23:59" type="datetime-local" class="date" name="sessionDateInput"
+                <input type="datetime-local" class="date" name="sessionDateInput"
                     th:id="'date-input-' + ${iter.index}" />
             </div>
 
@@ -100,8 +84,6 @@
                 <h2>Занятость тренера</h2>
                 <ul th:id="'scheduleList-' + ${iter.index}" class="scheduleList"></ul>
             </div>
-
-            <!-- ИЗМЕНИТЕ ЭТУ КНОПКУ - добавить data-form-index -->
             <button type="button" class="signup-button" th:data-form-index="${iter.index}"
                 th:onclick="|submitForm(this)|">
                 Записаться
@@ -112,7 +94,6 @@
     </div>
 
     <script>
-        // Ваш JavaScript код остается без изменений
         async function submitForm(button) {
             // Получаем индекс формы из data-атрибута
             const formIndex = button.getAttribute('data-form-index');
@@ -173,6 +154,26 @@
             day = day < 10 ? '0' + day : day;
 
             return day + '-' + month;
+        }
+
+        function setDateLimits(dateInput) {
+            const now = new Date();
+            const maxDate = new Date();
+            maxDate.setMonth(now.getMonth() + 1); // Месяц вперед от текущей даты
+
+            // Форматируем даты в правильном формате для input[datetime-local]
+            dateInput.min = formatDateForInput(now);
+            dateInput.max = formatDateForInput(maxDate);
+        }
+
+        function formatDateForInput(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
         }
 
         // ОБНОВИТЕ функцию fetchSchedule для работы с новым подходом
@@ -244,7 +245,6 @@
             }
         }
 
-        // ОБНОВИТЕ обработчики в DOMContentLoaded
         document.addEventListener('DOMContentLoaded', function () {
             const forms = document.querySelectorAll('.subscribe-form');
             const overlay = document.getElementById('overlay');
@@ -258,23 +258,27 @@
                 if (!trainerSidebar) return;
 
                 let closeSidebarButton = trainerSidebar.querySelector('.closeSidebar');
+                let dateInput = trainerSidebar.querySelector('input[type="datetime-local"]');
+
+                // Устанавливаем ограничения даты при загрузке
+                if (dateInput) {
+                    setDateLimits(dateInput);
+                }
 
                 // Обработчик изменения даты
                 if (trainingDateField) {
                     trainingDateField.addEventListener('change', function () {
-                        fetchSchedule(index); // Передаем индекс вместо формы
+                        fetchSchedule(index);
                     });
                 }
 
                 // Открытие sidebar
                 if (openSidebarButton) {
                     openSidebarButton.addEventListener('click', function () {
-                        // Закрываем предыдущий открытый sidebar
                         if (currentSidebar) {
                             currentSidebar.classList.remove('active');
                         }
 
-                        // Открываем текущий
                         trainerSidebar.classList.add('active');
                         currentSidebar = trainerSidebar;
 
@@ -286,8 +290,22 @@
                         if (trainingDateField && !trainingDateField.value) {
                             let now = new Date();
                             now.setMinutes(now.getMinutes() + 30);
-                            trainingDateField.value = now.toISOString().slice(0, 16);
-                            fetchSchedule(index); // Передаем индекс
+
+                            // Проверяем, что дата не превышает максимальную
+                            const maxDate = new Date();
+                            maxDate.setMonth(maxDate.getMonth() + 1);
+
+                            if (now.getTime() > maxDate.getTime()) {
+                                now = new Date(maxDate); // Устанавливаем максимальную дату
+                            }
+
+                            trainingDateField.value = formatDateForInput(now);
+                            fetchSchedule(index);
+                        }
+
+                        // Обновляем ограничения даты при каждом открытии
+                        if (dateInput) {
+                            setDateLimits(dateInput);
                         }
                     });
                 }
@@ -312,19 +330,8 @@
                     overlay.style.display = 'none';
                 });
             }
-
-            // Установка минимальной даты
-            const dateControls = document.querySelectorAll('input[type="datetime-local"]');
-            let now = new Date();
-            let minDateTime = now.toISOString().slice(0, 16);
-            dateControls.forEach(dateControl => {
-                if (dateControl) {
-                    dateControl.min = minDateTime;
-                }
-            });
         });
 
-        // ОБНОВИТЕ функцию checkData
         async function checkData(form) {
             let trainerIdInput = form.querySelector('input[name="trainerId"]');
             let id_trainer = trainerIdInput ? trainerIdInput.value : '';
@@ -344,6 +351,21 @@
 
             let newEventStart = new Date(dateInput.value);
             let newEventEnd = new Date(newEventStart.getTime() + 60 * 60000);
+
+            // ПРАВИЛЬНОЕ сравнение дат - используем временную метку
+            const now = new Date();
+            const maxDate = new Date();
+            maxDate.setMonth(now.getMonth() + 1);
+
+            if (newEventStart.getTime() < now.getTime()) {
+                alert("Нельзя записаться на прошедшую дату");
+                return false;
+            }
+
+            if (newEventStart.getTime() > maxDate.getTime()) {
+                alert("Запись возможна только на ближайший месяц");
+                return false;
+            }
 
             try {
                 const response = await fetch(url);
