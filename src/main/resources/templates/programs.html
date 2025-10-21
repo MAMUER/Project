@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+<head>
+    <title>Мои программы тренировок</title>
+    <link rel="stylesheet" th:href="@{/css/programs.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Хедер -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="page-title">Мои программы тренировок</h1>
+                <div class="header-actions">
+                    <a th:href="@{/profile/member/{id}(id=${memberId})}" class="back-button">
+                        <ion-icon name="arrow-back-outline"></ion-icon>
+                        Назад в профиль
+                    </a>
+                    <a th:href="@{/programs/generate/{id}(id=${memberId})}" class="generate-button">
+                        <ion-icon name="add-outline"></ion-icon>
+                        Новая программа
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Сообщения -->
+        <div class="messages" th:if="${success} or ${error}">
+            <div class="success-message" th:if="${success}" th:text="${success}"></div>
+            <div class="error-message" th:if="${error}" th:text="${error}"></div>
+        </div>
+
+        <!-- Активная программа -->
+        <div class="active-program-section" th:if="${activeProgram}">
+            <div class="section-header">
+                <h2>📊 Активная программа</h2>
+                <span class="active-badge">АКТИВНА</span>
+            </div>
+            <div class="program-card active">
+                <div class="program-header">
+                    <h3 th:text="${activeProgram.programName}">Название программы</h3>
+                    <div class="program-meta">
+                        <span class="meta-item">
+                            <ion-icon name="flag-outline"></ion-icon>
+                            <span th:text="${activeProgram.goal}">Цель</span>
+                        </span>
+                        <span class="meta-item">
+                            <ion-icon name="fitness-outline"></ion-icon>
+                            <span th:text="${activeProgram.level}">Уровень</span>
+                        </span>
+                        <span class="meta-item">
+                            <ion-icon name="calendar-outline"></ion-icon>
+                            <span th:text="${activeProgram.durationWeeks} + ' недель'">Длительность</span>
+                        </span>
+                    </div>
+                </div>
+                
+                <div class="program-days" th:if="${activeProgram.programDays != null and not activeProgram.programDays.empty}">
+                    <div class="day-card" th:each="day : ${activeProgram.programDays}">
+                        <h4 th:text="${day.dayName}">День</h4>
+                        <span class="muscle-groups" th:text="${day.muscleGroups}">Группы мышц</span>
+                        
+                        <div class="exercises-list" th:if="${day.exercises != null and not day.exercises.empty}">
+                            <div class="exercise-item" th:each="exercise : ${day.exercises}">
+                                <div class="exercise-info">
+                                    <span class="exercise-name" th:text="${exercise.exercise.exerciseName}">Упражнение</span>
+                                    <span class="exercise-sets" th:text="${exercise.sets} + '×' + ${exercise.reps}">Подходы×Повторения</span>
+                                </div>
+                                <div class="exercise-details" th:if="${exercise.weight != null}">
+                                    <span th:text="${exercise.weight} + ' кг'">Вес</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="no-exercises" th:if="${day.exercises == null or day.exercises.empty}">
+                            <p>Упражнения не назначены</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="no-days" th:if="${activeProgram.programDays == null or activeProgram.programDays.empty}">
+                    <p>Дни тренировок не настроены</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Все программы -->
+        <div class="all-programs-section">
+            <div class="section-header">
+                <h2>📁 Все программы</h2>
+                <span class="programs-count" th:text="${#lists.size(programs)} + ' программ'"></span>
+            </div>
+
+            <div class="programs-grid" th:if="${not #lists.isEmpty(programs)}">
+                <div class="program-card" th:each="program : ${programs}" 
+                     th:classappend="${program.isActive} ? 'active' : ''">
+                    <div class="program-header">
+                        <h3 th:text="${program.programName}">Название программы</h3>
+                        <div class="program-actions">
+                            <form th:action="@{/programs/activate/{memberId}/{programId}(memberId=${memberId}, programId=${program.idProgram})}" 
+                                  method="post" th:if="${not program.isActive}">
+                                <button type="submit" class="activate-btn">
+                                    <ion-icon name="play-circle-outline"></ion-icon>
+                                    Активировать
+                                </button>
+                            </form>
+                            <span class="active-indicator" th:if="${program.isActive}">
+                                <ion-icon name="checkmark-circle"></ion-icon>
+                                Активна
+                            </span>
+                        </div>
+                    </div>
+                    
+                    <div class="program-info">
+                        <div class="info-row">
+                            <span class="info-label">Цель:</span>
+                            <span th:text="${program.goal}" class="info-value">Цель</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Уровень:</span>
+                            <span th:text="${program.level}" class="info-value">Уровень</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Длительность:</span>
+                            <span th:text="${program.durationWeeks} + ' недель'" class="info-value">Длительность</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Создана:</span>
+                            <span th:text="${#temporals.format(program.createdDate, 'dd.MM.yyyy')}" class="info-value">Дата</span>
+                        </div>
+                    </div>
+                    
+                    <div class="program-stats">
+                        <div class="stat">
+                            <span class="stat-number" th:text="${program.programDays != null ? program.programDays.size() : 0}">0</span>
+                            <span class="stat-label">дней в неделю</span>
+                        </div>
+                        <div class="stat">
+                            <!-- УПРОЩЕННОЕ ВЫРАЖЕНИЕ ДЛЯ ПОДСЧЕТА УПРАЖНЕНИЙ -->
+                            <span class="stat-number" th:text="${#lists.size(program.programDays.?[#this != null].![exercises].?[#this != null])}">0</span>
+                            <span class="stat-label">упражнений</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="empty-state" th:if="${#lists.isEmpty(programs)}">
+                <div class="empty-icon">
+                    <ion-icon name="barbell-outline"></ion-icon>
+                </div>
+                <h3>У вас пока нет программ тренировок</h3>
+                <p>Создайте свою первую программу, чтобы начать тренироваться по плану</p>
+                <a th:href="@{/programs/generate/{id}(id=${memberId})}" class="cta-button">
+                    <ion-icon name="add-outline"></ion-icon>
+                    Создать программу
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

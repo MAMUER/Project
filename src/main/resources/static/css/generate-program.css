@@ -1,0 +1,353 @@
+* {
+    font-family: "Open Sans", sans-serif;
+    box-sizing: border-box;
+}
+
+body {
+    background: #f8fafc;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    color: #334155;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Хедер */
+.header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #64748b;
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 16px;
+    transition: color 0.3s ease;
+}
+
+.back-link:hover {
+    color: #0795E8;
+}
+
+.page-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px 0;
+}
+
+.page-subtitle {
+    font-size: 18px;
+    color: #64748b;
+    margin: 0;
+}
+
+/* Сообщения */
+.messages {
+    margin-bottom: 24px;
+}
+
+.error-message {
+    background: #fee2e2;
+    color: #991b1b;
+    padding: 16px;
+    border-radius: 12px;
+    border: 1px solid #fecaca;
+    font-weight: 600;
+}
+
+/* Форма */
+.generation-form {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    box-shadow: 0 4px 24px rgba(7, 7, 232, 0.08);
+    margin-bottom: 40px;
+}
+
+.form-section {
+    margin-bottom: 40px;
+}
+
+.section-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Сетка опций */
+.options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+}
+
+.option-card {
+    position: relative;
+    cursor: pointer;
+}
+
+.option-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.option-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 24px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+    background: white;
+    height: 100%;
+}
+
+.option-card input[type="radio"]:checked + .option-content {
+    border-color: #0795E8;
+    background: #f0f9ff;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(7, 149, 232, 0.15);
+}
+
+.option-card:hover .option-content {
+    border-color: #cbd5e1;
+    transform: translateY(-1px);
+}
+
+.option-card ion-icon {
+    font-size: 32px;
+    color: #0795E8;
+    margin-bottom: 12px;
+}
+
+.option-title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 8px;
+}
+
+.option-description {
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+/* Выбор длительности */
+.duration-selector {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.duration-option {
+    flex: 1;
+    min-width: 120px;
+    position: relative;
+    cursor: pointer;
+}
+
+.duration-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.duration-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    background: white;
+    text-align: center;
+}
+
+.duration-option input[type="radio"]:checked + .duration-content {
+    border-color: #0795E8;
+    background: #f0f9ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.15);
+}
+
+.duration-option:hover .duration-content {
+    border-color: #cbd5e1;
+}
+
+.duration-time {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.duration-desc {
+    font-size: 12px;
+    color: #64748b;
+}
+
+/* Действия формы */
+.form-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 40px;
+    padding-top: 32px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.generate-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(135deg, #0795E8, #074EE8);
+    color: white;
+    border: none;
+    padding: 16px 32px;
+    border-radius: 16px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.3);
+}
+
+.generate-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(7, 149, 232, 0.4);
+}
+
+.cancel-button {
+    display: inline-block;
+    padding: 16px 32px;
+    background: #f1f5f9;
+    color: #475569;
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.cancel-button:hover {
+    background: #e2e8f0;
+    transform: translateY(-1px);
+}
+
+/* Предпросмотр */
+.preview-section {
+    text-align: center;
+}
+
+.preview-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 24px;
+    margin-top: 24px;
+}
+
+.preview-card {
+    background: white;
+    padding: 32px 24px;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    transition: transform 0.3s ease;
+}
+
+.preview-card:hover {
+    transform: translateY(-4px);
+}
+
+.preview-card ion-icon {
+    font-size: 40px;
+    color: #0795E8;
+    margin-bottom: 16px;
+}
+
+.preview-card h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 12px 0;
+}
+
+.preview-card p {
+    font-size: 14px;
+    color: #64748b;
+    line-height: 1.5;
+    margin: 0;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .container {
+        padding: 16px;
+    }
+    
+    .generation-form {
+        padding: 24px;
+    }
+    
+    .page-title {
+        font-size: 28px;
+    }
+    
+    .options-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .duration-selector {
+        flex-direction: column;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .generate-button, .cancel-button {
+        text-align: center;
+        justify-content: center;
+    }
+    
+    .preview-cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .generation-form {
+        padding: 20px;
+    }
+    
+    .page-title {
+        font-size: 24px;
+    }
+    
+    .section-title {
+        font-size: 18px;
+    }
+    
+    .option-content, .duration-content {
+        padding: 20px 12px;
+    }
+}

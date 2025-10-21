@@ -122,7 +122,7 @@ CREATE TABLE gyms_have_equipment (
 
 CREATE TABLE inbody_analyses (
     id_inbody_analys SERIAL PRIMARY KEY NOT NULL,
-    height FLOAT,
+    HEIGHT FLOAT,
     weight FLOAT,
     bmi FLOAT,
     fat_percent FLOAT,
@@ -272,4 +272,52 @@ CREATE TABLE trainers_accounts (
     user_role VARCHAR(45) NOT NULL,
     FOREIGN KEY (id_trainer) REFERENCES trainers (id_trainer) ON DELETE CASCADE ON UPDATE CASCADE,
     FOREIGN KEY (id_trainers_photo) REFERENCES trainers_photo (id_trainers_photo) ON DELETE SET DEFAULT ON UPDATE CASCADE
+);
+
+-- Таблица упражнений
+CREATE TABLE exercises (
+    id_exercise SERIAL PRIMARY KEY,
+    exercise_name VARCHAR(100) NOT NULL,
+    description VARCHAR(300),
+    muscle_group VARCHAR(50),
+    difficulty_level INTEGER,
+    equipment_required VARCHAR(100),
+    estimated_calories INTEGER
+);
+
+-- Таблица программ тренировок
+CREATE TABLE training_programs (
+    id_program SERIAL PRIMARY KEY,
+    id_member INTEGER NOT NULL,
+    program_name VARCHAR(100) NOT NULL,
+    goal VARCHAR(100),
+    level VARCHAR(20),
+    duration_weeks INTEGER,
+    created_date DATE,
+    is_active BOOLEAN DEFAULT true,
+    FOREIGN KEY (id_member) REFERENCES members (id_member) ON DELETE CASCADE
+);
+
+-- Таблица дней программы
+CREATE TABLE program_days (
+    id_day SERIAL PRIMARY KEY,
+    id_program INTEGER NOT NULL,
+    day_number INTEGER,
+    day_name VARCHAR(20),
+    muscle_groups VARCHAR(100),
+    FOREIGN KEY (id_program) REFERENCES training_programs (id_program) ON DELETE CASCADE
+);
+
+-- Таблица упражнений в днях программы
+CREATE TABLE program_exercises (
+    id_program_exercise SERIAL PRIMARY KEY,
+    id_day INTEGER NOT NULL,
+    id_exercise INTEGER NOT NULL,
+    sets INTEGER,
+    reps INTEGER,
+    weight DOUBLE PRECISION,
+    rest_seconds INTEGER,
+    order_index INTEGER,
+    FOREIGN KEY (id_day) REFERENCES program_days (id_day) ON DELETE CASCADE,
+    FOREIGN KEY (id_exercise) REFERENCES exercises (id_exercise) ON DELETE CASCADE
 );

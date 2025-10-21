@@ -1,0 +1,463 @@
+* {
+    font-family: "Open Sans", sans-serif;
+    box-sizing: border-box;
+}
+
+body {
+    background: #f8fafc;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    color: #334155;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Хедер */
+.header {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.page-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.header-actions {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.back-button, .generate-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 20px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.back-button {
+    background: #f1f5f9;
+    color: #475569;
+    border-color: #e2e8f0;
+}
+
+.back-button:hover {
+    background: #e2e8f0;
+    transform: translateY(-1px);
+}
+
+.generate-button {
+    background: #0795E8;
+    color: white;
+}
+
+.generate-button:hover {
+    background: #074EE8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(7, 78, 232, 0.3);
+}
+
+/* Сообщения */
+.messages {
+    margin-bottom: 24px;
+}
+
+.success-message, .error-message {
+    padding: 16px;
+    border-radius: 12px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.success-message {
+    background: #d1fae5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
+}
+
+.error-message {
+    background: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+}
+
+/* Секции */
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.section-header h2 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.active-badge {
+    background: #10b981;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.programs-count {
+    color: #64748b;
+    font-size: 14px;
+}
+
+/* Карточки программ */
+.programs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.program-card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    border: 2px solid #e2e8f0;
+    transition: all 0.3s ease;
+}
+
+.program-card.active {
+    border-color: #0795E8;
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.15);
+}
+
+.program-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.12);
+}
+
+.program-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+    gap: 12px;
+}
+
+.program-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+    flex: 1;
+}
+
+.program-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #64748b;
+    font-size: 14px;
+}
+
+.meta-item ion-icon {
+    font-size: 16px;
+}
+
+/* Дни тренировок */
+.program-days {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+}
+
+.day-card {
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid #e2e8f0;
+}
+
+.day-card h4 {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px 0;
+}
+
+.muscle-groups {
+    display: inline-block;
+    background: #e0f2fe;
+    color: #0369a1;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.exercises-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.exercise-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px;
+    background: white;
+    border-radius: 8px;
+    border: 1px solid #f1f5f9;
+}
+
+.exercise-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.exercise-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+}
+
+.exercise-sets {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.exercise-details {
+    font-size: 12px;
+    color: #0795E8;
+    font-weight: 600;
+}
+
+/* Информация о программе */
+.program-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.info-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.info-label {
+    font-size: 14px;
+    color: #64748b;
+}
+
+.info-value {
+    font-size: 14px;
+    font-weight: 600;
+    color: #334155;
+}
+
+/* Статистика */
+.program-stats {
+    display: flex;
+    gap: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #f1f5f9;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.stat-number {
+    font-size: 24px;
+    font-weight: 700;
+    color: #0795E8;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 4px;
+}
+
+/* Кнопки действий */
+.program-actions {
+    display: flex;
+    align-items: center;
+}
+
+.activate-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #10b981;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.activate-btn:hover {
+    background: #059669;
+    transform: translateY(-1px);
+}
+
+.active-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #10b981;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.active-indicator ion-icon {
+    font-size: 18px;
+}
+
+/* Пустое состояние */
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+}
+
+.empty-icon {
+    font-size: 64px;
+    color: #cbd5e1;
+    margin-bottom: 20px;
+}
+
+.empty-state h3 {
+    font-size: 20px;
+    color: #475569;
+    margin: 0 0 12px 0;
+}
+
+.empty-state p {
+    color: #64748b;
+    margin: 0 0 24px 0;
+    max-width: 400px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.cta-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: #0795E8;
+    color: white;
+    padding: 14px 28px;
+    border-radius: 12px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.cta-button:hover {
+    background: #074EE8;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(7, 78, 232, 0.3);
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .container {
+        padding: 16px;
+    }
+    
+    .header-content {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .header-actions {
+        justify-content: center;
+    }
+    
+    .programs-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .program-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .program-days {
+        grid-template-columns: 1fr;
+    }
+    
+    .section-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+
+@media (max-width: 480px) {
+    .page-title {
+        font-size: 24px;
+    }
+    
+    .program-card {
+        padding: 20px;
+    }
+    
+    .program-stats {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .back-button, .generate-button {
+        padding: 10px 16px;
+        font-size: 14px;
+    }
+}

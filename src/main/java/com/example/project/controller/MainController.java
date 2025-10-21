@@ -14,12 +14,14 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 
 import com.example.project.dto.NewsDTO;
+import com.example.project.dto.ProgramRequest;
 import com.example.project.model.Achievements;
 import com.example.project.model.EquipmentStatistics;
 import com.example.project.model.Members;
 import com.example.project.model.Staff;
 import com.example.project.model.StaffSchedule;
 import com.example.project.model.Trainers;
+import com.example.project.model.TrainingProgram;
 import com.example.project.model.TrainingSchedule;
 import com.example.project.model.TrainingType;
 import com.example.project.model.Accounts.MembersAccounts;
@@ -34,9 +36,11 @@ import com.example.project.service.CustomUserDetailsService;
 import com.example.project.service.Event;
 import com.example.project.service.MembersService;
 import com.example.project.service.NewsService;
+import com.example.project.service.ProgramGeneratorService;
 import com.example.project.service.StaffScheduleService;
 import com.example.project.service.StaffService;
 import com.example.project.service.TrainersService;
+import com.example.project.service.TrainingProgramService;
 import com.example.project.service.TrainingRequest;
 import com.example.project.service.TrainingScheduleService;
 import com.example.project.service.TrainingTypeService;
@@ -47,7 +51,9 @@ import lombok.AllArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -68,6 +74,95 @@ public class MainController {
     private final MembersAccountsRepository membersAccountsRepo;
     private final TrainersAccountsRepository trainersAccountsRepo;
     private final StaffAccountsRepository staffAccountsRepo;
+    // Добавьте эти зависимости в MainController
+    private final TrainingProgramService trainingProgramService;
+    private final ProgramGeneratorService programGeneratorService;
+
+    // Добавьте эти методы в MainController
+    @GetMapping("/programs/member/{id}")
+    public String memberPrograms(@PathVariable Integer id, Model model) {
+        // Проверка доступа
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username = ((UserDetails) principal).getUsername();
+        Integer currentUserId = userDetailsService.getUserId(username);
+        String currentUserRole = userDetailsService.getUserRole(username);
+
+        if (!currentUserId.equals(id) || !"member".equals(currentUserRole)) {
+            return "redirect:/access-denied";
+        }
+
+        Members member = membersService.getMember(id);
+        List<TrainingProgram> programs = trainingProgramService.getMemberPrograms(id);
+        TrainingProgram activeProgram = programs.stream()
+                .filter(TrainingProgram::getIsActive)
+                .findFirst()
+                .orElse(null);
+
+        // Добавляем счетчики упражнений для каждой программы
+        Map<Integer, Integer> exerciseCounts = new HashMap<>();
+        for (TrainingProgram program : programs) {
+            exerciseCounts.put(program.getIdProgram(), trainingProgramService.getTotalExercisesCount(program));
+        }
+
+        model.addAttribute("member", member);
+        model.addAttribute("memberId", id);
+        model.addAttribute("programs", programs);
+        model.addAttribute("activeProgram", activeProgram);
+        model.addAttribute("programRequest", new ProgramRequest());
+        model.addAttribute("exerciseCounts", exerciseCounts); // Добавляем счетчики
+
+        return "programs";
+    }
+
+    @GetMapping("/programs/generate/{id}")
+    public String generateProgramForm(@PathVariable Integer id, Model model) {
+        // Проверка доступа
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username = ((UserDetails) principal).getUsername();
+        Integer currentUserId = userDetailsService.getUserId(username);
+
+        if (!currentUserId.equals(id)) {
+            return "redirect:/access-denied";
+        }
+
+        model.addAttribute("memberId", id);
+        model.addAttribute("programRequest", new ProgramRequest());
+        return "generate-program";
+    }
+
+    @PostMapping("/programs/generate/{id}")
+    public String generateProgram(@PathVariable Integer id,
+            @ModelAttribute ProgramRequest programRequest,
+            Model model) {
+        try {
+            TrainingProgram program = programGeneratorService.generateProgram(id, programRequest);
+            // Программа автоматически сохраняется в generateProgram методе
+            // Мы можем добавить логирование или другую обработку при необходимости
+            System.out.println("Создана программа: " + program.getProgramName() + " для пользователя " + id);
+
+            model.addAttribute("success", "Программа тренировок успешно создана!");
+            return "redirect:/programs/member/" + id;
+        } catch (Exception e) {
+            model.addAttribute("error", "Ошибка при создании программы: " + e.getMessage());
+            model.addAttribute("memberId", id);
+            model.addAttribute("programRequest", programRequest);
+            return "generate-program";
+        }
+    }
+
+    @PostMapping("/programs/activate/{memberId}/{programId}")
+    public String activateProgram(@PathVariable Integer memberId,
+            @PathVariable Integer programId) {
+        trainingProgramService.deactivateOtherPrograms(memberId, programId);
+
+        TrainingProgram program = trainingProgramService.getProgram(programId);
+        if (program != null) {
+            program.setIsActive(true);
+            trainingProgramService.saveProgram(program);
+        }
+
+        return "redirect:/programs/member/" + memberId;
+    }
 
     @GetMapping("/")
     public String redirectToLogin() {

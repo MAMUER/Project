@@ -36,6 +36,9 @@
                     <a class="trainers" th:href="'/trainers'">
                         <img th:src="@{/icons/trainers.svg}" alt="trainers">
                     </a>
+                    <a class="programs" th:href="'/programs/member/' + ${memberId}">
+                        <img th:src="@{/icons/programs.svg}" alt="Programs">
+                    </a>
                 </div>
                 <div th:case="'trainer'" class="icon-group">
                     <a class="profile" id="selected" th:href="'/profile/trainer/' + ${trainerId}">

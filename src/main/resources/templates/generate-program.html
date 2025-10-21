@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+<head>
+    <title>Создание программы тренировок</title>
+    <link rel="stylesheet" th:href="@{/css/generate-program.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Хедер -->
+        <header class="header">
+            <div class="header-content">
+                <a th:href="@{/programs/member/{id}(id=${memberId})}" class="back-link">
+                    <ion-icon name="arrow-back-outline"></ion-icon>
+                    Назад к программам
+                </a>
+                <h1 class="page-title">Создание программы тренировок</h1>
+                <p class="page-subtitle">Заполните параметры для генерации индивидуальной программы</p>
+            </div>
+        </header>
+
+        <!-- Сообщения -->
+        <div class="messages" th:if="${error}">
+            <div class="error-message" th:text="${error}"></div>
+        </div>
+
+        <!-- Форма генерации -->
+        <div class="generation-form">
+            <form th:action="@{/programs/generate/{id}(id=${memberId})}" method="post" class="form">
+                <div class="form-section">
+                    <h2 class="section-title">🎯 Цель тренировок</h2>
+                    <div class="options-grid">
+                        <label class="option-card">
+                            <input type="radio" name="goal" value="похудение" required>
+                            <div class="option-content">
+                                <ion-icon name="flame-outline"></ion-icon>
+                                <span class="option-title">Похудение</span>
+                                <span class="option-description">Сжигание жира, повышение выносливости</span>
+                            </div>
+                        </label>
+                        
+                        <label class="option-card">
+                            <input type="radio" name="goal" value="набор_массы" required>
+                            <div class="option-content">
+                                <ion-icon name="barbell-outline"></ion-icon>
+                                <span class="option-title">Набор массы</span>
+                                <span class="option-description">Увеличение мышечной массы и силы</span>
+                            </div>
+                        </label>
+                        
+                        <label class="option-card">
+                            <input type="radio" name="goal" value="поддержание" required>
+                            <div class="option-content">
+                                <ion-icon name="fitness-outline"></ion-icon>
+                                <span class="option-title">Поддержание формы</span>
+                                <span class="option-description">Сохранение текущей формы и тонуса</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2 class="section-title">📊 Уровень подготовки</h2>
+                    <div class="options-grid">
+                        <label class="option-card">
+                            <input type="radio" name="level" value="начальный" required>
+                            <div class="option-content">
+                                <ion-icon name="walk-outline"></ion-icon>
+                                <span class="option-title">Начальный</span>
+                                <span class="option-description">3 дня в неделю, базовые упражнения</span>
+                            </div>
+                        </label>
+                        
+                        <label class="option-card">
+                            <input type="radio" name="level" value="средний" required>
+                            <div class="option-content">
+                                <ion-icon name="bicycle-outline"></ion-icon>
+                                <span class="option-title">Средний</span>
+                                <span class="option-description">4 дня в неделю, разнообразные упражнения</span>
+                            </div>
+                        </label>
+                        
+                        <label class="option-card">
+                            <input type="radio" name="level" value="продвинутый" required>
+                            <div class="option-content">
+                                <ion-icon name="rocket-outline"></ion-icon>
+                                <span class="option-title">Продвинутый</span>
+                                <span class="option-description">5 дней в неделю, интенсивные тренировки</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2 class="section-title">⏱️ Длительность программы</h2>
+                    <div class="duration-selector">
+                        <label class="duration-option">
+                            <input type="radio" name="durationWeeks" value="4" required>
+                            <span class="duration-content">
+                                <span class="duration-time">4 недели</span>
+                                <span class="duration-desc">Краткосрочная программа</span>
+                            </span>
+                        </label>
+                        
+                        <label class="duration-option">
+                            <input type="radio" name="durationWeeks" value="8" required checked>
+                            <span class="duration-content">
+                                <span class="duration-time">8 недель</span>
+                                <span class="duration-desc">Стандартная программа</span>
+                            </span>
+                        </label>
+                        
+                        <label class="duration-option">
+                            <input type="radio" name="durationWeeks" value="12" required>
+                            <span class="duration-content">
+                                <span class="duration-time">12 недель</span>
+                                <span class="duration-desc">Долгосрочная программа</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="generate-button">
+                        <ion-icon name="sparkles-outline"></ion-icon>
+                        Сгенерировать программу
+                    </button>
+                    <a th:href="@{/programs/member/{id}(id=${memberId})}" class="cancel-button">
+                        Отмена
+                    </a>
+                </div>
+            </form>
+        </div>
+
+        <!-- Предпросмотр программы -->
+        <div class="preview-section">
+            <h2 class="section-title">👀 Что вас ждет</h2>
+            <div class="preview-cards">
+                <div class="preview-card">
+                    <ion-icon name="calendar-outline"></ion-icon>
+                    <h3>Индивидуальный план</h3>
+                    <p>Программа будет адаптирована под ваши цели и уровень подготовки</p>
+                </div>
+                
+                <div class="preview-card">
+                    <ion-icon name="barbell-outline"></ion-icon>
+                    <h3>Сбалансированные тренировки</h3>
+                    <p>Оптимальное сочетание силовых и кардио упражнений</p>
+                </div>
+                
+                <div class="preview-card">
+                    <ion-icon name="stats-chart-outline"></ion-icon>
+                    <h3>Прогрессия нагрузок</h3>
+                    <p>Постепенное увеличение интенсивности для лучших результатов</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Взаимодействие между выбором цели и уровня
+        document.addEventListener('DOMContentLoaded', function() {
+            const goalInputs = document.querySelectorAll('input[name="goal"]');
+            const levelInputs = document.querySelectorAll('input[name="level"]');
+            
+            function updateRecommendations() {
+                const selectedGoal = document.querySelector('input[name="goal"]:checked')?.value;
+                const selectedLevel = document.querySelector('input[name="level"]:checked')?.value;
+                
+                // Можно добавить логику рекомендаций при необходимости
+            }
+            
+            goalInputs.forEach(input => input.addEventListener('change', updateRecommendations));
+            levelInputs.forEach(input => input.addEventListener('change', updateRecommendations));
+        });
+    </script>
+</body>
+</html>
