@@ -118,7 +118,7 @@ body {
     height: 100%;
 }
 
-.option-card input[type="radio"]:checked + .option-content {
+.option-card input[type="radio"]:checked+.option-content {
     border-color: #0795E8;
     background: #f0f9ff;
     transform: translateY(-2px);
@@ -180,7 +180,7 @@ body {
     text-align: center;
 }
 
-.duration-option input[type="radio"]:checked + .duration-content {
+.duration-option input[type="radio"]:checked+.duration-content {
     border-color: #0795E8;
     background: #f0f9ff;
     transform: translateY(-2px);
@@ -297,38 +297,181 @@ body {
     margin: 0;
 }
 
+/* В generate-program.css ДОБАВЛЯЕМ */
+.club-selection {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    border: 2px solid #e2e8f0;
+}
+
+.club-label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 8px;
+    color: #1e293b;
+}
+
+.club-select {
+    width: 100%;
+    padding: 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 16px;
+    margin-bottom: 16px;
+}
+
+.club-info {
+    background: #f8fafc;
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
+}
+
+.equipment-summary,
+.capabilities-summary {
+    margin-bottom: 16px;
+}
+
+.equipment-summary h4,
+.capabilities-summary h4 {
+    margin: 0 0 8px 0;
+    color: #1e293b;
+    font-size: 16px;
+}
+
+.equipment-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.equipment-type {
+    color: #64748b;
+}
+
+.equipment-quantity {
+    font-weight: 600;
+    color: #0795E8;
+}
+
+.muscle-group-item {
+    padding: 2px 0;
+    color: #475569;
+    font-size: 14px;
+}
+
+/* Добавляем в существующий CSS */
+
+/* Секция информации о клубе */
+.club-info-section {
+    margin-bottom: 30px;
+}
+
+.club-card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    border: 2px solid #e2e8f0;
+    transition: all 0.3s ease;
+}
+
+.club-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.12);
+}
+
+.club-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 8px 0;
+}
+
+.club-address {
+    color: #64748b;
+    font-size: 14px;
+    margin: 0 0 20px 0;
+}
+
+.club-capabilities {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.capability-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 1;
+    min-width: 250px;
+}
+
+.capability-item ion-icon {
+    font-size: 24px;
+    color: #0795E8;
+    margin-top: 4px;
+    flex-shrink: 0;
+}
+
+.capability-info h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin: 0 0 4px 0;
+}
+
+.capability-info p {
+    font-size: 14px;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.4;
+}
+
 /* Адаптивность */
 @media (max-width: 768px) {
+    .club-capabilities {
+        flex-direction: column;
+    }
+
+    .capability-item {
+        min-width: auto;
+    }
+
     .container {
         padding: 16px;
     }
-    
+
     .generation-form {
         padding: 24px;
     }
-    
+
     .page-title {
         font-size: 28px;
     }
-    
+
     .options-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .duration-selector {
         flex-direction: column;
     }
-    
+
     .form-actions {
         flex-direction: column;
         align-items: stretch;
     }
-    
-    .generate-button, .cancel-button {
+
+    .generate-button,
+    .cancel-button {
         text-align: center;
         justify-content: center;
     }
-    
+
     .preview-cards {
         grid-template-columns: 1fr;
     }
@@ -338,16 +481,17 @@ body {
     .generation-form {
         padding: 20px;
     }
-    
+
     .page-title {
         font-size: 24px;
     }
-    
+
     .section-title {
         font-size: 18px;
     }
-    
-    .option-content, .duration-content {
+
+    .option-content,
+    .duration-content {
         padding: 20px 12px;
     }
 }

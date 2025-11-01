@@ -5,6 +5,7 @@ import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -16,6 +17,7 @@ import org.springframework.validation.BindingResult;
 import com.example.project.dto.NewsDTO;
 import com.example.project.dto.ProgramRequest;
 import com.example.project.model.Achievements;
+import com.example.project.model.Clubs;
 import com.example.project.model.EquipmentStatistics;
 import com.example.project.model.Members;
 import com.example.project.model.Staff;
@@ -31,12 +33,13 @@ import com.example.project.repository.MembersAccountsRepository;
 import com.example.project.repository.StaffAccountsRepository;
 import com.example.project.repository.TrainersAccountsRepository;
 import com.example.project.service.AccountService;
+import com.example.project.service.AdaptiveProgramGenerator;
+import com.example.project.service.ClubCapabilityService;
 import com.example.project.service.ClubsService;
 import com.example.project.service.CustomUserDetailsService;
 import com.example.project.service.Event;
 import com.example.project.service.MembersService;
 import com.example.project.service.NewsService;
-import com.example.project.service.ProgramGeneratorService;
 import com.example.project.service.StaffScheduleService;
 import com.example.project.service.StaffService;
 import com.example.project.service.TrainersService;
@@ -57,6 +60,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
+@Slf4j
 @Controller
 @CrossOrigin("*")
 @AllArgsConstructor
@@ -74,9 +78,9 @@ public class MainController {
     private final MembersAccountsRepository membersAccountsRepo;
     private final TrainersAccountsRepository trainersAccountsRepo;
     private final StaffAccountsRepository staffAccountsRepo;
-    // Добавьте эти зависимости в MainController
+    private final AdaptiveProgramGenerator adaptiveProgramGenerator;
+    private final ClubCapabilityService clubCapabilityService;
     private final TrainingProgramService trainingProgramService;
-    private final ProgramGeneratorService programGeneratorService;
 
     // Добавьте эти методы в MainController
     @GetMapping("/programs/member/{id}")
@@ -125,7 +129,12 @@ public class MainController {
             return "redirect:/access-denied";
         }
 
+        // Получаем информацию о пользователе и его клубе
+        Members member = membersService.getMember(id);
+        Clubs currentClub = member.getClub();
+
         model.addAttribute("memberId", id);
+        model.addAttribute("currentClub", currentClub);
         model.addAttribute("programRequest", new ProgramRequest());
         return "generate-program";
     }
@@ -135,19 +144,43 @@ public class MainController {
             @ModelAttribute ProgramRequest programRequest,
             Model model) {
         try {
-            TrainingProgram program = programGeneratorService.generateProgram(id, programRequest);
-            // Программа автоматически сохраняется в generateProgram методе
-            // Мы можем добавить логирование или другую обработку при необходимости
-            System.out.println("Создана программа: " + program.getProgramName() + " для пользователя " + id);
+            TrainingProgram program = adaptiveProgramGenerator.generateAdaptiveProgram(id, programRequest);
 
-            model.addAttribute("success", "Программа тренировок успешно создана!");
+            // Получаем информацию о пользователе для логирования
+            Members member = membersService.getMember(id);
+            String clubName = member.getClub() != null ? member.getClub().getClubName() : "неизвестный клуб";
+
+            // ИСПРАВЛЕНО: используем clubName из профиля пользователя
+            log.info("Создана программа: ID={}, название={}, клуб={}",
+                    program.getIdProgram(), program.getProgramName(), clubName);
+
+            model.addAttribute("success", "Программа тренировок успешно создана с учетом возможностей клуба!");
             return "redirect:/programs/member/" + id;
         } catch (Exception e) {
             model.addAttribute("error", "Ошибка при создании программы: " + e.getMessage());
             model.addAttribute("memberId", id);
             model.addAttribute("programRequest", programRequest);
+
+            // Добавляем информацию о текущем клубе для повторного отображения формы
+            Members member = membersService.getMember(id);
+            model.addAttribute("currentClub", member.getClub());
+
             return "generate-program";
         }
+    }
+
+    // НОВЫЙ метод для анализа возможностей клуба
+    @GetMapping("/club/capabilities/{clubName}")
+    @ResponseBody
+    public Map<String, Object> getClubCapabilities(@PathVariable String clubName) {
+        return clubCapabilityService.analyzeClubCapabilities(clubName);
+    }
+
+    // НОВЫЙ метод для получения оборудования клуба
+    @GetMapping("/club/equipment/{clubName}")
+    @ResponseBody
+    public Map<String, Integer> getClubEquipment(@PathVariable String clubName) {
+        return clubCapabilityService.getClubEquipmentSummary(clubName);
     }
 
     @PostMapping("/programs/activate/{memberId}/{programId}")

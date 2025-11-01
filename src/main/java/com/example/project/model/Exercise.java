@@ -36,4 +36,7 @@ public class Exercise {
 
     @OneToMany(mappedBy = "exercise", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<ProgramExercise> programExercises = new HashSet<>();
+
+    @OneToMany(mappedBy = "exercise", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<ExerciseEquipmentRequirement> equipmentRequirements = new HashSet<>();
 }

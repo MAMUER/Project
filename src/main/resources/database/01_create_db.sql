@@ -40,12 +40,23 @@ CREATE TABLE equipment_type (
     type_name VARCHAR(45) NOT NULL
 );
 
+CREATE TABLE gyms (
+    id_gym SERIAL PRIMARY KEY NOT NULL,
+    club_name VARCHAR(45) NOT NULL,
+    gym_name VARCHAR(45) NOT NULL,
+    capacity INTEGER NOT NULL,
+    available_hours INTEGER NOT NULL,
+    CONSTRAINT fk_gyms_club FOREIGN KEY (club_name) REFERENCES clubs (club_name) ON DELETE CASCADE ON UPDATE CASCADE
+);
+
 CREATE TABLE equipment (
     id_equipment SERIAL PRIMARY KEY NOT NULL,
     id_equipment_type INTEGER,
     name VARCHAR(45) NOT NULL,
     quantity INTEGER,
-    FOREIGN KEY (id_equipment_type) REFERENCES equipment_type (id_equipment_type) ON DELETE SET NULL ON UPDATE CASCADE
+    id_gym INTEGER,
+    FOREIGN KEY (id_equipment_type) REFERENCES equipment_type (id_equipment_type) ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT fk_equipment_gym FOREIGN KEY (id_gym) REFERENCES gyms (id_gym) ON DELETE SET NULL
 );
 
 CREATE TABLE equipment_statistics (
@@ -101,15 +112,6 @@ CREATE TABLE feedback (
     feedback_date DATE NOT NULL,
     rating SMALLINT NOT NULL,
     FOREIGN KEY (username) REFERENCES members_accounts (username) ON DELETE CASCADE ON UPDATE CASCADE
-);
-
-CREATE TABLE gyms (
-    id_gym SERIAL PRIMARY KEY NOT NULL,
-    club_name VARCHAR(45) NOT NULL,
-    gym_name VARCHAR(45) NOT NULL,
-    capacity INTEGER NOT NULL,
-    available_hours INTEGER NOT NULL,
-    FOREIGN KEY (club_name) REFERENCES clubs (club_name) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 CREATE TABLE gyms_have_equipment (
@@ -291,10 +293,10 @@ CREATE TABLE training_programs (
     id_member INTEGER NOT NULL,
     program_name VARCHAR(100) NOT NULL,
     goal VARCHAR(100),
-    level VARCHAR(20),
+    LEVEL VARCHAR(20),
     duration_weeks INTEGER,
     created_date DATE,
-    is_active BOOLEAN DEFAULT true,
+    is_active BOOLEAN DEFAULT TRUE,
     FOREIGN KEY (id_member) REFERENCES members (id_member) ON DELETE CASCADE
 );
 
@@ -313,11 +315,22 @@ CREATE TABLE program_exercises (
     id_program_exercise SERIAL PRIMARY KEY,
     id_day INTEGER NOT NULL,
     id_exercise INTEGER NOT NULL,
-    sets INTEGER,
+    SETS INTEGER,
     reps INTEGER,
     weight DOUBLE PRECISION,
     rest_seconds INTEGER,
     order_index INTEGER,
     FOREIGN KEY (id_day) REFERENCES program_days (id_day) ON DELETE CASCADE,
     FOREIGN KEY (id_exercise) REFERENCES exercises (id_exercise) ON DELETE CASCADE
+);
+
+-- Таблица связей упражнение-оборудование
+CREATE TABLE exercise_equipment_requirements (
+    id_requirement SERIAL PRIMARY KEY,
+    id_exercise INTEGER NOT NULL,
+    id_equipment_type INTEGER NOT NULL,
+    quantity_required INTEGER DEFAULT 1,
+    is_required BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (id_exercise) REFERENCES exercises (id_exercise) ON DELETE CASCADE,
+    FOREIGN KEY (id_equipment_type) REFERENCES equipment_type (id_equipment_type) ON DELETE CASCADE
 );

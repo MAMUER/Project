@@ -31,4 +31,8 @@ public class Equipment {
 
     @ManyToMany(mappedBy = "equipment")
     private Set<Gyms> gyms = new HashSet<>();
+
+    @ManyToOne
+    @JoinColumn(name = "id_gym")
+    private Gyms gym;
 }

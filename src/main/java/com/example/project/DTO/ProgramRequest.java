@@ -7,5 +7,5 @@ public class ProgramRequest {
     private String goal; // похудение, набор_массы, поддержание
     private String level; // начальный, средний, продвинутый
     private Integer durationWeeks;
-    private String preferences; // предпочтения (опционально)
+    // УБИРАЕМ clubName - используем клуб пользователя из профиля
 }
