@@ -4,11 +4,11 @@
 }
 
 body {
-    background: #f8fafc;
+    background: #E8EEFB;
     margin: 0;
     padding: 0;
     min-height: 100vh;
-    color: #334155;
+    color: #000000;
 }
 
 .container {
@@ -27,27 +27,32 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    color: #64748b;
+    color: #666666;
     text-decoration: none;
     font-weight: 600;
     margin-bottom: 16px;
-    transition: color 0.3s ease;
+    transition: all 0.3s ease;
+    padding: 8px 16px;
+    border-radius: 8px;
 }
 
 .back-link:hover {
     color: #0795E8;
+    background-color: rgba(7, 149, 232, 0.1);
 }
 
 .page-title {
     font-size: 32px;
+    line-height: 43.6px;
     font-weight: 700;
-    color: #1e293b;
+    color: #0707E8;
     margin: 0 0 8px 0;
 }
 
 .page-subtitle {
     font-size: 18px;
-    color: #64748b;
+    line-height: 24.5px;
+    color: #666666;
     margin: 0;
 }
 
@@ -57,21 +62,36 @@ body {
 }
 
 .error-message {
-    background: #fee2e2;
-    color: #991b1b;
-    padding: 16px;
+    background: rgba(255, 107, 107, 0.1);
+    color: #FF6B6B;
+    padding: 16px 20px;
     border-radius: 12px;
-    border: 1px solid #fecaca;
+    border: 1px solid #FF6B6B;
+    font-weight: 600;
+}
+
+.success-message {
+    background: rgba(6, 214, 160, 0.1);
+    color: #06D6A0;
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid #06D6A0;
     font-weight: 600;
 }
 
 /* Форма */
 .generation-form {
-    background: white;
+    background: #FFFFFF;
     border-radius: 20px;
     padding: 40px;
-    box-shadow: 0 4px 24px rgba(7, 7, 232, 0.08);
+    box-shadow: 0 8px 32px rgba(7, 7, 232, 0.1);
     margin-bottom: 40px;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.generation-form:hover {
+    box-shadow: 0 12px 40px rgba(7, 7, 232, 0.15);
 }
 
 .form-section {
@@ -80,19 +100,21 @@ body {
 
 .section-title {
     font-size: 20px;
+    line-height: 27.3px;
     font-weight: 700;
-    color: #1e293b;
+    color: #0707E8;
     margin: 0 0 20px 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
+    position: relative;
 }
 
 /* Сетка опций */
 .options-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 16px;
+    gap: 20px;
 }
 
 .option-card {
@@ -110,55 +132,78 @@ body {
     flex-direction: column;
     align-items: center;
     text-align: center;
-    padding: 24px 16px;
-    border: 2px solid #e2e8f0;
+    padding: 24px 20px;
+    border: 2px solid #E8EEFB;
     border-radius: 16px;
     transition: all 0.3s ease;
-    background: white;
+    background: #FFFFFF;
     height: 100%;
+    position: relative;
+    overflow: hidden;
 }
 
-.option-card input[type="radio"]:checked+.option-content {
+.option-content::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(7, 149, 232, 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+.option-card input[type="radio"]:checked + .option-content {
     border-color: #0795E8;
-    background: #f0f9ff;
-    transform: translateY(-2px);
+    background: rgba(7, 149, 232, 0.05);
+    transform: translateY(-4px);
     box-shadow: 0 8px 24px rgba(7, 149, 232, 0.15);
 }
 
+.option-card input[type="radio"]:checked + .option-content::before {
+    left: 100%;
+}
+
 .option-card:hover .option-content {
-    border-color: #cbd5e1;
-    transform: translateY(-1px);
+    border-color: #0795E8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.1);
 }
 
 .option-card ion-icon {
     font-size: 32px;
     color: #0795E8;
-    margin-bottom: 12px;
+    margin-bottom: 16px;
+    transition: all 0.3s ease;
+}
+
+.option-card input[type="radio"]:checked + .option-content ion-icon {
+    color: #074EE8;
+    transform: scale(1.1);
 }
 
 .option-title {
     font-size: 16px;
+    line-height: 21.8px;
     font-weight: 700;
-    color: #1e293b;
+    color: #0707E8;
     margin-bottom: 8px;
 }
 
 .option-description {
     font-size: 14px;
-    color: #64748b;
-    line-height: 1.4;
+    line-height: 19.1px;
+    color: #666666;
 }
 
 /* Выбор длительности */
 .duration-selector {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
 }
 
 .duration-option {
-    flex: 1;
-    min-width: 120px;
     position: relative;
     cursor: pointer;
 }
@@ -173,196 +218,38 @@ body {
     flex-direction: column;
     align-items: center;
     padding: 20px 16px;
-    border: 2px solid #e2e8f0;
+    border: 2px solid #E8EEFB;
     border-radius: 12px;
     transition: all 0.3s ease;
-    background: white;
+    background: #FFFFFF;
     text-align: center;
 }
 
-.duration-option input[type="radio"]:checked+.duration-content {
+.duration-option input[type="radio"]:checked + .duration-content {
     border-color: #0795E8;
-    background: #f0f9ff;
+    background: rgba(7, 149, 232, 0.05);
     transform: translateY(-2px);
     box-shadow: 0 4px 16px rgba(7, 149, 232, 0.15);
 }
 
 .duration-option:hover .duration-content {
-    border-color: #cbd5e1;
+    border-color: #0795E8;
+    transform: translateY(-1px);
 }
 
 .duration-time {
     font-size: 16px;
+    line-height: 21.8px;
     font-weight: 700;
-    color: #1e293b;
+    color: #0707E8;
     margin-bottom: 4px;
 }
 
 .duration-desc {
     font-size: 12px;
-    color: #64748b;
+    line-height: 16.4px;
+    color: #666666;
 }
-
-/* Действия формы */
-.form-actions {
-    display: flex;
-    gap: 16px;
-    justify-content: center;
-    align-items: center;
-    flex-wrap: wrap;
-    margin-top: 40px;
-    padding-top: 32px;
-    border-top: 1px solid #f1f5f9;
-}
-
-.generate-button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: linear-gradient(135deg, #0795E8, #074EE8);
-    color: white;
-    border: none;
-    padding: 16px 32px;
-    border-radius: 16px;
-    font-size: 16px;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.3);
-}
-
-.generate-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(7, 149, 232, 0.4);
-}
-
-.cancel-button {
-    display: inline-block;
-    padding: 16px 32px;
-    background: #f1f5f9;
-    color: #475569;
-    border: 2px solid #e2e8f0;
-    border-radius: 16px;
-    text-decoration: none;
-    font-weight: 600;
-    transition: all 0.3s ease;
-}
-
-.cancel-button:hover {
-    background: #e2e8f0;
-    transform: translateY(-1px);
-}
-
-/* Предпросмотр */
-.preview-section {
-    text-align: center;
-}
-
-.preview-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 24px;
-    margin-top: 24px;
-}
-
-.preview-card {
-    background: white;
-    padding: 32px 24px;
-    border-radius: 16px;
-    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
-    transition: transform 0.3s ease;
-}
-
-.preview-card:hover {
-    transform: translateY(-4px);
-}
-
-.preview-card ion-icon {
-    font-size: 40px;
-    color: #0795E8;
-    margin-bottom: 16px;
-}
-
-.preview-card h3 {
-    font-size: 18px;
-    font-weight: 700;
-    color: #1e293b;
-    margin: 0 0 12px 0;
-}
-
-.preview-card p {
-    font-size: 14px;
-    color: #64748b;
-    line-height: 1.5;
-    margin: 0;
-}
-
-/* В generate-program.css ДОБАВЛЯЕМ */
-.club-selection {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    border: 2px solid #e2e8f0;
-}
-
-.club-label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #1e293b;
-}
-
-.club-select {
-    width: 100%;
-    padding: 12px;
-    border: 2px solid #e2e8f0;
-    border-radius: 8px;
-    font-size: 16px;
-    margin-bottom: 16px;
-}
-
-.club-info {
-    background: #f8fafc;
-    padding: 16px;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-}
-
-.equipment-summary,
-.capabilities-summary {
-    margin-bottom: 16px;
-}
-
-.equipment-summary h4,
-.capabilities-summary h4 {
-    margin: 0 0 8px 0;
-    color: #1e293b;
-    font-size: 16px;
-}
-
-.equipment-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 4px 0;
-    border-bottom: 1px solid #f1f5f9;
-}
-
-.equipment-type {
-    color: #64748b;
-}
-
-.equipment-quantity {
-    font-weight: 600;
-    color: #0795E8;
-}
-
-.muscle-group-item {
-    padding: 2px 0;
-    color: #475569;
-    font-size: 14px;
-}
-
-/* Добавляем в существующий CSS */
 
 /* Секция информации о клубе */
 .club-info-section {
@@ -370,35 +257,38 @@ body {
 }
 
 .club-card {
-    background: white;
+    background: #FFFFFF;
     border-radius: 16px;
     padding: 24px;
-    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
-    border: 2px solid #e2e8f0;
+    box-shadow: 0 4px 16px rgba(7, 7, 232, 0.08);
+    border: 2px solid #E8EEFB;
     transition: all 0.3s ease;
 }
 
 .club-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(7, 7, 232, 0.12);
+    border-color: #0795E8;
 }
 
 .club-header h2 {
     font-size: 20px;
+    line-height: 27.3px;
     font-weight: 700;
-    color: #1e293b;
+    color: #0707E8;
     margin: 0 0 8px 0;
 }
 
 .club-address {
-    color: #64748b;
+    color: #666666;
     font-size: 14px;
+    line-height: 19.1px;
     margin: 0 0 20px 0;
 }
 
 .club-capabilities {
     display: flex;
-    gap: 16px;
+    gap: 20px;
     flex-wrap: wrap;
 }
 
@@ -408,6 +298,10 @@ body {
     gap: 12px;
     flex: 1;
     min-width: 250px;
+    padding: 16px;
+    background: #F8FAFC;
+    border-radius: 12px;
+    border: 1px solid #E8EEFB;
 }
 
 .capability-item ion-icon {
@@ -419,59 +313,211 @@ body {
 
 .capability-info h4 {
     font-size: 16px;
+    line-height: 21.8px;
     font-weight: 600;
-    color: #1e293b;
+    color: #0707E8;
     margin: 0 0 4px 0;
 }
 
 .capability-info p {
     font-size: 14px;
-    color: #64748b;
+    line-height: 19.1px;
+    color: #666666;
     margin: 0;
-    line-height: 1.4;
+}
+
+/* Действия формы */
+.form-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 40px;
+    padding-top: 32px;
+    border-top: 1px solid #E8EEFB;
+}
+
+.generate-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #0795E8, #074EE8);
+    color: #FFFFFF;
+    border: none;
+    padding: 18px 32px;
+    border-radius: 24px;
+    font-size: 16px;
+    line-height: 21.8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.3);
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+.generate-button::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.generate-button:hover {
+    background: linear-gradient(135deg, #074EE8, #0707E8);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(7, 149, 232, 0.4);
+    border-color: #0707E8;
+}
+
+.generate-button:hover::before {
+    left: 100%;
+}
+
+.generate-button:active {
+    transform: translateY(-1px);
+}
+
+.cancel-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 32px;
+    background: #FFFFFF;
+    color: #666666;
+    border: 2px solid #E8EEFB;
+    border-radius: 24px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.cancel-button:hover {
+    background: #E8EEFB;
+    color: #0707E8;
+    border-color: #0795E8;
+    transform: translateY(-2px);
+}
+
+/* Предпросмотр */
+.preview-section {
+    text-align: center;
+}
+
+.preview-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    margin-top: 24px;
+}
+
+.preview-card {
+    background: #FFFFFF;
+    padding: 32px 24px;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(7, 7, 232, 0.08);
+    transition: all 0.3s ease;
+    border: 2px solid #E8EEFB;
+}
+
+.preview-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.12);
+    border-color: #0795E8;
+}
+
+.preview-card ion-icon {
+    font-size: 40px;
+    color: #0795E8;
+    margin-bottom: 16px;
+    transition: all 0.3s ease;
+}
+
+.preview-card:hover ion-icon {
+    transform: scale(1.1);
+    color: #074EE8;
+}
+
+.preview-card h3 {
+    font-size: 18px;
+    line-height: 24.5px;
+    font-weight: 700;
+    color: #0707E8;
+    margin: 0 0 12px 0;
+}
+
+.preview-card p {
+    font-size: 14px;
+    line-height: 19.1px;
+    color: #666666;
+    margin: 0;
+}
+
+/* Анимация появления */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.generation-form,
+.preview-section {
+    animation: fadeInUp 0.6s ease-out;
 }
 
 /* Адаптивность */
 @media (max-width: 768px) {
-    .club-capabilities {
-        flex-direction: column;
-    }
-
-    .capability-item {
-        min-width: auto;
-    }
-
     .container {
         padding: 16px;
     }
-
+    
     .generation-form {
         padding: 24px;
     }
-
+    
     .page-title {
         font-size: 28px;
+        line-height: 38.2px;
     }
-
+    
     .options-grid {
         grid-template-columns: 1fr;
     }
-
+    
     .duration-selector {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .club-capabilities {
         flex-direction: column;
     }
-
+    
+    .capability-item {
+        min-width: auto;
+    }
+    
     .form-actions {
         flex-direction: column;
         align-items: stretch;
     }
-
+    
     .generate-button,
     .cancel-button {
         text-align: center;
         justify-content: center;
     }
-
+    
     .preview-cards {
         grid-template-columns: 1fr;
     }
@@ -481,17 +527,23 @@ body {
     .generation-form {
         padding: 20px;
     }
-
+    
     .page-title {
         font-size: 24px;
+        line-height: 32.7px;
     }
-
+    
     .section-title {
         font-size: 18px;
+        line-height: 24.5px;
     }
-
+    
     .option-content,
     .duration-content {
-        padding: 20px 12px;
+        padding: 20px 16px;
+    }
+    
+    .duration-selector {
+        grid-template-columns: 1fr;
     }
 }

@@ -3,6 +3,7 @@
     font-size: 16px;
     line-height: 21.8px;
     color: #000000;
+    box-sizing: border-box;
 }
 
 body {
@@ -20,6 +21,12 @@ body {
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(7, 149, 232, 0.2);
     border: 2px solid #074EE8;
+    transition: all 0.3s ease;
+}
+
+#selected:hover {
+    background-color: #074EE8;
+    box-shadow: 0 6px 16px rgba(7, 78, 232, 0.3);
 }
 
 #selected img {
@@ -28,6 +35,11 @@ body {
     width: 40px;
     height: 40px;
     filter: brightness(0) invert(1);
+    transition: transform 0.3s ease;
+}
+
+#selected:hover img {
+    transform: scale(1.1);
 }
 
 .content {
@@ -73,6 +85,12 @@ body {
     -ms-user-select: none;
     user-select: none;
     border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.workout-info:hover {
+    box-shadow: 0 6px 20px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
 }
 
 .description {
@@ -100,6 +118,7 @@ body {
     font-size: 14px;
     box-shadow: 0 2px 8px rgba(7, 149, 232, 0.2);
     transition: all 0.3s ease;
+    border: 1px solid transparent;
 }
 
 .date:hover,
@@ -107,6 +126,7 @@ body {
     background-color: #074EE8;
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(7, 78, 232, 0.3);
+    border-color: #0707E8;
 }
 
 .trainer-container {
@@ -119,6 +139,12 @@ body {
     -ms-user-select: none;
     user-select: none;
     border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.trainer-container:hover {
+    box-shadow: 0 6px 20px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
 }
 
 .trainer {
@@ -138,13 +164,20 @@ body {
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.trainer-photo:hover {
+    border-color: #0795E8;
+    box-shadow: 0 6px 16px rgba(7, 149, 232, 0.2);
 }
 
 .trainer-photo img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 12px;
+    border-radius: 10px;
     transition: transform 0.3s ease;
 }
 
@@ -162,6 +195,12 @@ body {
     -ms-user-select: none;
     user-select: none;
     border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.members-container:hover {
+    box-shadow: 0 6px 20px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
 }
 
 .members-title {
@@ -177,6 +216,26 @@ body {
     list-style-type: none;
     padding: 0;
     margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.members-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.members-list::-webkit-scrollbar-track {
+    background: #E8EEFB;
+    border-radius: 3px;
+}
+
+.members-list::-webkit-scrollbar-thumb {
+    background: #0795E8;
+    border-radius: 3px;
+}
+
+.members-list::-webkit-scrollbar-thumb:hover {
+    background: #074EE8;
 }
 
 .members-list li {
@@ -187,12 +246,14 @@ body {
     font-size: 14px;
     border: 1px solid #0795E8;
     transition: all 0.3s ease;
+    cursor: pointer;
 }
 
 .members-list li:hover {
     background-color: #0795E8;
     color: #FFFFFF;
     transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(7, 149, 232, 0.3);
 }
 
 .buttons-container {
@@ -223,6 +284,7 @@ body {
     transition: all 0.3s ease;
     flex: 1;
     min-width: 140px;
+    border: 2px solid transparent;
 }
 
 .signup-button {
@@ -234,6 +296,7 @@ body {
     background-color: #074EE8;
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(7, 78, 232, 0.3);
+    border-color: #0707E8;
 }
 
 .unsubscribe-button {
@@ -245,12 +308,14 @@ body {
     background-color: #FF5252;
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(255, 107, 107, 0.3);
+    border-color: #FF5252;
 }
 
 .trainer-button {
     background-color: #06D6A0;
     color: #FFFFFF;
     cursor: default;
+    border-color: #06D6A0;
 }
 
 .gray-button {
@@ -263,12 +328,14 @@ body {
     cursor: not-allowed;
     transform: none !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    border-color: #CCCCCC !important;
 }
 
 .gray-button:hover {
     background-color: #CCCCCC !important;
     transform: none !important;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    border-color: #CCCCCC !important;
 }
 
 /* Стили для текстовых элементов */
@@ -332,6 +399,10 @@ body {
         font-size: 24px;
         line-height: 32.7px;
     }
+    
+    .members-list {
+        max-height: 250px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -364,5 +435,9 @@ body {
     
     .trainer-photo {
         height: 180px;
+    }
+    
+    .members-list {
+        max-height: 200px;
     }
 }
