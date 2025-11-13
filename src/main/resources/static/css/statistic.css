@@ -228,7 +228,7 @@ body {
 .achievement-img {
     width: 80px;
     height: 80px;
-    background: linear-gradient(135deg, #0795E8, #074EE8);
+    background: linear-gradient(135deg, #3E4684, #3E4684);
     display: flex;
     justify-content: center;
     align-items: center;
@@ -240,7 +240,7 @@ body {
 }
 
 .achievements-item:hover .achievement-img {
-    background: linear-gradient(135deg, #074EE8, #0707E8);
+    background: linear-gradient(135deg, #3E4684, #3E4684);
     transform: scale(1.05);
     box-shadow: 0 4px 12px rgba(7, 78, 232, 0.3);
 }

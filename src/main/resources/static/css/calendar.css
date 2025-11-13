@@ -59,7 +59,7 @@ body {
     transform: scale(1.1);
 }
 
-/* ОСНОВНОЙ КОНТЕНТ - ИСПРАВЛЕНИЯ ДЛЯ МАЛЕНЬКИХ ЭКРАНОВ */
+/* ОСНОВНОЙ КОНТЕНТ - КЛЮЧЕВЫЕ ИСПРАВЛЕНИЯ */
 .content {
     width: 100%;
     padding: 30px;
@@ -75,19 +75,21 @@ body {
     display: flex;
     gap: 30px;
     align-items: flex-start;
-    min-height: auto;
     width: 100%;
     max-width: 100%;
     margin: 0;
+    min-height: auto; /* Убрана фиксированная высота */
 }
 
-/* СТИЛИ ДЛЯ РАЗНЫХ РОЛЕЙ */
+/* СТИЛИ ДЛЯ РАЗНЫХ РОЛЕЙ - ИСПРАВЛЕНО */
 .member-container,
 .trainer-container {
     display: flex;
     gap: 30px;
     width: 100%;
     align-items: flex-start;
+    min-height: auto; /* Убрана фиксированная высота */
+    height: auto; /* Автоматическая высота */
 }
 
 .staff-container {
@@ -105,6 +107,7 @@ body {
     box-shadow: 0 4px 16px rgba(7, 7, 232, 0.08);
     border: 2px solid #E8EEFB;
     transition: all 0.3s ease;
+    height: fit-content; /* Важное исправление */
 }
 
 .calendar-section:hover {
@@ -112,13 +115,15 @@ body {
     border-color: #0795E8;
 }
 
-/* Боковая секция с фильтром/формой */
+/* Боковая секция с фильтром/формой - ПОЛНОСТЬЮ ИСПРАВЛЕНО */
 .sidebar-section {
     width: 390px;
     min-width: 320px;
     position: sticky;
     top: 20px;
     max-width: 100%;
+    height: fit-content; /* Автоматическая высота */
+    overflow: visible; /* Убираем скролл */
 }
 
 /* АДАПТИВНЫЕ СТИЛИ ДЛЯ КАЛЕНДАРЯ */
@@ -270,7 +275,7 @@ body {
     transform: translateX(4px);
 }
 
-/* СТИЛИ ДЛЯ ФИЛЬТРОВ И ФОРМ */
+/* СТИЛИ ДЛЯ ФИЛЬТРОВ И ФОРМ - ПОЛНОСТЬЮ ИСПРАВЛЕНО */
 .filter, .create-training {
     background: #FFFFFF;
     padding: 28px;
@@ -279,12 +284,14 @@ body {
     border-radius: 20px;
     box-shadow: 0 8px 24px rgba(7, 7, 232, 0.1);
     gap: 24px;
-    max-height: 70vh;
-    overflow-y: auto;
     width: 100%;
     box-sizing: border-box;
     border: 2px solid #E8EEFB;
     transition: all 0.3s ease;
+    height: auto; /* Автоматическая высота */
+    min-height: auto; /* Убрана минимальная высота */
+    overflow: visible; /* Убираем скролл */
+    position: relative; /* Для корректного позиционирования */
 }
 
 .filter:hover, .create-training:hover {
@@ -408,29 +415,6 @@ body {
     transform: translateY(-1px);
 }
 
-/* Кастомные скроллбары для фильтров */
-.filter::-webkit-scrollbar,
-.create-training::-webkit-scrollbar {
-    width: 6px;
-}
-
-.filter::-webkit-scrollbar-track,
-.create-training::-webkit-scrollbar-track {
-    background: #E8EEFB;
-    border-radius: 3px;
-}
-
-.filter::-webkit-scrollbar-thumb,
-.create-training::-webkit-scrollbar-thumb {
-    background: #0795E8;
-    border-radius: 3px;
-}
-
-.filter::-webkit-scrollbar-thumb:hover,
-.create-training::-webkit-scrollbar-thumb:hover {
-    background: #074EE8;
-}
-
 /* АДАПТИВНОСТЬ ДЛЯ МОБИЛЬНЫХ УСТРОЙСТВ */
 
 /* Планшеты и маленькие ноутбуки */
@@ -453,18 +437,21 @@ body {
         flex-direction: column;
         gap: 20px;
         width: 100%;
+        align-items: stretch; /* Растягиваем на всю ширину */
     }
     
     .calendar-section {
         min-width: unset;
         width: 100%;
         padding: 20px;
+        height: auto; /* Автоматическая высота на мобильных */
     }
     
     .sidebar-section {
         width: 100%;
-        position: static;
+        position: static; /* Убираем sticky на мобильных */
         min-width: unset;
+        height: auto;
     }
     
     #calendar.member-calendar,
@@ -480,7 +467,6 @@ body {
     
     .filter, .create-training {
         width: 100%;
-        max-height: none;
         position: static;
         padding: 24px;
     }
