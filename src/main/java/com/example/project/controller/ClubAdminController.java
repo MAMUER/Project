@@ -15,7 +15,7 @@ import java.util.Map;
 @AllArgsConstructor
 @RequestMapping("/admin/clubs")
 public class ClubAdminController {
-    
+
     private final ClubsService clubsService;
     private final ClubCapabilityService clubCapabilityService;
 
@@ -30,11 +30,11 @@ public class ClubAdminController {
         Clubs club = clubsService.getClub(clubName);
         Map<String, Object> capabilities = clubCapabilityService.analyzeClubCapabilities(clubName);
         Map<String, Object> recommendations = clubCapabilityService.getClubImprovementRecommendations(clubName);
-        
+
         model.addAttribute("club", club);
         model.addAttribute("capabilities", capabilities);
         model.addAttribute("recommendations", recommendations);
-        
+
         return "club-capabilities";
     }
 
@@ -42,6 +42,16 @@ public class ClubAdminController {
     @ResponseBody
     public Map<String, Integer> getClubEquipment(@PathVariable String clubName) {
         return clubCapabilityService.getClubEquipmentSummary(clubName);
+    }
+
+    @GetMapping("/{clubName}/equipment-page")
+    public String clubEquipmentPage(@PathVariable String clubName, Model model) {
+        Map<String, Integer> equipmentSummary = clubCapabilityService.getClubEquipmentSummary(clubName);
+
+        model.addAttribute("clubName", clubName);
+        model.addAttribute("equipmentSummary", equipmentSummary);
+
+        return "equipment";
     }
 
     @GetMapping("/{clubName}/recommendations")

@@ -13,6 +13,7 @@ import com.example.project.model.Staff;
 import com.example.project.model.StaffSchedule;
 import com.example.project.model.Accounts.StaffAccounts;
 import com.example.project.repository.StaffRepository;
+
 @Service
 @AllArgsConstructor
 public class StaffService {
@@ -66,7 +67,7 @@ public class StaffService {
     }
 
     public List<StaffSchedule> getSetOfStaffSchedule(Integer staffId) {
-        Staff staff = staffRepository.findById(staffId).orElse(null);
+        Staff staff = staffRepository.findByIdWithSchedules(staffId).orElse(null);
         if (staff != null) {
             List<StaffSchedule> staffSchedule = staff.getStaffSchedules();
             staffSchedule.sort(Comparator.comparing(StaffSchedule::getDate));

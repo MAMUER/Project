@@ -3,6 +3,7 @@ package com.example.project.service;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.project.model.*;
 import com.example.project.repository.EquipmentRepository;
@@ -14,25 +15,23 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @AllArgsConstructor
+@Transactional
 public class ClubCapabilityService {
     private final ExerciseRepository exerciseRepository;
     private final EquipmentRepository equipmentRepository;
-    // private final GymsService gymsService; // УДАЛЯЕМ если не используется
-
-    /**
-     * Проверяет, может ли клуб поддерживать упражнение
-     */
+    
     public boolean canClubSupportExercise(String clubName, Integer exerciseId) {
-        Exercise exercise = exerciseRepository.findById(exerciseId).orElse(null);
+        // Используем новый метод с JOIN FETCH
+        Exercise exercise = exerciseRepository.findByIdWithEquipmentRequirements(exerciseId).orElse(null);
         if (exercise == null) {
             log.warn("Упражнение {} не найдено", exerciseId);
             return false;
         }
 
-        // Получаем требования упражнения
+        // Теперь коллекция инициализирована
         Set<ExerciseEquipmentRequirement> requirements = exercise.getEquipmentRequirements();
         
-        // Если требований нет - упражнение доступно (например, bodyweight упражнения)
+        // Если требований нет - упражнение доступно
         if (requirements == null || requirements.isEmpty()) {
             log.debug("Упражнение {} доступно - нет требований к оборудованию", exercise.getExerciseName());
             return true;
@@ -92,11 +91,9 @@ public class ClubCapabilityService {
         return availableExercises;
     }
 
-    /**
-     * Получает все доступные упражнения для клуба
-     */
     public List<Exercise> getAllAvailableExercises(String clubName) {
-        List<Exercise> allExercises = exerciseRepository.findAll();
+        // Используем метод с JOIN FETCH
+        List<Exercise> allExercises = exerciseRepository.findAllWithEquipmentRequirements();
         
         List<Exercise> availableExercises = allExercises.stream()
             .filter(exercise -> canClubSupportExercise(clubName, exercise.getIdExercise()))
