@@ -28,10 +28,6 @@ public class FeedbackService {
         return feedbackRepository.findByRatingGreaterThanEqual(minRating);
     }
 
-    public Set<Feedback> getFeedbackByUsername(String username) {
-        return feedbackRepository.findByMemberAccountUsername(username);
-    }
-
     public Set<Feedback> getFeedbackByDateRange(LocalDate startDate, LocalDate endDate) {
         return feedbackRepository.findByFeedbackDateBetween(startDate, endDate);
     }
@@ -43,4 +39,8 @@ public class FeedbackService {
     public Feedback saveFeedback(Feedback feedback) {
         return feedbackRepository.save(feedback);
     }
+
+    public Set<Feedback> getFeedbackByUsername(String username) {
+    return feedbackRepository.findByUsername(username); // ИСПРАВЛЕНО: findByUsername вместо findByMemberAccountUsername
+}
 }

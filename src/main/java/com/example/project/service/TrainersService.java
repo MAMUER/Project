@@ -44,16 +44,6 @@ public class TrainersService {
         return trainer != null ? trainer.getSecondName() : null;
     }
 
-    public String getTrainerEmail(Integer trainerId) {
-        Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
-        return trainer != null ? trainer.getEmail() : null;
-    }
-
-    public String getTrainerPhoneNumber(Integer trainerId) {
-        Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
-        return trainer != null ? trainer.getPhoneNumber() : null;
-    }
-
     public List<TrainingSchedule> getTrainingSchedules(int trainerId) {
         Trainers trainer = trainersRepository.findById(trainerId).orElse(null);
         return trainer != null ? trainer.getTrainingSchedules() : Collections.emptyList();

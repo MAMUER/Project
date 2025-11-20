@@ -1,6 +1,8 @@
 package com.example.project.model;
 
 import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -15,11 +17,15 @@ import jakarta.persistence.*;
 @Table(name = "clubs")
 public class Clubs {
     @Id
-    @Column(name = "club_name", nullable = false, length = 45)
+    @Column(name = "club_name", nullable = false, length = 45) // Исправлено на 45
     private String clubName;
 
-    @Column(name = "address", nullable = false, length = 45)
+    @Column(name = "address", nullable = false, length = 45) // Исправлено на 45
     private String address;
+
+    @Column(name = "schedule", columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String schedule;
 
     @OneToMany(mappedBy = "club", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<Members> members = new HashSet<>();
@@ -31,10 +37,10 @@ public class Clubs {
     private Set<StaffSchedule> staffSchedules = new HashSet<>();
 
     @ManyToMany
-    @JoinTable(
-        name = "clubs_have_news",
-        joinColumns = @JoinColumn(name = "club_name"),
-        inverseJoinColumns = @JoinColumn(name = "id_news")
-    )
+    @JoinTable(name = "clubs_have_news", joinColumns = @JoinColumn(name = "club_name"), inverseJoinColumns = @JoinColumn(name = "id_news"))
     private Set<News> news = new HashSet<>();
+
+    @ManyToMany
+    @JoinTable(name = "clubs_have_equipment", joinColumns = @JoinColumn(name = "club_name"), inverseJoinColumns = @JoinColumn(name = "id_equipment"))
+    private Set<Equipment> equipment = new HashSet<>();
 }

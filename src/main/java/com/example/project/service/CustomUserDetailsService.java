@@ -1,7 +1,8 @@
 package com.example.project.service;
 
-import java.util.ArrayList;
+import java.util.Collections;
 
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -23,7 +24,10 @@ public class CustomUserDetailsService implements UserDetailsService {
         if (account == null) {
             throw new UsernameNotFoundException("User not found with username: " + username);
         }
-        return new User(account.username(), account.password(), new ArrayList<>());
+        
+        // ИСПРАВЛЕНО: Добавляем authorities на основе роли из БД
+        var authorities = Collections.singletonList(new SimpleGrantedAuthority(account.role()));
+        return new User(account.username(), account.password(), authorities);
     }
 
     @Transactional
@@ -32,7 +36,10 @@ public class CustomUserDetailsService implements UserDetailsService {
         if (account == null) {
             throw new UsernameNotFoundException("User not found with id: " + userId);
         }
-        return new User(account.username(), account.password(), new ArrayList<>());
+        
+        // ИСПРАВЛЕНО: Добавляем authorities
+        var authorities = Collections.singletonList(new SimpleGrantedAuthority(account.role()));
+        return new User(account.username(), account.password(), authorities);
     }
 
     public Integer getUserId(String username) {

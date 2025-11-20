@@ -1,13 +1,10 @@
 package com.example.project.service;
 
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
-import com.example.project.model.Equipment;
 import com.example.project.model.Gyms;
 import com.example.project.repository.GymsRepository;
 
@@ -36,11 +33,6 @@ public class GymsService {
 
     public Set<Gyms> getGymsByAvailableHours(int minHours) {
         return gymsRepository.findByAvailableHoursGreaterThan(minHours);
-    }
-
-    public Set<Equipment> getGymEquipment(Integer gymId) {
-        Gyms gym = gymsRepository.findById(gymId).orElse(null);
-        return gym != null ? new HashSet<>(gym.getEquipment()) : Collections.emptySet();
     }
 
     public Gyms saveGym(Gyms gym) {

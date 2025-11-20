@@ -16,7 +16,7 @@
             <h1>📊 Возможности клуба: <span th:text="${club.clubName}">Название клуба</span></h1>
             <div class="header-actions">
                 <a th:href="@{/admin/clubs}" class="back-button">← К списку клубов</a>
-                <a th:href="@{/}" class="back-button" style="margin-left: 10px;">На главную</a>
+                <a th:href="@{/profile/staff/{id}(id=${staffId})}" class="back-button">В профиль</a>
             </div>
         </header>
 

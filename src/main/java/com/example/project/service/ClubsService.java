@@ -1,21 +1,18 @@
 package com.example.project.service;
 
 import lombok.AllArgsConstructor;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
 import org.springframework.stereotype.Service;
 
 import com.example.project.model.Clubs;
-import com.example.project.model.Equipment;
 import com.example.project.model.Gyms;
 import com.example.project.model.News;
 import com.example.project.model.StaffSchedule;
 import com.example.project.repository.ClubsRepository;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
 
 @Service
 @AllArgsConstructor
@@ -44,26 +41,6 @@ public class ClubsService {
         return club != null ? club.getGyms() : Collections.emptySet();
     }
 
-    public Set<Equipment> getSetOfEquipments(String clubsId, int gymId) {
-        Set<Gyms> gyms = getSetOfGyms(clubsId);
-        for (Gyms gym : gyms) {
-            if (gym.getIdGym() == gymId) {
-                return new HashSet<>(gym.getEquipment());
-            }
-        }
-        return Collections.emptySet();
-    }
-
-    public String getEquipmentTypeName(String clubsId, int gymId, int equipmentId) {
-        Set<Equipment> equipments = getSetOfEquipments(clubsId, gymId);
-        for (Equipment equipment : equipments) {
-            if (equipment.getIdEquipment() == equipmentId) {
-                return equipment.getEquipmentType().getTypeName();
-            }
-        }
-        return null;
-    }
-
     public Set<StaffSchedule> getSetOfStaffSchedules(String clubsId) {
         Clubs club = clubsRepository.findById(clubsId).orElse(null);
         return club != null ? club.getStaffSchedules() : Collections.emptySet();
@@ -79,5 +56,24 @@ public class ClubsService {
 
     public Clubs getClubByName(String clubName) {
         return clubsRepository.findById(clubName).orElse(null);
+    }
+
+    public Clubs updateClub(String clubName, Clubs updatedClub) {
+        Clubs existingClub = clubsRepository.findById(clubName)
+                .orElseThrow(() -> new RuntimeException("Club not found: " + clubName));
+
+        // Обновляем поля
+        if (updatedClub.getAddress() != null) {
+            existingClub.setAddress(updatedClub.getAddress());
+        }
+        if (updatedClub.getSchedule() != null) {
+            existingClub.setSchedule(updatedClub.getSchedule());
+        }
+
+        return clubsRepository.save(existingClub);
+    }
+
+    public boolean existsById(String clubName) {
+        return clubsRepository.existsById(clubName);
     }
 }

@@ -7,7 +7,7 @@
     <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
     <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'>
-    
+
     <!-- Запрещаем масштабирование -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 </head>
@@ -17,13 +17,14 @@
         <div class="registration-page">
             <form th:action="@{/registration}" method="post" class="form">
                 <h2>Регистрация</h2>
-                
+
                 <!-- Основная информация -->
                 <div class="input-group">
                     <label for="username">Имя пользователя</label>
                     <div class="input-with-icon">
                         <ion-icon name="person-outline"></ion-icon>
-                        <input type="text" id="username" name="username" placeholder="Придумайте имя пользователя" required />
+                        <input type="text" id="username" name="username" placeholder="Придумайте имя пользователя"
+                            required />
                     </div>
                 </div>
 
@@ -39,7 +40,8 @@
                     <label for="confirmPassword">Подтвердите пароль</label>
                     <div class="input-with-icon">
                         <ion-icon name="lock-closed-outline"></ion-icon>
-                        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="············" required />
+                        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="············"
+                            required />
                     </div>
                 </div>
 
@@ -59,23 +61,7 @@
                         <input type="text" id="lastName" name="lastName" placeholder="Ваша фамилия" required />
                     </div>
                 </div>
-
-                <div class="input-group">
-                    <label for="email">Email</label>
-                    <div class="input-with-icon">
-                        <ion-icon name="mail-outline"></ion-icon>
-                        <input type="email" id="email" name="email" placeholder="your@email.com" required />
-                    </div>
-                </div>
-
-                <div class="input-group">
-                    <label for="phoneNumber">Телефон</label>
-                    <div class="input-with-icon">
-                        <ion-icon name="call-outline"></ion-icon>
-                        <input type="tel" id="phoneNumber" name="phoneNumber" placeholder="+7 (999) 999-99-99" required />
-                    </div>
-                </div>
-
+                
                 <div class="input-group">
                     <label for="birthDate">Дата рождения</label>
                     <div class="input-with-icon">
@@ -91,9 +77,8 @@
                         <ion-icon name="business-outline"></ion-icon>
                         <select id="clubName" name="clubName" required>
                             <option value="">-- Выберите клуб --</option>
-                            <option th:each="club : ${clubs}" 
-                                    th:value="${club.clubName}" 
-                                    th:text="${club.clubName}"></option>
+                            <option th:each="club : ${clubs}" th:value="${club.clubName}" th:text="${club.clubName}">
+                            </option>
                         </select>
                     </div>
                 </div>
@@ -115,28 +100,12 @@
                     </div>
                 </div>
 
-                <!-- Период членства -->
-                <div class="input-group">
-                    <label for="membershipPeriod">Период членства</label>
-                    <div class="input-with-icon">
-                        <ion-icon name="calendar-number-outline"></ion-icon>
-                        <select id="membershipPeriod" name="membershipPeriod" required>
-                            <option value="">-- Выберите период --</option>
-                            <option value="1">1 месяц</option>
-                            <option value="2">2 месяца</option>
-                            <option value="3">3 месяца</option>
-                            <option value="6">6 месяцев</option>
-                            <option value="12">12 месяцев</option>
-                        </select>
-                    </div>
-                </div>
-
                 <!-- Сообщения об ошибках/успехе -->
                 <div th:if="${error}" class="error-message" th:text="${error}"></div>
                 <div th:if="${success}" class="success-message" th:text="${success}"></div>
 
                 <button type="submit" class="register-btn">Зарегистрироваться</button>
-                
+
                 <div class="login-link">
                     Уже есть аккаунт? <a th:href="@{/login}">Войдите</a>
                 </div>

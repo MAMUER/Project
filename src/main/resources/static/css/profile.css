@@ -215,6 +215,73 @@ body {
     border-radius: 2px;
 }
 
+/* Стили для админ-панели в профиле STAFF */
+.admin-panel-container {
+    margin-bottom: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.admin-panel-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    text-decoration: none;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.3);
+    border: 2px solid transparent;
+}
+
+.admin-panel-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(7, 149, 232, 0.4);
+    border-color: #0795E8;
+}
+
+.admin-panel-button ion-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.admin-panel-button span {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.admin-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 15px 0;
+    text-align: center;
+}
+
+/* Адаптивность для админ-панели */
+@media (max-width: 768px) {
+    .admin-panel-container {
+        margin-bottom: 20px;
+        gap: 12px;
+    }
+    
+    .admin-panel-button {
+        padding: 14px 16px;
+    }
+    
+    .admin-panel-button span {
+        font-size: 13px;
+    }
+    
+    .admin-panel-button ion-icon {
+        font-size: 18px;
+    }
+}
+
 /* Адаптивная сетка для профиля */
 .profile-info {
     margin-top: 30px;

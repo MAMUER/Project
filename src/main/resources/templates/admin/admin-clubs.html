@@ -15,7 +15,7 @@
     <div class="admin-container">
         <header class="admin-header">
             <h1>🏢 Управление клубами</h1>
-            <a th:href="@{/}" class="back-button">На главную</a>
+            <a th:href="@{/profile/staff/{id}(id=${staffId})}" class="back-button">В профиль</a>
         </header>
 
         <div class="clubs-grid">

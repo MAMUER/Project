@@ -1,9 +1,6 @@
 package com.example.project.model;
 
 import lombok.*;
-
-import java.time.LocalDate;
-
 import jakarta.persistence.*;
 
 @Getter
@@ -24,10 +21,4 @@ public class NutritionPlan {
 
     @Column(name = "nutrition_description", length = 100)
     private String nutritionDescription;
-
-    @Column(name = "start_date", nullable = false)
-    private LocalDate startDate;
-
-    @Column(name = "end_date")
-    private LocalDate endDate;
 }

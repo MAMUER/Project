@@ -21,7 +21,5 @@ public interface TrainersRepository extends JpaRepository<Trainers, Integer> {
 
     Set<Trainers> findByCertificationsGreaterThan(int minCertifications);
 
-    Set<Trainers> findByEmail(String email);
-
     Set<Trainers> findByHireDateAfter(LocalDate hireDate);
 }

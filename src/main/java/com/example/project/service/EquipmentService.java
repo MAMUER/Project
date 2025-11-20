@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.example.project.model.Equipment;
 import com.example.project.repository.EquipmentRepository;
@@ -27,15 +28,30 @@ public class EquipmentService {
         return equipmentRepository.findAvailableEquipment();
     }
 
-    public Set<Equipment> getEquipmentByName(String name) {
-        return equipmentRepository.findByNameContaining(name);
-    }
-
     public Set<Equipment> getEquipmentByType(Integer typeId) {
         return equipmentRepository.findByEquipmentTypeIdEquipmentType(typeId);
     }
 
     public Equipment saveEquipment(Equipment equipment) {
         return equipmentRepository.save(equipment);
+    }
+
+    // ДОБАВИТЬ: метод для удаления оборудования
+    @Transactional
+    public boolean deleteEquipment(Integer equipmentId) {
+        try {
+            if (equipmentRepository.existsById(equipmentId)) {
+                equipmentRepository.deleteByIdEquipment(equipmentId);
+                return true;
+            }
+            return false;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    // ДОБАВИТЬ: метод для проверки существования оборудования
+    public boolean existsById(Integer equipmentId) {
+        return equipmentRepository.existsById(equipmentId);
     }
 }

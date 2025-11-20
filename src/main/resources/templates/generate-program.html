@@ -37,7 +37,7 @@
                     <h2>🏢 Ваш клуб: <span th:text="${currentClub.clubName}"></span></h2>
                     <p class="club-address" th:text="${currentClub.address}"></p>
                 </div>
-                
+
                 <div class="club-capabilities">
                     <div class="capability-item">
                         <ion-icon name="barbell-outline"></ion-icon>
@@ -46,13 +46,38 @@
                             <p>Программа будет автоматически подобрана под оборудование вашего клуба</p>
                         </div>
                     </div>
-                    
+
                     <div class="capability-item">
                         <ion-icon name="stats-chart-outline"></ion-icon>
                         <div class="capability-info">
                             <h4>Оптимальные упражнения</h4>
                             <p>Мы учтем доступное оборудование для максимальной эффективности</p>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Добавить после информации о клубе -->
+        <div class="user-info-section" th:if="${member}">
+            <div class="user-card">
+                <div class="user-header">
+                    <h2>👤 Информация о пользователе</h2>
+                </div>
+                <div class="user-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Возраст:</span>
+                        <span class="detail-value"
+                            th:text="${#temporals.format(#temporals.createNow().minusYears(member.birthDate.year).minusMonths(member.birthDate.monthValue).minusDays(member.birthDate.dayOfMonth), 'y')} + ' лет'">Возраст</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Пол:</span>
+                        <span class="detail-value" th:text="${membersService.getGenderName(member.gender)}">Пол</span>
+                    </div>
+                    <div class="detail-item"
+                        th:if="${member.inbodyAnalysis != null and not member.inbodyAnalysis.empty}">
+                        <span class="detail-label">Последний Inbody:</span>
+                        <span class="detail-value">Есть данные</span>
                     </div>
                 </div>
             </div>
@@ -195,20 +220,21 @@
         document.addEventListener('DOMContentLoaded', function () {
             const goalInputs = document.querySelectorAll('input[name="goal"]');
             const levelInputs = document.querySelectorAll('input[name="level"]');
-            
+
             function updateRecommendations() {
                 const selectedGoal = document.querySelector('input[name="goal"]:checked')?.value;
                 const selectedLevel = document.querySelector('input[name="level"]:checked')?.value;
-                
+
                 // Можно добавить динамические рекомендации на основе выбора
                 if (selectedGoal && selectedLevel) {
                     console.log(`Выбрана цель: ${selectedGoal}, уровень: ${selectedLevel}`);
                 }
             }
-            
+
             goalInputs.forEach(input => input.addEventListener('change', updateRecommendations));
             levelInputs.forEach(input => input.addEventListener('change', updateRecommendations));
         });
     </script>
 </body>
+
 </html>

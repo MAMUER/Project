@@ -14,6 +14,7 @@ import java.util.Set;
 public class Exercise {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_exercise") // ДОБАВИТЬ явное указание имени столбца
     private Integer idExercise;
 
     @Column(name = "exercise_name", nullable = false, length = 100)
@@ -22,7 +23,7 @@ public class Exercise {
     @Column(name = "description", length = 300)
     private String description;
 
-    @Column(name = "muscle_group", length = 50)
+    @Column(name = "muscle_group", length = 100)
     private String muscleGroup; // грудные, ноги, спина и т.д.
 
     @Column(name = "difficulty_level")

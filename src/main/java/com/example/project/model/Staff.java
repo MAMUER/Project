@@ -1,14 +1,10 @@
 package com.example.project.model;
 
 import lombok.*;
-
+import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.example.project.model.Accounts.StaffAccounts;
-
-import jakarta.persistence.*;
 
 @Getter
 @Setter
@@ -32,23 +28,14 @@ public class Staff {
     @Column(name = "second_name", nullable = false, length = 45)
     private String secondName;
 
-    @Column(name = "phone_number", nullable = false, length = 11)
-    private String phoneNumber;
-
-    @Column(name = "email", nullable = false, length = 45)
-    private String email;
-
     @Column(name = "hire_date", nullable = false)
     private LocalDate hireDate;
 
     @Column(name = "staff_about", length = 100)
     private String staffAbout;
 
-    @Column(name = "gender", nullable = false)
-    private int gender;
-
     @OneToOne(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true)
-    private StaffAccounts staffAccount;
+    private com.example.project.model.Accounts.StaffAccounts staffAccount;
 
     @OneToMany(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<StaffSchedule> staffSchedules = new ArrayList<>();

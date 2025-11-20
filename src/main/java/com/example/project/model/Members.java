@@ -1,15 +1,10 @@
 package com.example.project.model;
 
 import lombok.*;
-
+import jakarta.persistence.*;
 import java.time.LocalDate;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-
-import com.example.project.model.Accounts.MembersAccounts;
-
-import jakarta.persistence.*;
 
 @Getter
 @Setter
@@ -23,68 +18,43 @@ public class Members {
     @Column(name = "id_member", nullable = false)
     private Integer idMember;
 
-    @ManyToOne
-    @JoinColumn(name = "id_role", nullable = false)
-    private MembershipRole membershipRole;
-
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "club_name")
     private Clubs club;
 
-    @Column(name = "first_name")
+    @Column(name = "first_name", nullable = false, length = 45)
     private String firstName;
 
-    @Column(name = "second_name")
+    @Column(name = "second_name", nullable = false, length = 45)
     private String secondName;
 
-    @Column(name = "phone_number")
-    private String phoneNumber;
-
-    @Column(name = "email")
-    private String email;
-
-    @Column(name = "birth_date")
+    @Column(name = "birth_date", nullable = false)
     private LocalDate birthDate;
 
-    @Column(name = "start_trial_date")
-    private LocalDate startTrialDate;
-
-    @Column(name = "end_trial_date")
-    private LocalDate endTrialDate;
-
-    @Column(name = "gender")
+    @Column(name = "gender", nullable = false)
     private Integer gender;
 
     @OneToOne(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
-    private MembersAccounts membersAccount;
+    private com.example.project.model.Accounts.MembersAccounts membersAccount;
 
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<MembersHaveAchievements> membersHaveAchievements = new HashSet<>();
 
-    @ManyToMany
-    @JoinTable(name = "members_have_equipment_statistics", joinColumns = @JoinColumn(name = "id_member"), inverseJoinColumns = @JoinColumn(name = "id_statistics"))
-    private Set<EquipmentStatistics> equipmentStatistics = new HashSet<>();
-
-    @ManyToMany
-    @JoinTable(name = "members_have_inbody_analyses", joinColumns = @JoinColumn(name = "id_member"), inverseJoinColumns = @JoinColumn(name = "id_inbody_analys"))
-    private Set<InbodyAnalyses> inbodyAnalyses = new HashSet<>();
+    @ManyToMany(mappedBy = "members")
+    private Set<InbodyAnalysis> inbodyAnalysis = new HashSet<>();
 
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name = "members_have_training_schedule", joinColumns = @JoinColumn(name = "id_member"), inverseJoinColumns = @JoinColumn(name = "id_session"))
+    @JoinTable(name = "members_have_training_schedule", 
+               joinColumns = @JoinColumn(name = "id_member"), 
+               inverseJoinColumns = @JoinColumn(name = "id_session"))
     private Set<TrainingSchedule> trainingSchedules = new HashSet<>();
 
     @ManyToMany
-    @JoinTable(name = "members_have_visits_history", joinColumns = @JoinColumn(name = "id_member"), inverseJoinColumns = @JoinColumn(name = "id_visit"))
+    @JoinTable(name = "members_have_visits_history", 
+               joinColumns = @JoinColumn(name = "id_member"), 
+               inverseJoinColumns = @JoinColumn(name = "id_visit"))
     private Set<VisitsHistory> visitsHistory = new HashSet<>();
 
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<NutritionPlan> nutritionPlans = new HashSet<>();
-
-    public Set<Feedback> getFeedbacks() {
-        return this.membersAccount != null ? this.membersAccount.getFeedbacks() : Collections.emptySet();
-    }
-
-    public void addTraining(TrainingSchedule training) {
-        this.trainingSchedules.add(training);
-    }
 }

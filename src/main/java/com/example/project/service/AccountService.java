@@ -10,7 +10,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.project.model.Clubs;
 import com.example.project.model.Members;
-import com.example.project.model.MembershipRole;
 import com.example.project.model.UsersPhoto;
 import com.example.project.model.Accounts.MembersAccounts;
 import com.example.project.model.Accounts.StaffAccounts;
@@ -18,7 +17,6 @@ import com.example.project.model.Accounts.TrainersAccounts;
 import com.example.project.repository.ClubsRepository;
 import com.example.project.repository.MembersAccountsRepository;
 import com.example.project.repository.MembersRepository;
-import com.example.project.repository.MembershipRoleRepository;
 import com.example.project.repository.StaffAccountsRepository;
 import com.example.project.repository.TrainersAccountsRepository;
 import com.example.project.repository.UsersPhotoRepository;
@@ -36,7 +34,6 @@ public class AccountService {
     private final MembersAccountsService membersAccountsService;
     private final TrainersAccountsService trainersAccountsService;
     private final StaffAccountsService staffAccountsService;
-    private final MembershipRoleRepository membershipRoleRepository;
     private final UsersPhotoRepository usersPhotoRepository;
     private final ClubsRepository clubsRepository;
 
@@ -300,26 +297,11 @@ public class AccountService {
         return result.toString();
     }
 
-    private MembershipRole getDefaultMembershipRole() {
-        // Попробуем найти роль по ID = 1 (обычно это базовая роль)
-        MembershipRole defaultRole = membershipRoleRepository.findById(1)
-                .orElse(null);
-
-        if (defaultRole == null) {
-            // Если роль с ID=1 не найдена, возьмем первую доступную
-            defaultRole = membershipRoleRepository.findAll().stream()
-                    .findFirst()
-                    .orElseThrow(() -> new RuntimeException("No membership roles found in database"));
-        }
-
-        logger.info("🎯 Using default membership role: {}", defaultRole.getRoleName());
-        return defaultRole;
-    }
-
+    // В методе registerMember исправить создание Members:
     @Transactional
-    public boolean registerMember(String username, String password, String email, String firstName,
-            String lastName, String phoneNumber, LocalDate birthDate,
-            String clubName, Integer gender, Integer membershipPeriod) {
+    public boolean registerMember(String username, String password, String firstName,
+            String lastName, LocalDate birthDate,
+            String clubName, Integer gender) {
         try {
             logger.info("📝 Starting registration for: {}", username);
 
@@ -328,9 +310,6 @@ public class AccountService {
                 logger.error("❌ Registration failed - user already exists: {}", username);
                 return false;
             }
-
-            // Получаем роль по умолчанию
-            MembershipRole defaultRole = getDefaultMembershipRole();
 
             // Получаем клуб
             Clubs club = getClubByName(clubName);
@@ -342,20 +321,12 @@ public class AccountService {
             // Получаем фото по умолчанию
             UsersPhoto defaultPhoto = getDefaultPhoto();
 
-            // Рассчитываем дату окончания trial периода
-            LocalDate endTrialDate = calculateEndTrialDate(membershipPeriod);
-
-            // Создание нового члена
+            // Создание нового члена - ИСПРАВЛЕНО: добавить id_role
             Members member = new Members();
             member.setFirstName(firstName);
             member.setSecondName(lastName);
-            member.setEmail(email);
-            member.setPhoneNumber(phoneNumber);
             member.setBirthDate(birthDate);
-            member.setStartTrialDate(LocalDate.now());
-            member.setEndTrialDate(endTrialDate);
             member.setGender(gender);
-            member.setMembershipRole(defaultRole);
             member.setClub(club);
 
             Members savedMember = membersRepository.save(member);
@@ -387,13 +358,6 @@ public class AccountService {
      */
     private Clubs getClubByName(String clubName) {
         return clubsRepository.findByClubName(clubName).orElse(null);
-    }
-
-    /**
-     * Рассчитать дату окончания trial периода
-     */
-    private LocalDate calculateEndTrialDate(Integer membershipPeriod) {
-        return LocalDate.now().plusMonths(membershipPeriod);
     }
 
     private UsersPhoto getDefaultPhoto() {

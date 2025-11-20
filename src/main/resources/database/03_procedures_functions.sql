@@ -189,7 +189,7 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION inbody_analyses_after_delete()
 RETURNS TRIGGER AS $$
 BEGIN
-    DELETE FROM inbody_analyses WHERE inbody_analyses.id_inbody_analys = OLD.id_inbody_analys;
+    DELETE FROM inbody_analyis WHERE inbody_analyses.id_inbody_analys = OLD.id_inbody_analys;
     RETURN OLD;
 END;
 $$ LANGUAGE plpgsql;
@@ -332,7 +332,7 @@ CREATE OR REPLACE PROCEDURE members_have_inbody_analyses_delete()
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    DELETE FROM members_have_inbody_analyses WHERE id_inbody_analys = 1;
+    DELETE FROM members_have_inbody_analysis WHERE id_inbody_analys = 1;
 END;
 $$;
 
@@ -372,8 +372,8 @@ CREATE OR REPLACE PROCEDURE staff_add()
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    INSERT INTO staff (id_position, first_name, second_name, phone_number, email, hire_date, staff_about, gender) 
-    VALUES (3, 'Сергей', 'Михайлов', '222', 'dgfg.p@gmail.com', '2020-10-2', 'Какой-то мужик', 1);
+    INSERT INTO staff (id_position, first_name, second_name, hire_date, staff_about) 
+    VALUES (3, 'Сергей', 'Михайлов', '2020-10-2', 'Какой-то мужик', 1);
 END;
 $$;
 
@@ -429,8 +429,8 @@ AS $$
 BEGIN
     SELECT first_name, second_name, height, weight, bmi, fat_percent, muscle_persent
     FROM members
-    JOIN members_have_inbody_analyses USING (id_member)
-    JOIN inbody_analyses USING (id_inbody_analys);
+    JOIN members_have_inbody_analysis USING (id_member)
+    JOIN inbody_analysis USING (id_inbody_analys);
 END;
 $$;
 
@@ -442,16 +442,6 @@ BEGIN
     FROM members
     JOIN nutrition_plan USING (id_member)
     ORDER BY start_date ASC;
-END;
-$$;
-
-CREATE OR REPLACE PROCEDURE members_roles()
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    SELECT role_name, first_name, second_name
-    FROM membership_role
-    JOIN members USING(id_role);
 END;
 $$;
 
@@ -613,18 +603,6 @@ DECLARE
     total INT;
 BEGIN
     SELECT COUNT(*) INTO total FROM visits_history WHERE visit_date = dateon;
-    RETURN total;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION TotalEquipmentInGym(id INT)
-RETURNS INT
-LANGUAGE plpgsql
-AS $$
-DECLARE
-    total INT;
-BEGIN
-    SELECT COUNT(*) INTO total FROM gyms_have_equipment WHERE id_gym = id;
     RETURN total;
 END;
 $$;

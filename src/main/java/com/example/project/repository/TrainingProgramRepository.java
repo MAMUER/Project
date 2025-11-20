@@ -17,9 +17,9 @@ public interface TrainingProgramRepository extends JpaRepository<TrainingProgram
     TrainingProgram findByMemberIdMemberAndIsActiveTrueAndIdProgram(Integer memberId, Integer programId);
 
     @Query("SELECT DISTINCT tp FROM TrainingProgram tp " +
-            "LEFT JOIN FETCH tp.programDays pd " +
-            "LEFT JOIN FETCH pd.exercises pe " +
-            "LEFT JOIN FETCH pe.exercise " +
-            "WHERE tp.member.idMember = :memberId")
+           "LEFT JOIN FETCH tp.programDays pd " +
+           "LEFT JOIN FETCH pd.exercises pe " +
+           "LEFT JOIN FETCH pe.exercise " +
+           "WHERE tp.member.idMember = :memberId")
     List<TrainingProgram> findByMemberIdWithDetails(@Param("memberId") Integer memberId);
 }

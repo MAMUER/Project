@@ -35,22 +35,14 @@ CREATE TABLE position(
     role_name VARCHAR(45) NOT NULL
 );
 
--- 4. ТАБЛИЦА РОЛЕЙ ЧЛЕНСТВА
-CREATE TABLE membership_role (
-    id_role SERIAL PRIMARY KEY NOT NULL,
-    role_name VARCHAR(45) NOT NULL
-);
-
 -- 5. ТАБЛИЦА ЧЛЕНОВ КЛУБА (обновленная)
 CREATE TABLE members (
     id_member SERIAL PRIMARY KEY NOT NULL,
-    id_role INTEGER NOT NULL,
     club_name VARCHAR(45),
     first_name VARCHAR(45) NOT NULL,
     second_name VARCHAR(45) NOT NULL,
     birth_date DATE NOT NULL,
     gender INTEGER NOT NULL CHECK (gender IN (0, 1, 2)),
-    FOREIGN KEY (id_role) REFERENCES membership_role (id_role) ON DELETE RESTRICT ON UPDATE CASCADE,
     FOREIGN KEY (club_name) REFERENCES clubs (club_name) ON DELETE SET NULL ON UPDATE CASCADE
 );
 
@@ -73,7 +65,7 @@ CREATE TABLE members_have_achievements (
 );
 
 -- 8. ТАБЛИЦА INBODY АНАЛИЗОВ
-CREATE TABLE inbody_analysises (
+CREATE TABLE inbody_analysis (
     id_inbody_analysis SERIAL PRIMARY KEY NOT NULL,
     HEIGHT FLOAT,
     weight FLOAT,
@@ -83,12 +75,12 @@ CREATE TABLE inbody_analysises (
 );
 
 -- 9. ТАБЛИЦА СВЯЗИ ЧЛЕНОВ И INBODY АНАЛИЗОВ
-CREATE TABLE members_have_inbody_analysises (
+CREATE TABLE members_have_inbody_analysis (
     id_member INTEGER NOT NULL,
     id_inbody_analysis INTEGER NOT NULL,
     PRIMARY KEY (id_member, id_inbody_analysis),
     FOREIGN KEY (id_member) REFERENCES members (id_member) ON DELETE CASCADE ON UPDATE CASCADE,
-    FOREIGN KEY (id_inbody_analysis) REFERENCES inbody_analysises (id_inbody_analysis) ON DELETE CASCADE ON UPDATE CASCADE
+    FOREIGN KEY (id_inbody_analysis) REFERENCES inbody_analysis (id_inbody_analysis) ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- 10. ТАБЛИЦА ИСТОРИИ ПОСЕЩЕНИЙ
@@ -362,8 +354,6 @@ CREATE INDEX idx_members_club_name ON members (club_name);
 CREATE INDEX idx_training_schedule_date ON training_schedule (session_date);
 
 CREATE INDEX idx_visits_history_date ON visits_history (visit_date);
-
-CREATE INDEX idx_members_role ON members (id_role);
 
 CREATE INDEX idx_training_schedule_trainer ON training_schedule (id_trainer);
 

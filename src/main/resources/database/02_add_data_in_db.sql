@@ -57,19 +57,13 @@ INSERT INTO clubs (club_name, address, schedule) VALUES
   "sunday": {"open": "09:00", "close": "20:00"}
 }');
 
--- 3. Заполнение ролей членства
-INSERT INTO membership_role(role_name) VALUES
-('Light'),
-('Smart'),
-('Infinity');
-
 -- 4. Заполнение членов клуба (обновленное)
-INSERT INTO members (id_role, club_name, first_name, second_name, birth_date, gender) VALUES
-(1, 'София', 'Алексей', 'Иванов', '1990-01-01', 1),
-(2, 'София', 'Екатерина', 'Смирнова', '1995-05-05', 0),
-(1, 'Авиапарк', 'Дмитрий', 'Козлов', '1985-12-31', 1),
-(2, 'Первомайский', 'Наталья', 'Кузнецова', '2000-07-15', 0),
-(3, 'Аквамолл', 'Стас', 'Михайлов', '1998-03-20', 1);
+INSERT INTO members (club_name, first_name, second_name, birth_date, gender) VALUES
+('София', 'Алексей', 'Иванов', '1990-01-01', 1),
+('София', 'Екатерина', 'Смирнова', '1995-05-05', 0),
+('Авиапарк', 'Дмитрий', 'Козлов', '1985-12-31', 1),
+('Первомайский', 'Наталья', 'Кузнецова', '2000-07-15', 0),
+('Аквамолл', 'Стас', 'Михайлов', '1998-03-20', 1);
 
 -- 5. Заполнение достижений (расширенное)
 INSERT INTO achievements (achievement_description, achievement_title, achievement_icon_url) VALUES
@@ -447,7 +441,7 @@ insert into members_have_training_schedule values
 (1, 1),
 (1, 2);
 
-insert into inbody_analysises (height,weight,bmi,fat_percent,muscle_percent) values
+insert into inbody_analysis (height,weight,bmi,fat_percent,muscle_percent) values
 (175, 75, 24.49, 18.5, 40.2),
 (160, 60, 23.44, 20.2, 37.8),
 (185, 85, 24.84, 17.3, 42.1),
@@ -461,7 +455,7 @@ insert into visits_history (visit_date) values
 ('2023-12-1'),
 ('2023-11-28');
 
-insert into members_have_inbody_analysises values
+insert into members_have_inbody_analysis values
 (5,1),
 (4,2),
 (3,4),

@@ -18,7 +18,6 @@ import com.example.project.dto.NewsDTO;
 import com.example.project.dto.ProgramRequest;
 import com.example.project.model.Achievements;
 import com.example.project.model.Clubs;
-import com.example.project.model.EquipmentStatistics;
 import com.example.project.model.Members;
 import com.example.project.model.Staff;
 import com.example.project.model.StaffSchedule;
@@ -224,14 +223,11 @@ public class MainController {
     public String registerUser(@RequestParam String username,
             @RequestParam String password,
             @RequestParam String confirmPassword,
-            @RequestParam String email,
             @RequestParam String firstName,
             @RequestParam String lastName,
-            @RequestParam String phoneNumber,
             @RequestParam String birthDate,
             @RequestParam String clubName,
             @RequestParam Integer gender,
-            @RequestParam Integer membershipPeriod,
             Model model) {
 
         // Валидация паролей
@@ -244,20 +240,6 @@ public class MainController {
         // Проверка на существование пользователя
         if (accountService.getAccountInfo(username) != null) {
             model.addAttribute("error", "Пользователь с таким именем уже существует");
-            model.addAttribute("clubs", clubsService.getAllClubs());
-            return "registration";
-        }
-
-        // Валидация email
-        if (!isValidEmail(email)) {
-            model.addAttribute("error", "Некорректный email адрес");
-            model.addAttribute("clubs", clubsService.getAllClubs());
-            return "registration";
-        }
-
-        // Валидация телефона
-        if (!isValidPhoneNumber(phoneNumber)) {
-            model.addAttribute("error", "Некорректный номер телефона");
             model.addAttribute("clubs", clubsService.getAllClubs());
             return "registration";
         }
@@ -275,8 +257,7 @@ public class MainController {
 
             // Регистрация пользователя
             boolean registrationSuccess = accountService.registerMember(
-                    username, password, email, firstName, lastName,
-                    phoneNumber, parsedBirthDate, clubName, gender, membershipPeriod);
+                    username, password, firstName, lastName, parsedBirthDate, clubName, gender);
 
             if (registrationSuccess) {
                 model.addAttribute("success", "Регистрация прошла успешно! Теперь вы можете войти в систему.");
@@ -292,17 +273,6 @@ public class MainController {
             model.addAttribute("clubs", clubsService.getAllClubs());
             return "registration";
         }
-    }
-
-    // Вспомогательные методы валидации
-    private boolean isValidEmail(String email) {
-        String emailRegex = "^[A-Za-z0-9+_.-]+@(.+)$";
-        return email != null && email.matches(emailRegex);
-    }
-
-    private boolean isValidPhoneNumber(String phoneNumber) {
-        String phoneRegex = "^\\+?[0-9]{10,15}$";
-        return phoneNumber != null && phoneNumber.matches(phoneRegex);
     }
 
     @GetMapping("/profile/{role}/{id}")
@@ -332,7 +302,6 @@ public class MainController {
                 } else {
                     model.addAttribute("feedbacks", Collections.emptyList());
                 }
-                model.addAttribute("roleName", member.getMembershipRole().getRoleName());
                 model.addAttribute("member", member);
                 model.addAttribute("achievements", membersService.getSetOfMemberAchievements(id));
                 LocalDateTime now = LocalDateTime.now();
@@ -348,9 +317,6 @@ public class MainController {
                         .count());
                 model.addAttribute("photoURL", membersService.getPhotoUrl(id));
                 model.addAttribute("allNews", newsService.getAllNews());
-                boolean hasActiveSubscription = member.getEndTrialDate() != null &&
-                        member.getEndTrialDate().isAfter(LocalDate.now());
-                model.addAttribute("hasActiveSubscription", hasActiveSubscription);
                 break;
 
             case "trainer":
@@ -479,9 +445,7 @@ public class MainController {
         switch (role) {
             case "member":
                 Members member = membersService.getMember(userId);
-                boolean isSignedUp = membersService.getTrainingSchedules(userId).contains(workout);
                 model.addAttribute("trainer", trainingScheduleService.getTrainer(id));
-                model.addAttribute("isSignedUp", isSignedUp);
                 model.addAttribute("member", member);
                 model.addAttribute("memberId", userId);
                 break;
@@ -579,9 +543,7 @@ public class MainController {
         switch (role) {
             case "member":
                 Members member = membersService.getMember(id);
-                Set<EquipmentStatistics> statistics = membersService.getSetOfEquipmentStatistics(id);
                 Set<Achievements> achievements = membersService.getSetOfMemberAchievements(id);
-                model.addAttribute("statistics", statistics);
                 model.addAttribute("achievements", achievements);
                 model.addAttribute("member", member);
                 model.addAttribute("memberId", id);
