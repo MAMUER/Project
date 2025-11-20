@@ -21,19 +21,20 @@
                     <h2>Вход в систему</h2>
                 </div>
                 
-                <div class="username">
+                <div class="input-group">
                     <label for="username">Имя пользователя</label>
-                    <div class="sec-2">
-                        <ion-icon name="mail-outline"></ion-icon>
-                        <input type="text" id="username" name="username" placeholder="Username" autocomplete="username" />
+                    <div class="input-with-icon">
+                        <ion-icon name="person-outline"></ion-icon>
+                        <input type="text" id="username" name="username" placeholder="Введите имя пользователя" autocomplete="username" required />
                     </div>
                 </div>
                 
-                <div class="password">
+                <div class="input-group">
                     <label for="password">Пароль</label>
-                    <div class="sec-2">
+                    <div class="input-with-icon">
                         <ion-icon name="lock-closed-outline"></ion-icon>
-                        <input class="pas" type="password" id="password" name="password" placeholder="············" autocomplete="current-password" />
+                        <input type="password" id="password" name="password" placeholder="············" autocomplete="current-password" required />
+                        <ion-icon name="eye-outline" class="toggle-password" onclick="togglePasswordVisibility('password')"></ion-icon>
                     </div>
                 </div>
                 
@@ -50,6 +51,23 @@
             </div>
         </div>
     </div>
+
+    <script>
+        function togglePasswordVisibility(fieldId) {
+            const passwordField = document.getElementById(fieldId);
+            const eyeIcon = passwordField.nextElementSibling;
+            
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+                eyeIcon.name = 'eye-off-outline';
+                eyeIcon.style.color = '#0795E8';
+            } else {
+                passwordField.type = 'password';
+                eyeIcon.name = 'eye-outline';
+                eyeIcon.style.color = '#074EE8';
+            }
+        }
+    </script>
 </body>
 
 </html>

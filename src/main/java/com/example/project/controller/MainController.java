@@ -39,6 +39,7 @@ import com.example.project.service.CustomUserDetailsService;
 import com.example.project.service.Event;
 import com.example.project.service.MembersService;
 import com.example.project.service.NewsService;
+import com.example.project.service.PasswordValidationService;
 import com.example.project.service.StaffScheduleService;
 import com.example.project.service.StaffService;
 import com.example.project.service.TrainersService;
@@ -80,6 +81,7 @@ public class MainController {
     private final AdaptiveProgramGenerator adaptiveProgramGenerator;
     private final ClubCapabilityService clubCapabilityService;
     private final TrainingProgramService trainingProgramService;
+    private final PasswordValidationService passwordValidationService;
 
     // Добавьте эти методы в MainController
     @GetMapping("/programs/member/{id}")
@@ -237,6 +239,15 @@ public class MainController {
             return "registration";
         }
 
+        // Проверка сложности пароля
+        PasswordValidationService.PasswordValidationResult passwordValidation = passwordValidationService
+                .validatePassword(password, username, firstName, lastName);
+        if (!passwordValidation.isValid()) {
+            model.addAttribute("error", "Ненадежный пароль: " + passwordValidation.getErrorMessage());
+            model.addAttribute("clubs", clubsService.getAllClubs());
+            return "registration";
+        }
+
         // Проверка на существование пользователя
         if (accountService.getAccountInfo(username) != null) {
             model.addAttribute("error", "Пользователь с таким именем уже существует");
@@ -248,9 +259,9 @@ public class MainController {
             // Парсинг даты рождения
             LocalDate parsedBirthDate = LocalDate.parse(birthDate);
 
-            // Проверка возраста (минимум 14 лет)
-            if (parsedBirthDate.isAfter(LocalDate.now().minusYears(14))) {
-                model.addAttribute("error", "Регистрация доступна с 14 лет");
+            // Проверка возраста (минимум 18 лет)
+            if (parsedBirthDate.isAfter(LocalDate.now().minusYears(18))) {
+                model.addAttribute("error", "Регистрация доступна только с 18 лет");
                 model.addAttribute("clubs", clubsService.getAllClubs());
                 return "registration";
             }

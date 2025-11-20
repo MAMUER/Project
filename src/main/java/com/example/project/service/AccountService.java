@@ -321,7 +321,7 @@ public class AccountService {
             // Получаем фото по умолчанию
             UsersPhoto defaultPhoto = getDefaultPhoto();
 
-            // Создание нового члена - ИСПРАВЛЕНО: добавить id_role
+            // Создание нового члена
             Members member = new Members();
             member.setFirstName(firstName);
             member.setSecondName(lastName);

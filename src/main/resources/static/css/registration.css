@@ -32,6 +32,62 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
+/* Добавьте в registration.css */
+.password-requirements {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: 12px;
+}
+
+.password-requirements ul {
+    margin: 5px 0;
+    padding-left: 20px;
+}
+
+.password-requirements li {
+    margin: 3px 0;
+}
+
+.password-requirements .valid {
+    color: #28a745;
+}
+
+.password-requirements .invalid {
+    color: #dc3545;
+}
+
+.password-match, .age-validation {
+    margin-top: 5px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.password-match.success, .age-validation.success {
+    color: #28a745;
+}
+
+.password-match.error, .age-validation.error {
+    color: #dc3545;
+}
+
+.age-info {
+    font-size: 11px;
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+.register-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+}
+
+.register-btn:disabled:hover {
+    background: #6c757d;
+    transform: none;
+}
+
 .registration-container {
     width: 100%;
     max-width: 500px;
@@ -516,4 +572,222 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 
 .registration-page {
     animation: fadeInUp 0.6s ease-out;
+}
+
+/* Добавьте в registration.css */
+.password-requirements {
+    margin-top: 10px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.password-requirements h4 {
+    margin: 0 0 8px 0;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.password-requirements ul {
+    margin: 5px 0;
+    padding-left: 20px;
+}
+
+.password-requirements li {
+    margin: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.password-requirements .valid {
+    color: #06D6A0;
+    font-weight: 500;
+}
+
+.password-requirements .valid::before {
+    content: "✓";
+    color: #06D6A0;
+    font-weight: bold;
+}
+
+.password-requirements .invalid {
+    color: #FF6B6B;
+    font-weight: 500;
+}
+
+.password-requirements .invalid::before {
+    content: "✗";
+    color: #FF6B6B;
+    font-weight: bold;
+}
+
+.password-match, .age-validation {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.password-match.success, .age-validation.success {
+    color: #06D6A0;
+}
+
+.password-match.error, .age-validation.error {
+    color: #FF6B6B;
+}
+
+.password-match::before, .age-validation::before {
+    font-weight: bold;
+}
+
+.password-match.success::before {
+    content: "✓";
+}
+
+.password-match.error::before {
+    content: "✗";
+}
+
+.age-info {
+    font-size: 11px;
+    color: #6c757d;
+    margin-top: 5px;
+    line-height: 1.4;
+}
+
+.register-btn:disabled {
+    background: #CCCCCC !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    border-color: #CCCCCC !important;
+}
+
+/* Стили для реальтной валидации в реальном времени */
+.validation-feedback {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+
+.validation-feedback.success {
+    color: #06D6A0;
+}
+
+.validation-feedback.error {
+    color: #FF6B6B;
+}
+
+.validation-feedback::before {
+    font-weight: bold;
+}
+
+.validation-feedback.success::before {
+    content: "✓";
+}
+
+.validation-feedback.error::before {
+    content: "✗";
+}
+
+/* Анимация для появления сообщений об ошибках */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.validation-feedback {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Стили для индикатора сложности пароля */
+.password-strength {
+    margin-top: 8px;
+    height: 4px;
+    border-radius: 2px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.password-strength-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+}
+
+.password-strength.weak .password-strength-bar {
+    background: #FF6B6B;
+    width: 25%;
+}
+
+.password-strength.medium .password-strength-bar {
+    background: #FFD166;
+    width: 50%;
+}
+
+.password-strength.strong .password-strength-bar {
+    background: #06D6A0;
+    width: 75%;
+}
+
+.password-strength.very-strong .password-strength-bar {
+    background: #118AB2;
+    width: 100%;
+}
+
+.password-strength-text {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 4px;
+    text-align: right;
+}
+
+/* Стили для кнопки показа/скрытия пароля */
+.toggle-password {
+    cursor: pointer;
+    color: #074EE8;
+    font-size: 20px;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.toggle-password:hover {
+    color: #0707E8;
+    transform: scale(1.1);
+}
+
+/* Убедимся, что иконки правильно расположены */
+.input-with-icon {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.input-with-icon ion-icon:first-child {
+    flex-shrink: 0;
+}
+
+.input-with-icon input {
+    flex: 1;
+}
+
+.input-with-icon .toggle-password {
+    margin-left: auto;
 }

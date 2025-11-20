@@ -82,6 +82,9 @@ body {
     margin: 0 0 8px 0;
     font-weight: 600;
     position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .login-page .logo h2::after {
@@ -96,13 +99,7 @@ body {
     border-radius: 2px;
 }
 
-.login-page .logo p {
-    color: #666666;
-    font-size: 14px;
-    margin: 8px 0 0 0;
-    font-weight: 400;
-}
-
+/* ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ ПОЛЕЙ ВВОДА */
 .input-group {
     display: flex;
     flex-direction: column;
@@ -114,10 +111,12 @@ body {
     color: #0707E8;
     font-size: 16px;
     padding-left: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
-.login-page .username,
-.login-page .password {
+.input-with-icon {
     background: #FFFFFF;
     box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
     padding: 16px 20px;
@@ -129,29 +128,26 @@ body {
     color: #000000;
     transition: all 0.3s ease;
     position: relative;
+    min-width: 0; /* Важно для предотвращения растягивания */
 }
 
-.login-page .username:focus-within,
-.login-page .password:focus-within {
+.input-with-icon:focus-within {
     border-color: #0795E8;
     box-shadow: 0 4px 16px rgba(7, 149, 232, 0.15);
     transform: translateY(-1px);
 }
 
-.login-page .username.error,
-.login-page .password.error {
+.input-with-icon.error {
     border-color: #FF6B6B;
     background-color: rgba(255, 107, 107, 0.05);
 }
 
-.login-page .username.success,
-.login-page .password.success {
+.input-with-icon.success {
     border-color: #06D6A0;
     background-color: rgba(6, 214, 160, 0.05);
 }
 
-.login-page .username input,
-.login-page .password input {
+.input-with-icon input {
     outline: none;
     border: none;
     background: transparent;
@@ -160,47 +156,58 @@ body {
     width: 100%;
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
+    min-width: 0; /* Важно для предотвращения растягивания */
+    flex: 1;
 }
 
-.login-page .username input::-moz-placeholder,
-.login-page .password input::-moz-placeholder {
+.input-with-icon input::-moz-placeholder {
     color: #666666;
     font-size: 16px;
 }
 
-.login-page .username input:-ms-input-placeholder,
-.login-page .password input:-ms-input-placeholder {
+.input-with-icon input:-ms-input-placeholder {
     color: #666666;
     font-size: 16px;
 }
 
-.login-page .username input::placeholder,
-.login-page .password input::placeholder {
+.input-with-icon input::placeholder {
     color: #666666;
     font-size: 16px;
 }
 
-.login-page .username ion-icon,
-.login-page .password ion-icon {
+.input-with-icon ion-icon {
     color: #074EE8;
     font-size: 22px;
     flex-shrink: 0;
     transition: color 0.3s ease;
+    min-width: 22px; /* Фиксированная ширина для иконок */
 }
 
-.login-page .username:focus-within ion-icon,
-.login-page .password:focus-within ion-icon {
+.input-with-icon:focus-within ion-icon {
     color: #0707E8;
 }
 
-.login-page .username.error ion-icon,
-.login-page .password.error ion-icon {
+.input-with-icon.error ion-icon {
     color: #FF6B6B;
 }
 
-.login-page .username.success ion-icon,
-.login-page .password.success ion-icon {
+.input-with-icon.success ion-icon {
     color: #06D6A0;
+}
+
+/* Стили для кнопки показа/скрытия пароля */
+.toggle-password {
+    cursor: pointer;
+    color: #074EE8;
+    font-size: 20px;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    min-width: 20px;
+}
+
+.toggle-password:hover {
+    color: #0707E8;
+    transform: scale(1.1);
 }
 
 /* Одинаковые стили для обеих кнопок */
@@ -231,9 +238,6 @@ body {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    display: flex;
-    align-items: center;
-    justify-content: center;
 }
 
 .login-page .login::before,
@@ -395,6 +399,10 @@ input {
         font-size: 24px;
         line-height: 32.7px;
     }
+    
+    .input-with-icon {
+        padding: 16px;
+    }
 }
 
 @media (max-width: 480px) {
@@ -413,9 +421,8 @@ input {
         line-height: 30px;
     }
     
-    .login-page .username,
-    .login-page .password {
-        padding: 16px;
+    .input-with-icon {
+        padding: 14px 16px;
     }
     
     .login-page .login,
@@ -429,9 +436,8 @@ input {
         padding: 20px;
     }
     
-    .login-page .username,
-    .login-page .password {
-        padding: 14px;
+    .input-with-icon {
+        padding: 12px 14px;
     }
     
     .login-page .login,
@@ -458,4 +464,34 @@ input {
         min-width: 200px;
         padding: 16px;
     }
+}
+
+/* Стили для кнопки показа/скрытия пароля в логине */
+.login-page .password .sec-2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.login-page .password .sec-2 ion-icon:first-child {
+    flex-shrink: 0;
+}
+
+.login-page .password .sec-2 input {
+    flex: 1;
+}
+
+.login-page .password .sec-2 .toggle-password {
+    cursor: pointer;
+    color: #074EE8;
+    font-size: 20px;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.login-page .password .sec-2 .toggle-password:hover {
+    color: #0707E8;
+    transform: scale(1.1);
 }
