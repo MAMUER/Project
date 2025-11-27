@@ -221,3 +221,4 @@ mvn spring-boot:run
 
 Страницы:
 
+![фото 1](image.png)
