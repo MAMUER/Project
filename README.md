@@ -218,3 +218,6 @@ mvn spring-boot:run
 * База данных инициализируется скриптами в папке src/main/resources/database/
 * Статические ресурсы (CSS, JS, иконки) расположены в src/main/resources/static/
 * HTML шаблоны находятся в src/main/resources/templates/
+
+Страницы:
+
