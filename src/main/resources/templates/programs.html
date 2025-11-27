@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+
 <head>
     <title>Мои программы тренировок</title>
     <link rel="stylesheet" th:href="@{/css/programs.css}">
@@ -59,31 +60,94 @@
                         </span>
                     </div>
                 </div>
-                
-                <div class="program-days" th:if="${activeProgram.programDays != null and not activeProgram.programDays.empty}">
-                    <div class="day-card" th:each="day : ${activeProgram.programDays}">
-                        <h4 th:text="${day.dayName}">День</h4>
+
+                <div class="program-days" th:if="${not #lists.isEmpty(sortedProgramDays)}">
+                    <!-- ИСПОЛЬЗУЕМ ОТСОРТИРОВАННЫЕ ДНИ -->
+                    <div class="day-card" th:each="day : ${sortedProgramDays}">
+                        <h4 th:text="${day.dayName} + ' (День ' + ${day.dayNumber} + ')'">День</h4>
                         <span class="muscle-groups" th:text="${day.muscleGroups}">Группы мышц</span>
-                        
-                        <div class="exercises-list" th:if="${day.exercises != null and not day.exercises.empty}">
-                            <div class="exercise-item" th:each="exercise : ${day.exercises}">
+
+                        <div class="exercises-list"
+                            th:if="${not #lists.isEmpty(sortedExercisesByDay.get(day.dayNumber))}">
+                            <!-- ИСПОЛЬЗУЕМ ОТСОРТИРОВАННЫЕ УПРАЖНЕНИЯ -->
+                            <div class="exercise-item" th:each="exercise : ${sortedExercisesByDay.get(day.dayNumber)}">
                                 <div class="exercise-info">
-                                    <span class="exercise-name" th:text="${exercise.exercise.exerciseName}">Упражнение</span>
-                                    <span class="exercise-sets" th:text="${exercise.sets} + '×' + ${exercise.reps}">Подходы×Повторения</span>
+                                    <span class="exercise-name"
+                                        th:text="${exercise.exercise.exerciseName}">Упражнение</span>
+                                    <span class="exercise-sets"
+                                        th:text="${exercise.sets} + 'x' + ${exercise.reps}">Подходы×Повторения</span>
                                 </div>
                                 <div class="exercise-details" th:if="${exercise.weight != null}">
                                     <span th:text="${exercise.weight} + ' кг'">Вес</span>
                                 </div>
                             </div>
                         </div>
-                        <div class="no-exercises" th:if="${day.exercises == null or day.exercises.empty}">
+                        <div class="no-exercises" th:if="${#lists.isEmpty(sortedExercisesByDay.get(day.dayNumber))}">
                             <p>Упражнения не назначены</p>
                         </div>
                     </div>
                 </div>
-                <div class="no-days" th:if="${activeProgram.programDays == null or activeProgram.programDays.empty}">
+                <div class="no-days" th:if="${#lists.isEmpty(sortedProgramDays)}">
                     <p>Дни тренировок не настроены</p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Секция с назначенной диетой для активной программы -->
+        <div class="nutrition-section" th:if="${activeProgram != null and activeProgram.nutritionPlan != null}">
+            <div class="section-header">
+                <h2>🥗 Назначенный план питания</h2>
+            </div>
+
+            <div class="nutrition-cards">
+                <div class="nutrition-card">
+                    <div class="nutrition-header">
+                        <ion-icon name="restaurant-outline"></ion-icon>
+                        <h3 th:text="${activeProgram.nutritionPlan.planName}">Название плана питания</h3>
+                    </div>
+                    <div class="nutrition-content">
+                        <p th:text="${activeProgram.nutritionPlan.nutritionDescription}">Описание плана питания</p>
+
+                        <!-- Статистика питания, если доступна -->
+                        <div class="nutrition-stats" th:if="${activeProgram.nutritionPlan.caloriesPerDay != null}">
+                            <div class="nutrition-stat">
+                                <span class="stat-label">Калории в день:</span>
+                                <span class="stat-value"
+                                    th:text="${activeProgram.nutritionPlan.caloriesPerDay} + ' ккал'"></span>
+                            </div>
+                            <div class="nutrition-stat" th:if="${activeProgram.nutritionPlan.proteinPercent != null}">
+                                <span class="stat-label">Белки:</span>
+                                <span class="stat-value"
+                                    th:text="${activeProgram.nutritionPlan.proteinPercent} + '%'"></span>
+                            </div>
+                            <div class="nutrition-stat" th:if="${activeProgram.nutritionPlan.carbsPercent != null}">
+                                <span class="stat-label">Углеводы:</span>
+                                <span class="stat-value"
+                                    th:text="${activeProgram.nutritionPlan.carbsPercent} + '%'"></span>
+                            </div>
+                            <div class="nutrition-stat" th:if="${activeProgram.nutritionPlan.fatPercent != null}">
+                                <span class="stat-label">Жиры:</span>
+                                <span class="stat-value"
+                                    th:text="${activeProgram.nutritionPlan.fatPercent} + '%'"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nutrition-footer">
+                        <span class="nutrition-type"
+                            th:text="'Цель: ' + ${activeProgram.nutritionPlan.goalType} + ' • Уровень: ' + ${activeProgram.nutritionPlan.difficultyLevel}">
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="empty-nutrition" th:if="${activeProgram != null and activeProgram.nutritionPlan == null}">
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <ion-icon name="restaurant-outline"></ion-icon>
+                </div>
+                <h3>План питания не назначен</h3>
+                <p>Для активной программы пока не создан план питания</p>
             </div>
         </div>
 
@@ -95,13 +159,14 @@
             </div>
 
             <div class="programs-grid" th:if="${not #lists.isEmpty(programs)}">
-                <div class="program-card" th:each="program : ${programs}" 
-                     th:classappend="${program.isActive} ? 'active' : ''">
+                <div class="program-card" th:each="program : ${programs}"
+                    th:classappend="${program.isActive} ? 'active' : ''">
                     <div class="program-header">
                         <h3 th:text="${program.programName}">Название программы</h3>
                         <div class="program-actions">
-                            <form th:action="@{/programs/activate/{memberId}/{programId}(memberId=${memberId}, programId=${program.idProgram})}" 
-                                  method="post" th:if="${not program.isActive}">
+                            <form
+                                th:action="@{/programs/activate/{memberId}/{programId}(memberId=${memberId}, programId=${program.idProgram})}"
+                                method="post" th:if="${not program.isActive}">
                                 <button type="submit" class="activate-btn">
                                     <ion-icon name="play-circle-outline"></ion-icon>
                                     Активировать
@@ -113,7 +178,7 @@
                             </span>
                         </div>
                     </div>
-                    
+
                     <div class="program-info">
                         <div class="info-row">
                             <span class="info-label">Цель:</span>
@@ -129,18 +194,21 @@
                         </div>
                         <div class="info-row">
                             <span class="info-label">Создана:</span>
-                            <span th:text="${#temporals.format(program.createdDate, 'dd.MM.yyyy')}" class="info-value">Дата</span>
+                            <span th:text="${#temporals.format(program.createdDate, 'dd.MM.yyyy')}"
+                                class="info-value">Дата</span>
                         </div>
                     </div>
-                    
+
                     <div class="program-stats">
                         <div class="stat">
-                            <span class="stat-number" th:text="${program.programDays != null ? program.programDays.size() : 0}">0</span>
+                            <span class="stat-number"
+                                th:text="${program.programDays != null ? program.programDays.size() : 0}">0</span>
                             <span class="stat-label">дней в неделю</span>
                         </div>
                         <div class="stat">
                             <!-- УПРОЩЕННОЕ ВЫРАЖЕНИЕ ДЛЯ ПОДСЧЕТА УПРАЖНЕНИЙ -->
-                            <span class="stat-number" th:text="${#lists.size(program.programDays.?[#this != null].![exercises].?[#this != null])}">0</span>
+                            <span class="stat-number"
+                                th:text="${program.programDays != null ? #lists.size(program.programDays) : 0}">0</span>
                             <span class="stat-label">упражнений</span>
                         </div>
                     </div>
@@ -153,12 +221,9 @@
                 </div>
                 <h3>У вас пока нет программ тренировок</h3>
                 <p>Создайте свою первую программу, чтобы начать тренироваться по плану</p>
-                <a th:href="@{/programs/generate/{id}(id=${memberId})}" class="cta-button">
-                    <ion-icon name="add-outline"></ion-icon>
-                    Создать программу
-                </a>
             </div>
         </div>
     </div>
 </body>
+
 </html>

@@ -22,6 +22,11 @@ public class TrainingProgram {
     @JoinColumn(name = "id_member", nullable = false)
     private Members member;
     
+    // ДОБАВИТЬ: связь с планом питания
+    @ManyToOne
+    @JoinColumn(name = "id_nutrition_plan")
+    private NutritionPlan nutritionPlan;
+    
     @Column(name = "program_name", nullable = false, length = 100)
     private String programName;
     
@@ -42,9 +47,4 @@ public class TrainingProgram {
     
     @OneToMany(mappedBy = "trainingProgram", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<ProgramDay> programDays = new HashSet<>();
-    
-    // УДАЛИТЕ эту связь если она есть
-    // @ManyToMany
-    // @JoinTable(...)
-    // private Set<Exercise> exercises = new HashSet<>();
 }

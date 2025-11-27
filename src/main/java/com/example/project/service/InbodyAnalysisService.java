@@ -17,51 +17,40 @@ public class InbodyAnalysisService {
 
     // === Базовые CRUD операции ===
     public InbodyAnalysis getInbodyAnalysis(Integer id) {
-        log.debug("Getting Inbody analysis by id: {}", id);
         return inbodyAnalysisRepository.findById(id).orElse(null);
     }
 
     public InbodyAnalysis saveInbodyAnalysis(InbodyAnalysis analysis) {
-        log.debug("Saving Inbody analysis: {}", analysis);
         return inbodyAnalysisRepository.save(analysis);
     }
 
     public void deleteInbodyAnalysis(Integer id) {
-        log.debug("Deleting Inbody analysis by id: {}", id);
         inbodyAnalysisRepository.deleteById(id);
     }
 
     public List<InbodyAnalysis> getAllAnalyses() {
-        log.debug("Getting all Inbody analyses");
         return inbodyAnalysisRepository.findAll();
     }
 
     // === Методы поиска по диапазонам ===
     public Set<InbodyAnalysis> getAnalysesByBmiRange(Float minBmi, Float maxBmi) {
-        log.debug("Searching analyses by BMI range: {} - {}", minBmi, maxBmi);
         return inbodyAnalysisRepository.findByBmiBetween(minBmi, maxBmi);
     }
 
     public Set<InbodyAnalysis> getAnalysesByWeightRange(Float minWeight, Float maxWeight) {
-        log.debug("Searching analyses by weight range: {} - {}", minWeight, maxWeight);
         return inbodyAnalysisRepository.findByWeightBetween(minWeight, maxWeight);
     }
 
     public Set<InbodyAnalysis> getAnalysesByFatPercentRange(Float minFat, Float maxFat) {
-        log.debug("Searching analyses by fat percent range: {} - {}", minFat, maxFat);
         return inbodyAnalysisRepository.findByFatPercentBetween(minFat, maxFat);
     }
 
     public Set<InbodyAnalysis> getAnalysesByMusclePercentRange(Float minMuscle, Float maxMuscle) {
-        log.debug("Searching analyses by muscle percent range: {} - {}", minMuscle, maxMuscle);
         return inbodyAnalysisRepository.findByMusclePercentBetween(minMuscle, maxMuscle);
     }
 
     // === Бизнес-логика ===
     public InbodyAnalysis createAnalysis(Float height, Float weight, Float fatPercent, Float musclePercent) {
-        log.debug("Creating new analysis - height: {}, weight: {}, fat: {}%, muscle: {}%", 
-                 height, weight, fatPercent, musclePercent);
-        
         InbodyAnalysis analysis = new InbodyAnalysis();
         analysis.setHeight(height);
         analysis.setWeight(weight);
@@ -99,7 +88,6 @@ public class InbodyAnalysisService {
 
     // === Статистические методы ===
     public Map<String, Double> getAverageStatistics() {
-        log.debug("Calculating average statistics");
         Map<String, Double> statistics = new HashMap<>();
         
         statistics.put("averageBmi", inbodyAnalysisRepository.findAverageBmi());
@@ -111,7 +99,6 @@ public class InbodyAnalysisService {
     }
 
     public Map<String, Long> getBmiCategoryStatistics() {
-        log.debug("Calculating BMI category statistics");
         List<InbodyAnalysis> allAnalyses = inbodyAnalysisRepository.findAll();
         
         return allAnalyses.stream()
@@ -123,7 +110,6 @@ public class InbodyAnalysisService {
     }
 
     public Map<String, Long> getFatCategoryStatistics() {
-        log.debug("Calculating fat category statistics");
         List<InbodyAnalysis> allAnalyses = inbodyAnalysisRepository.findAll();
         
         return allAnalyses.stream()

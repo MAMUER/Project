@@ -54,7 +54,4 @@ public class Members {
                joinColumns = @JoinColumn(name = "id_member"), 
                inverseJoinColumns = @JoinColumn(name = "id_visit"))
     private Set<VisitsHistory> visitsHistory = new HashSet<>();
-
-    @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
-    private Set<NutritionPlan> nutritionPlans = new HashSet<>();
 }

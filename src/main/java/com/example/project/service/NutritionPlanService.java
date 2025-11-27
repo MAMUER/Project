@@ -1,6 +1,9 @@
 package com.example.project.service;
 
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
+
 import org.springframework.stereotype.Service;
 import com.example.project.model.NutritionPlan;
 import com.example.project.repository.NutritionPlanRepository;
@@ -15,8 +18,20 @@ public class NutritionPlanService {
         return nutritionPlanRepository.findById(id).orElse(null);
     }
 
-    public Set<NutritionPlan> getNutritionPlansByMember(Integer memberId) {
-        return nutritionPlanRepository.findByMemberIdMember(memberId);
+    public List<NutritionPlan> findByGoal(String goal) {
+        return nutritionPlanRepository.findByGoalType(goal);
+    }
+
+    public List<NutritionPlan> findByGoalAndDifficulty(String goal, String difficulty) {
+        return nutritionPlanRepository.findByGoalTypeAndDifficultyLevel(goal, difficulty);
+    }
+
+    public List<NutritionPlan> findAllNutritionPlans() {
+        return nutritionPlanRepository.findAll();
+    }
+
+    public Optional<NutritionPlan> findById(Integer id) {
+        return nutritionPlanRepository.findById(id);
     }
 
     public Set<NutritionPlan> searchNutritionPlans(String keyword) {
@@ -29,5 +44,10 @@ public class NutritionPlanService {
 
     public void deleteNutritionPlan(Integer id) {
         nutritionPlanRepository.deleteById(id);
+    }
+
+    // ДОБАВИТЬ: метод для получения плана питания по ID
+    public NutritionPlan getNutritionPlanById(Integer id) {
+        return nutritionPlanRepository.findById(id).orElse(null);
     }
 }

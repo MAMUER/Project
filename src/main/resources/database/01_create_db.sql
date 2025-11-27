@@ -101,9 +101,14 @@ CREATE TABLE members_have_visits_history (
 -- 12. ТАБЛИЦА ПЛАНОВ ПИТАНИЯ (ОБНОВЛЕНА)
 CREATE TABLE nutrition_plan (
     id_plan SERIAL PRIMARY KEY NOT NULL,
-    id_member INTEGER NOT NULL,
-    nutrition_description VARCHAR(100),
-    FOREIGN KEY (id_member) REFERENCES members (id_member) ON DELETE CASCADE ON UPDATE CASCADE
+    plan_name VARCHAR(100) NOT NULL,
+    nutrition_description VARCHAR(200),
+    goal_type VARCHAR(50), -- цель
+    difficulty_level VARCHAR(20), -- легкий, средний, сложный
+    calories_per_day INTEGER,
+    protein_percent INTEGER,
+    carbs_percent INTEGER,
+    fat_percent INTEGER
 );
 
 -- 13. ТАБЛИЦА ТИПОВ ОБОРУДОВАНИЯ (ОБНОВЛЕНА)
@@ -300,13 +305,15 @@ CREATE TABLE exercises (
 CREATE TABLE training_programs (
     id_program SERIAL PRIMARY KEY,
     id_member INTEGER NOT NULL,
+    id_nutrition_plan INTEGER,
     program_name VARCHAR(100) NOT NULL,
     goal VARCHAR(100),
     LEVEL VARCHAR(20),
     duration_weeks INTEGER,
     created_date DATE,
     is_active BOOLEAN DEFAULT TRUE,
-    FOREIGN KEY (id_member) REFERENCES members (id_member) ON DELETE CASCADE
+    FOREIGN KEY (id_member) REFERENCES members (id_member) ON DELETE CASCADE,
+    FOREIGN KEY (id_nutrition_plan) REFERENCES nutrition_plan (id_plan) ON DELETE SET NULL
 );
 
 -- 37. ТАБЛИЦА ДНЕЙ ПРОГРАММЫ

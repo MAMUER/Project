@@ -20,6 +20,7 @@ public interface TrainingProgramRepository extends JpaRepository<TrainingProgram
            "LEFT JOIN FETCH tp.programDays pd " +
            "LEFT JOIN FETCH pd.exercises pe " +
            "LEFT JOIN FETCH pe.exercise " +
+           "LEFT JOIN FETCH tp.nutritionPlan " + // ДОБАВИТЬ: загружаем план питания
            "WHERE tp.member.idMember = :memberId")
     List<TrainingProgram> findByMemberIdWithDetails(@Param("memberId") Integer memberId);
 }

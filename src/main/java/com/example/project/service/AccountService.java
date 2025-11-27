@@ -71,23 +71,19 @@ public class AccountService {
     }
 
     public String getPasswordByUsername(String username) {
-        logger.info("🔍 Searching password for user: {}", username);
 
         MembersAccounts member = membersAccountsRepo.findById(username).orElse(null);
         if (member != null) {
-            logger.info("✅ Found in members_accounts: {}", username);
             return member.getPassword();
         }
 
         TrainersAccounts trainer = trainersAccountsRepo.findById(username).orElse(null);
         if (trainer != null) {
-            logger.info("✅ Found in trainers_accounts: {}", username);
             return trainer.getPassword();
         }
 
         StaffAccounts staff = staffAccountsRepo.findById(username).orElse(null);
         if (staff != null) {
-            logger.info("✅ Found in staff_accounts: {}", username);
             return staff.getPassword();
         }
 
@@ -96,23 +92,19 @@ public class AccountService {
     }
 
     public Integer getIdByUsername(String username) {
-        logger.info("🔍 Searching ID for user: {}", username);
 
         MembersAccounts member = membersAccountsRepo.findById(username).orElse(null);
         if (member != null) {
-            logger.info("✅ Found member ID: {}", member.getMember().getIdMember());
             return member.getMember().getIdMember();
         }
 
         TrainersAccounts trainer = trainersAccountsRepo.findById(username).orElse(null);
         if (trainer != null) {
-            logger.info("✅ Found trainer ID: {}", trainer.getTrainer().getIdTrainer());
             return trainer.getTrainer().getIdTrainer();
         }
 
         StaffAccounts staff = staffAccountsRepo.findById(username).orElse(null);
         if (staff != null) {
-            logger.info("✅ Found staff ID: {}", staff.getStaff().getIdStaff());
             return staff.getStaff().getIdStaff();
         }
 
@@ -121,23 +113,19 @@ public class AccountService {
     }
 
     public String getRoleByUsername(String username) {
-        logger.info("🔍 Searching role for user: {}", username);
 
         MembersAccounts member = membersAccountsRepo.findById(username).orElse(null);
         if (member != null) {
-            logger.info("✅ Found member role: {}", member.getUserRole());
             return member.getUserRole();
         }
 
         TrainersAccounts trainer = trainersAccountsRepo.findById(username).orElse(null);
         if (trainer != null) {
-            logger.info("✅ Found trainer role: {}", trainer.getUserRole());
             return trainer.getUserRole();
         }
 
         StaffAccounts staff = staffAccountsRepo.findById(username).orElse(null);
         if (staff != null) {
-            logger.info("✅ Found staff role: {}", staff.getUserRole());
             return staff.getUserRole();
         }
 
@@ -146,26 +134,22 @@ public class AccountService {
     }
 
     public String getUsernameById(Integer userId) {
-        logger.info("🔍 Searching username for ID: {}", userId);
 
         // Поиск по members
         MembersAccounts member = membersAccountsRepo.findByMemberIdMember(userId).orElse(null);
         if (member != null) {
-            logger.info("✅ Found member username: {}", member.getUsername());
             return member.getUsername();
         }
 
         // Поиск по trainers
         TrainersAccounts trainer = trainersAccountsRepo.findByTrainerIdTrainer(userId).orElse(null);
         if (trainer != null) {
-            logger.info("✅ Found trainer username: {}", trainer.getUsername());
             return trainer.getUsername();
         }
 
         // Поиск по staff
         StaffAccounts staff = staffAccountsRepo.findByStaffIdStaff(userId).orElse(null);
         if (staff != null) {
-            logger.info("✅ Found staff username: {}", staff.getUsername());
             return staff.getUsername();
         }
 
@@ -174,7 +158,6 @@ public class AccountService {
     }
 
     public AccountInfo getAccountInfo(String username) {
-        logger.info("🎯 Getting account info for: {}", username);
 
         String password = getPasswordByUsername(username);
         if (password == null) {
@@ -186,13 +169,11 @@ public class AccountService {
         String role = getRoleByUsername(username);
 
         AccountInfo accountInfo = new AccountInfo(username, password, id, role);
-        logger.info("✅ Account info found: {}", accountInfo);
 
         return accountInfo;
     }
 
     public AccountInfo getAccountInfoById(Integer userId) {
-        logger.info("🎯 Getting account info by ID: {}", userId);
 
         String username = getUsernameById(userId);
         if (username == null) {
@@ -215,33 +196,27 @@ public class AccountService {
     // Дополнительные методы для проверки существования аккаунтов
     public boolean isMemberAccount(String username) {
         boolean exists = membersAccountsRepo.findById(username).isPresent();
-        logger.info("👤 Member account check for {}: {}", username, exists);
         return exists;
     }
 
     public boolean isTrainerAccount(String username) {
         boolean exists = trainersAccountsRepo.findById(username).isPresent();
-        logger.info("🏋️ Trainer account check for {}: {}", username, exists);
         return exists;
     }
 
     public boolean isStaffAccount(String username) {
         boolean exists = staffAccountsRepo.findById(username).isPresent();
-        logger.info("👔 Staff account check for {}: {}", username, exists);
         return exists;
     }
 
     public String getAccountType(String username) {
         if (isMemberAccount(username)) {
-            logger.info("📝 Account type for {}: MEMBER", username);
             return "MEMBER";
         }
         if (isTrainerAccount(username)) {
-            logger.info("📝 Account type for {}: TRAINER", username);
             return "TRAINER";
         }
         if (isStaffAccount(username)) {
-            logger.info("📝 Account type for {}: STAFF", username);
             return "STAFF";
         }
         logger.error("📝 Account type NOT found for: {}", username);
@@ -252,7 +227,6 @@ public class AccountService {
      * Проверка пароля для отладки
      */
     public boolean checkPassword(String username, String rawPassword) {
-        logger.info("🔐 Checking password for: {}", username);
 
         String encodedPassword = getPasswordByUsername(username);
         if (encodedPassword == null) {
@@ -261,7 +235,6 @@ public class AccountService {
         }
 
         boolean matches = passwordEncoder.matches(rawPassword, encodedPassword);
-        logger.info("🔐 Password check result for {}: {}", username, matches);
 
         return matches;
     }
@@ -303,7 +276,6 @@ public class AccountService {
             String lastName, LocalDate birthDate,
             String clubName, Integer gender) {
         try {
-            logger.info("📝 Starting registration for: {}", username);
 
             // Проверка существования username
             if (getAccountInfo(username) != null) {
@@ -330,7 +302,6 @@ public class AccountService {
             member.setClub(club);
 
             Members savedMember = membersRepository.save(member);
-            logger.info("✅ Member created with ID: {}", savedMember.getIdMember());
 
             // Создание аккаунта
             MembersAccounts account = new MembersAccounts();
@@ -343,7 +314,6 @@ public class AccountService {
             account.setUserPhoto(defaultPhoto);
 
             membersAccountsRepo.save(account);
-            logger.info("✅ Account created successfully for: {}", username);
 
             return true;
 

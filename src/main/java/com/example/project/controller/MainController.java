@@ -19,6 +19,8 @@ import com.example.project.dto.ProgramRequest;
 import com.example.project.model.Achievements;
 import com.example.project.model.Clubs;
 import com.example.project.model.Members;
+import com.example.project.model.ProgramDay;
+import com.example.project.model.ProgramExercise;
 import com.example.project.model.Staff;
 import com.example.project.model.StaffSchedule;
 import com.example.project.model.Trainers;
@@ -53,6 +55,7 @@ import lombok.AllArgsConstructor;
 
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -78,12 +81,11 @@ public class MainController {
     private final MembersAccountsRepository membersAccountsRepo;
     private final TrainersAccountsRepository trainersAccountsRepo;
     private final StaffAccountsRepository staffAccountsRepo;
-    private final AdaptiveProgramGenerator adaptiveProgramGenerator;
     private final ClubCapabilityService clubCapabilityService;
     private final TrainingProgramService trainingProgramService;
     private final PasswordValidationService passwordValidationService;
+    private final AdaptiveProgramGenerator adaptiveProgramGenerator;
 
-    // Добавьте эти методы в MainController
     @GetMapping("/programs/member/{id}")
     public String memberPrograms(@PathVariable Integer id, Model model) {
         // Проверка доступа
@@ -109,17 +111,34 @@ public class MainController {
             exerciseCounts.put(program.getIdProgram(), trainingProgramService.getTotalExercisesCount(program));
         }
 
+        // ДОБАВИТЬ: сортированные дни и упражнения для активной программы
+        Map<Integer, List<ProgramExercise>> sortedExercisesByDay = new HashMap<>();
+        if (activeProgram != null) {
+            List<ProgramDay> sortedDays = trainingProgramService.getSortedProgramDays(activeProgram);
+            model.addAttribute("sortedProgramDays", sortedDays);
+
+            // Создаем карту отсортированных упражнений по дням
+            for (ProgramDay day : sortedDays) {
+                List<ProgramExercise> sortedExercises = trainingProgramService.getSortedExercises(day);
+                sortedExercisesByDay.put(day.getDayNumber(), sortedExercises);
+            }
+        } else {
+            model.addAttribute("sortedProgramDays", new ArrayList<>());
+        }
+
         model.addAttribute("member", member);
         model.addAttribute("memberId", id);
         model.addAttribute("programs", programs);
         model.addAttribute("activeProgram", activeProgram);
         model.addAttribute("programRequest", new ProgramRequest());
-        model.addAttribute("exerciseCounts", exerciseCounts); // Добавляем счетчики
+        model.addAttribute("exerciseCounts", exerciseCounts);
+        model.addAttribute("sortedExercisesByDay", sortedExercisesByDay); // Добавляем отсортированные упражнения
 
         return "programs";
     }
 
     @GetMapping("/programs/generate/{id}")
+    @Transactional(readOnly = true)
     public String generateProgramForm(@PathVariable Integer id, Model model) {
         // Проверка доступа
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
@@ -130,14 +149,82 @@ public class MainController {
             return "redirect:/access-denied";
         }
 
-        // Получаем информацию о пользователе и его клубе
-        Members member = membersService.getMember(id);
-        Clubs currentClub = member.getClub();
+        try {
+            // Получаем базовую информацию о пользователе
+            Members member = membersService.getMember(id);
 
-        model.addAttribute("memberId", id);
-        model.addAttribute("currentClub", currentClub);
-        model.addAttribute("programRequest", new ProgramRequest());
-        return "generate-program";
+            // Получаем информацию о клубе и его расписании
+            String clubName = "Неизвестный клуб";
+            String clubSchedule = "Расписание не доступно";
+
+            if (member != null && member.getClub() != null) {
+                clubName = member.getClub().getClubName();
+                // Получаем расписание клуба
+                clubSchedule = getClubScheduleFormatted(member.getClub());
+            }
+
+            // Рассчитываем возраст и возрастную группу
+            int age = membersService.calculateAge(id);
+            String ageGroup = membersService.getAgeGroup(id);
+            boolean hasInbodyAnalysis = membersService.hasInbodyAnalysis(id);
+
+            model.addAttribute("membersService", membersService);
+            model.addAttribute("member", member);
+            model.addAttribute("memberId", id);
+            model.addAttribute("clubName", clubName); // Просто строка вместо объекта
+            model.addAttribute("age", age);
+            model.addAttribute("ageGroup", ageGroup);
+            model.addAttribute("hasInbodyAnalysis", hasInbodyAnalysis);
+            model.addAttribute("programRequest", new ProgramRequest());
+            model.addAttribute("clubSchedule", clubSchedule);
+
+            return "generate-program";
+
+        } catch (Exception e) {
+            log.error("Критическая ошибка при загрузке формы генерации программы для пользователя {}: {}", id,
+                    e.getMessage());
+
+            // Резервный вариант - минимальные данные
+            Members member = membersService.getMember(id);
+
+            model.addAttribute("membersService", membersService);
+            model.addAttribute("member", member);
+            model.addAttribute("memberId", id);
+            model.addAttribute("clubName", "Клуб не загружен");
+            model.addAttribute("age", 0);
+            model.addAttribute("ageGroup", "Неизвестно");
+            model.addAttribute("hasInbodyAnalysis", false);
+            model.addAttribute("programRequest", new ProgramRequest());
+
+            return "generate-program";
+        }
+    }
+
+    // Метод для форматирования расписания клуба
+    private String getClubScheduleFormatted(Clubs club) {
+        if (club == null) {
+            return "Расписание не доступно";
+        }
+
+        try {
+            if (club.getSchedule() != null && !club.getSchedule().isEmpty()) {
+                // Парсим JSON расписания (простая реализация)
+                return parseClubSchedule(club.getSchedule());
+            }
+        } catch (Exception e) {
+            log.warn("Не удалось распарсить расписание клуба: {}", e.getMessage());
+        }
+
+        return "Пн-Вс: 7:00-23:00"; // расписание по умолчанию
+    }
+
+    private String parseClubSchedule(String scheduleJson) {
+        // Простая реализация парсинга JSON расписания
+        // В реальном приложении используйте Jackson/Gson
+        if (scheduleJson.contains("Понедельник") || scheduleJson.contains("понедельник")) {
+            return "Пн-Вс: 7:00-23:00";
+        }
+        return "Ежедневно: 7:00-23:00";
     }
 
     @PostMapping("/programs/generate/{id}")
@@ -145,28 +232,86 @@ public class MainController {
             @ModelAttribute ProgramRequest programRequest,
             Model model) {
         try {
-            TrainingProgram program = adaptiveProgramGenerator.generateAdaptiveProgram(id, programRequest);
+            // Валидация выбранных дней
+            if (programRequest.getTrainingDays() == null || programRequest.getTrainingDays().isEmpty()) {
+                throw new IllegalArgumentException("Выберите хотя бы один день для тренировок");
+            }
 
-            // Получаем информацию о пользователе для логирования
+            if (programRequest.getPreferredTime() == null) {
+                throw new IllegalArgumentException("Выберите предпочтительное время тренировок");
+            }
+
+            // Проверка соответствия расписанию клуба
             Members member = membersService.getMember(id);
-            String clubName = member.getClub() != null ? member.getClub().getClubName() : "неизвестный клуб";
+            if (member == null) {
+                throw new IllegalArgumentException("Пользователь не найден");
+            }
 
-            // ИСПРАВЛЕНО: используем clubName из профиля пользователя
-            log.info("Создана программа: ID={}, название={}, клуб={}",
-                    program.getIdProgram(), program.getProgramName(), clubName);
+            if (!isScheduleCompatible(member.getClub(), programRequest)) {
+                throw new IllegalArgumentException("Выбранное время тренировок не совместимо с расписанием клуба");
+            }
+
+            // Создаем программу
+            adaptiveProgramGenerator.generateAdaptiveProgram(id, programRequest);
 
             model.addAttribute("success", "Программа тренировок успешно создана с учетом возможностей клуба!");
             return "redirect:/programs/member/" + id;
         } catch (Exception e) {
+            log.error("Ошибка при создании программы для пользователя {}: {}", id, e.getMessage(), e);
+
             model.addAttribute("error", "Ошибка при создании программы: " + e.getMessage());
             model.addAttribute("memberId", id);
             model.addAttribute("programRequest", programRequest);
 
-            // Добавляем информацию о текущем клубе для повторного отображения формы
+            // Добавляем информацию для повторного отображения формы
             Members member = membersService.getMember(id);
-            model.addAttribute("currentClub", member.getClub());
+            if (member != null) {
+                model.addAttribute("member", member);
+                model.addAttribute("age", membersService.calculateAge(id));
+                model.addAttribute("ageGroup", membersService.getAgeGroup(id));
+                model.addAttribute("hasInbodyAnalysis", membersService.hasInbodyAnalysis(id));
+                model.addAttribute("clubName",
+                        member.getClub() != null ? member.getClub().getClubName() : "Неизвестный клуб");
+                model.addAttribute("clubSchedule", getClubScheduleFormatted(member.getClub()));
+            } else {
+                // Резервные значения если member null
+                model.addAttribute("member", null);
+                model.addAttribute("age", 0);
+                model.addAttribute("ageGroup", "Неизвестно");
+                model.addAttribute("hasInbodyAnalysis", false);
+                model.addAttribute("clubName", "Клуб не загружен");
+                model.addAttribute("clubSchedule", "Расписание не доступно");
+            }
+
+            model.addAttribute("membersService", membersService);
 
             return "generate-program";
+        }
+    }
+
+    private boolean isScheduleCompatible(Clubs club, ProgramRequest request) {
+        // Если клуб не указан, пропускаем проверку
+        if (club == null) {
+            log.warn("Клуб не указан для пользователя, пропускаем проверку расписания");
+            return true;
+        }
+
+        // Простая проверка - в реальном приложении анализируйте JSON расписания
+        String preferredTime = request.getPreferredTime();
+
+        // Проверяем, что выбранное время в пределах работы клуба
+        switch (preferredTime) {
+            case "УТРО":
+                return true; // 7:00-11:00 обычно в пределах работы
+            case "ДЕНЬ":
+                return true; // 11:00-17:00 обычно в пределах работы
+            case "ВЕЧЕР":
+                // Проверяем, что клуб работает до 22:00
+                return club.getSchedule() != null &&
+                        (club.getSchedule().contains("22:00") ||
+                                club.getSchedule().contains("23:00"));
+            default:
+                return true;
         }
     }
 

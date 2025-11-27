@@ -1,11 +1,13 @@
 package com.example.project.dto;
 
 import lombok.Data;
+import java.util.List;
 
 @Data
 public class ProgramRequest {
-    private String goal; // похудение, набор_массы, поддержание
+    private String goal; // цель
     private String level; // начальный, средний, продвинутый
     private Integer durationWeeks;
-    // УБИРАЕМ clubName - используем клуб пользователя из профиля
+    private List<String> trainingDays; // выбранные дни тренировок
+    private String preferredTime; // предпочтительное время: УТРО, ДЕНЬ, ВЕЧЕР
 }

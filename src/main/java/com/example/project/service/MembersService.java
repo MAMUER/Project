@@ -1,8 +1,11 @@
 package com.example.project.service;
 
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.example.project.dto.ClubDTO;
 import com.example.project.model.*;
 import com.example.project.model.Accounts.MembersAccounts;
 import com.example.project.repository.MembersRepository;
@@ -12,6 +15,7 @@ import jakarta.persistence.PersistenceContext;
 import java.time.LocalDate;
 import java.util.*;
 
+@Slf4j
 @Service
 @Transactional
 @AllArgsConstructor
@@ -139,20 +143,6 @@ public class MembersService {
         return Collections.emptySet();
     }
 
-    // === Методы для работы с планами питания ===
-    public Set<NutritionPlan> getNutritionPlans(int memberId) {
-        Members member = membersRepository.findById(memberId).orElse(null);
-        return member != null ? new HashSet<>(member.getNutritionPlans()) : Collections.emptySet();
-    }
-
-    public String getCurrentNutritionPlanDescription(int memberId) {
-        Set<NutritionPlan> plans = getNutritionPlans(memberId);
-        for (NutritionPlan plan : plans) {
-            return plan.getNutritionDescription();
-        }
-        return null;
-    }
-
     // === Методы для работы с историей посещений ===
     public Set<VisitsHistory> getSetOfVisits(int memberId) {
         Members member = membersRepository.findById(memberId).orElse(null);
@@ -204,5 +194,113 @@ public class MembersService {
 
     public void deleteMember(Integer id) {
         membersRepository.deleteById(id);
+    }
+
+    @Transactional(readOnly = true)
+    public Members getMemberWithClub(Integer memberId) {
+        return membersRepository.findByIdWithClub(memberId)
+                .orElseThrow(() -> new RuntimeException("Member not found"));
+    }
+
+    // ДОБАВИТЬ: метод для загрузки с клубом и InbodyAnalysis
+    @Transactional(readOnly = true)
+    public Members getMemberWithClubAndInbody(Integer memberId) {
+        return membersRepository.findByIdWithClubAndInbody(memberId)
+                .orElseThrow(() -> new RuntimeException("Member not found"));
+    }
+
+    // ДОБАВИТЬ: метод для проверки наличия Inbody анализов
+    public boolean hasInbodyAnalysis(Integer memberId) {
+        Members member = getMemberWithClubAndInbody(memberId);
+        return member != null && member.getInbodyAnalysis() != null && !member.getInbodyAnalysis().isEmpty();
+    }
+
+    // ДОБАВИТЬ: метод для расчета возраста
+    public int calculateAge(Integer memberId) {
+        Members member = getMember(memberId);
+        if (member != null && member.getBirthDate() != null) {
+            return java.time.Period.between(member.getBirthDate(), LocalDate.now()).getYears();
+        }
+        return 0;
+    }
+
+    // ДОБАВИТЬ: метод для определения возрастной группы
+    public String getAgeGroup(Integer memberId) {
+        int age = calculateAge(memberId);
+        if (age >= 18 && age <= 29)
+            return "18-29";
+        else if (age >= 30 && age <= 39)
+            return "30-39";
+        else if (age >= 40 && age <= 49)
+            return "40-49";
+        else if (age >= 50 && age <= 59)
+            return "50-59";
+        else
+            return "60+";
+    }
+
+    // В MembersService добавьте эти методы:
+
+    // Безопасный метод проверки InbodyAnalysis через нативный запрос
+    public boolean hasInbodyAnalysisNative(Integer memberId) {
+        try {
+            // Временное решение - всегда возвращаем false, пока не настроим нативный запрос
+            return false;
+        } catch (Exception e) {
+            log.warn("Ошибка при проверке InbodyAnalysis для пользователя {}: {}", memberId, e.getMessage());
+            return false;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public ClubDTO getMemberClubDTO(Integer memberId) {
+        try {
+            // Используем нативный запрос чтобы избежать прокси
+            Members member = membersRepository.findByIdWithClub(memberId).orElse(null);
+            if (member != null && member.getClub() != null) {
+                Clubs club = member.getClub();
+
+                // Создаем новый объект Clubs с данными из прокси
+                Clubs realClub = new Clubs();
+                realClub.setClubName(club.getClubName());
+                realClub.setAddress(club.getAddress());
+                realClub.setSchedule(club.getSchedule());
+
+                return ClubDTO.fromEntity(realClub);
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("Ошибка при получении клуба для пользователя {}: {}", memberId, e.getMessage());
+            return null;
+        }
+    }
+
+    // Альтернативный метод - полностью избегаем Hibernate
+    @Transactional(readOnly = true)
+    public ClubDTO getMemberClubDTOSafe(Integer memberId) {
+        try {
+            // Используем прямой SQL запрос через EntityManager
+            String sql = "SELECT c.club_name, c.address, c.schedule " +
+                    "FROM members m " +
+                    "JOIN clubs c ON m.club_name = c.club_name " +
+                    "WHERE m.id_member = :memberId";
+
+            Object[] result = (Object[]) entityManager.createNativeQuery(sql)
+                    .setParameter("memberId", memberId)
+                    .getSingleResult();
+
+            if (result != null) {
+                ClubDTO dto = new ClubDTO();
+                dto.setClubName((String) result[0]);
+                dto.setAddress((String) result[1]);
+                dto.setSchedule((String) result[2]);
+                return dto;
+            }
+            return null;
+        } catch (Exception e) {
+            log.warn("Ошибка при получении клуба через нативный запрос для пользователя {}: {}", memberId,
+                    e.getMessage());
+            return null;
+        }
     }
 }

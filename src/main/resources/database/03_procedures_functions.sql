@@ -1,16 +1,16 @@
 -- Create necessary tables first
-CREATE TABLE IF NOT EXISTS equipment_supplies(
+CREATE TABLE IF NOT EXISTS equipment_supplies (
     id_supply INT,
     date_supply TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS news_audit(
+CREATE TABLE IF NOT EXISTS news_audit (
     id INT,
     date_changed TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS training_schedule_audit(
-    id_session INT, 
+CREATE TABLE IF NOT EXISTS training_schedule_audit (
+    id_session INT,
     changed_at DATE
 );
 
@@ -299,14 +299,6 @@ CREATE OR REPLACE TRIGGER achievements_after_delete
     AFTER DELETE ON members_have_achievements
     FOR EACH ROW EXECUTE FUNCTION achievements_after_delete();
 
-CREATE OR REPLACE TRIGGER inbody_analyses_after_delete
-    AFTER DELETE ON members_have_inbody_analyses
-    FOR EACH ROW EXECUTE FUNCTION inbody_analyses_after_delete();
-
-CREATE OR REPLACE TRIGGER equipment_statistics_after_delete
-    AFTER DELETE ON members_have_equipment_statistics
-    FOR EACH ROW EXECUTE FUNCTION equipment_statistics_after_delete();
-
 CREATE OR REPLACE TRIGGER users_photo_after_delete
     AFTER DELETE ON members_accounts
     FOR EACH ROW EXECUTE FUNCTION users_photo_after_delete();
@@ -319,22 +311,17 @@ CREATE OR REPLACE TRIGGER staff_photo_after_delete
     AFTER DELETE ON staff_accounts
     FOR EACH ROW EXECUTE FUNCTION staff_photo_after_delete();
 
--- Procedures
-CREATE OR REPLACE PROCEDURE members_have_equipment_statistics_delete()
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    DELETE FROM members_have_equipment_statistics WHERE id_statistics = 1;
-END;
-$$;
-
-CREATE OR REPLACE PROCEDURE members_have_inbody_analyses_delete()
+CREATE OR REPLACE PROCEDURE members_have_inbody_analysis_delete()
 LANGUAGE plpgsql
 AS $$
 BEGIN
     DELETE FROM members_have_inbody_analysis WHERE id_inbody_analys = 1;
 END;
 $$;
+
+CREATE OR REPLACE TRIGGER inbody_analyses_after_delete
+    AFTER DELETE ON members_have_inbody_analysis
+    FOR EACH ROW EXECUTE FUNCTION inbody_analyses_after_delete();
 
 CREATE OR REPLACE PROCEDURE members_have_achievements_delete()
 LANGUAGE plpgsql
@@ -438,10 +425,10 @@ CREATE OR REPLACE PROCEDURE members_nutrition_plan()
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    SELECT first_name, second_name, nutrition_description, start_date
-    FROM members
-    JOIN nutrition_plan USING (id_member)
-    ORDER BY start_date ASC;
+    SELECT m.first_name, m.second_name, np.nutrition_description, np.created_date, np.updated_date
+    FROM members m
+    LEFT JOIN nutrition_plan np ON m.id_member = np.id_member
+    ORDER BY m.first_name, m.second_name;
 END;
 $$;
 
@@ -507,14 +494,14 @@ END;
 $$;
 
 -- Functions
-CREATE OR REPLACE FUNCTION TotalMembersWithNutritionPlan(id_plan INT)
+CREATE OR REPLACE FUNCTION TotalMembersWithNutritionPlan()
 RETURNS INT
 LANGUAGE plpgsql
 AS $$
 DECLARE
     total INT;
 BEGIN
-    SELECT COUNT(*) INTO total FROM nutrition_plan WHERE id_plan = id_plan;
+    SELECT COUNT(*) INTO total FROM nutrition_plan;
     RETURN total;
 END;
 $$;
@@ -678,3 +665,70 @@ BEGIN
     RETURN total;
 END;
 $$;
+
+-- Функция для вставки или обновления плана питания
+CREATE OR REPLACE FUNCTION upsert_nutrition_plan(
+    p_member_id INTEGER,
+    p_nutrition_description VARCHAR(200)
+)
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    existing_plan_id INTEGER;
+BEGIN
+    -- Проверяем, существует ли уже план для этого пользователя
+    SELECT id_plan INTO existing_plan_id 
+    FROM nutrition_plan 
+    WHERE id_member = p_member_id;
+    
+    IF existing_plan_id IS NOT NULL THEN
+        -- Обновляем существующий план
+        UPDATE nutrition_plan 
+        SET nutrition_description = p_nutrition_description,
+            updated_date = CURRENT_DATE
+        WHERE id_member = p_member_id;
+        RETURN existing_plan_id;
+    ELSE
+        -- Вставляем новый план
+        INSERT INTO nutrition_plan (id_member, nutrition_description)
+        VALUES (p_member_id, p_nutrition_description)
+        RETURNING id_plan INTO existing_plan_id;
+        RETURN existing_plan_id;
+    END IF;
+END;
+$$;
+
+-- Новый триггер для проверки перед вставкой (если не используем UPSERT функцию)
+CREATE OR REPLACE FUNCTION nutrition_plan_before_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Проверяем, нет ли уже плана у этого пользователя
+    IF EXISTS (SELECT 1 FROM nutrition_plan WHERE id_member = NEW.id_member) THEN
+        RAISE EXCEPTION 'Member already has a nutrition plan. Use UPDATE instead.';
+    END IF;
+    
+    -- Устанавливаем даты
+    NEW.created_date = COALESCE(NEW.created_date, CURRENT_DATE);
+    NEW.updated_date = CURRENT_DATE;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER nutrition_plan_before_insert
+    BEFORE INSERT ON nutrition_plan
+    FOR EACH ROW EXECUTE FUNCTION nutrition_plan_before_insert();
+
+-- Триггер для обновления updated_date
+CREATE OR REPLACE FUNCTION nutrition_plan_before_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_date = CURRENT_DATE;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER nutrition_plan_before_update
+    BEFORE UPDATE ON nutrition_plan
+    FOR EACH ROW EXECUTE FUNCTION nutrition_plan_before_update();

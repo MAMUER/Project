@@ -547,3 +547,270 @@ body {
         grid-template-columns: 1fr;
     }
 }
+
+.warning-card {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border: 2px solid #ffc107;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.warning-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.warning-header ion-icon {
+    font-size: 24px;
+    color: #856404;
+}
+
+.warning-header h2 {
+    color: #856404;
+    margin: 0;
+    font-size: 20px;
+}
+
+.warning-card p {
+    color: #856404;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Стили для информации о пользователе в generate-program */
+.user-info-section {
+    margin: 20px 0;
+}
+
+.user-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.user-header h2 {
+    margin: 0 0 15px 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.user-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 6px;
+}
+
+.detail-label {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.detail-value {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Стили для секции расписания */
+.schedule-section, .time-section {
+    margin-bottom: 30px;
+}
+
+.subsection-title {
+    font-size: 18px;
+    line-height: 24.5px;
+    font-weight: 600;
+    color: #0707E8;
+    margin: 0 0 8px 0;
+}
+
+.subsection-description {
+    color: #666666;
+    font-size: 14px;
+    line-height: 19.1px;
+    margin: 0 0 20px 0;
+}
+
+/* Выбор дней */
+.days-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.day-option {
+    position: relative;
+    cursor: pointer;
+}
+
+.day-option input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.day-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 12px;
+    border: 2px solid #E8EEFB;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    background: #FFFFFF;
+    text-align: center;
+}
+
+.day-option input[type="checkbox"]:checked + .day-content {
+    border-color: #0795E8;
+    background: rgba(7, 149, 232, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.15);
+}
+
+.day-option:hover .day-content {
+    border-color: #0795E8;
+    transform: translateY(-1px);
+}
+
+.day-name {
+    font-size: 14px;
+    line-height: 19.1px;
+    font-weight: 600;
+    color: #0707E8;
+}
+
+/* Выбор времени */
+.time-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+}
+
+.time-option {
+    position: relative;
+    cursor: pointer;
+}
+
+.time-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.time-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+    border: 2px solid #E8EEFB;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    background: #FFFFFF;
+    text-align: center;
+}
+
+.time-option input[type="radio"]:checked + .time-content {
+    border-color: #0795E8;
+    background: rgba(7, 149, 232, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.15);
+}
+
+.time-option:hover .time-content {
+    border-color: #0795E8;
+    transform: translateY(-1px);
+}
+
+.time-option ion-icon {
+    font-size: 24px;
+    color: #0795E8;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.time-option input[type="radio"]:checked + .time-content ion-icon {
+    color: #074EE8;
+    transform: scale(1.1);
+}
+
+.time-range {
+    font-size: 16px;
+    line-height: 21.8px;
+    font-weight: 700;
+    color: #0707E8;
+    margin-bottom: 4px;
+}
+
+.time-desc {
+    font-size: 12px;
+    line-height: 16.4px;
+    color: #666666;
+}
+
+/* Адаптивность для расписания */
+@media (max-width: 768px) {
+    .days-selector {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .time-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .days-selector {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .day-content {
+        padding: 14px 8px;
+    }
+}
+
+/* Стили для временных сообщений */
+.temporary-message {
+    padding: 16px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    animation: fadeInUp 0.3s ease-out;
+    border: 2px solid transparent;
+}
+
+.temporary-message.error-message {
+    background: rgba(255, 107, 107, 0.1);
+    color: #FF6B6B;
+    border-color: #FF6B6B;
+}
+
+.temporary-message.warning-message {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    color: #856404;
+    border-color: #ffc107;
+}
+
+/* Анимация для временных сообщений */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

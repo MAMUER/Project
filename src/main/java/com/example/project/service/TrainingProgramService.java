@@ -1,5 +1,7 @@
 package com.example.project.service;
+
 import com.example.project.model.ProgramDay;
+import com.example.project.model.ProgramExercise;
 import com.example.project.model.TrainingProgram;
 import com.example.project.repository.TrainingProgramRepository;
 
@@ -54,7 +56,7 @@ public class TrainingProgramService {
         if (program.getProgramDays() == null) {
             return 0;
         }
-        
+
         int totalExercises = 0;
         for (ProgramDay day : program.getProgramDays()) {
             if (day.getExercises() != null) {
@@ -62,5 +64,34 @@ public class TrainingProgramService {
             }
         }
         return totalExercises;
+    }
+
+    // ДОБАВИТЬ: метод для получения программы с планом питания
+    @Transactional(readOnly = true)
+    public TrainingProgram getProgramWithNutritionPlan(Integer programId) {
+        return trainingProgramRepository.findById(programId).orElse(null);
+    }
+
+    // В TrainingProgramService добавьте:
+    public List<ProgramDay> getSortedProgramDays(TrainingProgram program) {
+        if (program == null || program.getProgramDays() == null) {
+            return new ArrayList<>();
+        }
+
+        return program.getProgramDays().stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(ProgramDay::getDayNumber))
+                .collect(Collectors.toList());
+    }
+
+    public List<ProgramExercise> getSortedExercises(ProgramDay day) {
+        if (day == null || day.getExercises() == null) {
+            return new ArrayList<>();
+        }
+
+        return day.getExercises().stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator.comparing(ProgramExercise::getOrderIndex))
+                .collect(Collectors.toList());
     }
 }

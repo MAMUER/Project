@@ -32,19 +32,24 @@ public class AdaptiveProgramGenerator {
             // Определяем возраст пользователя
             int age = calculateAge(member.getBirthDate());
             String ageGroup = determineAgeGroup(age);
-            
+
             // Определяем клуб из профиля пользователя
             String clubName = determineClubName(member);
 
             log.info("Адаптивная генерация программы для пользователя {} (возраст: {}, группа: {}) в клубе {}",
                     memberId, age, ageGroup, clubName);
 
+            // УЧИТЫВАЕМ РАСПИСАНИЕ при создании программы
             TrainingProgram program = createTrainingProgram(member, request, clubName, ageGroup);
-            Set<ProgramDay> programDays = generateAdaptiveProgramDays(program, request, clubName, ageGroup);
+
+            // Генерируем дни с учетом выбранного расписания
+            Set<ProgramDay> programDays = generateAdaptiveProgramDays(
+                    program, request, clubName, ageGroup, request.getTrainingDays());
+
             program.setProgramDays(programDays);
 
             // Создаем план питания
-            createNutritionPlan(member, request, ageGroup);
+            assignNutritionPlan(program, request, ageGroup, member);
 
             trainingProgramService.deactivateOtherPrograms(memberId, null);
             TrainingProgram savedProgram = trainingProgramService.saveProgram(program);
@@ -67,17 +72,23 @@ public class AdaptiveProgramGenerator {
 
     // Метод для определения возрастной группы
     private String determineAgeGroup(int age) {
-        if (age >= 18 && age <= 29) return "18-29";
-        else if (age >= 30 && age <= 39) return "30-39";
-        else if (age >= 40 && age <= 49) return "40-49";
-        else if (age >= 50 && age <= 59) return "50-59";
-        else return "60+";
+        if (age >= 18 && age <= 29)
+            return "18-29";
+        else if (age >= 30 && age <= 39)
+            return "30-39";
+        else if (age >= 40 && age <= 49)
+            return "40-49";
+        else if (age >= 50 && age <= 59)
+            return "50-59";
+        else
+            return "60+";
     }
 
-    private TrainingProgram createTrainingProgram(Members member, ProgramRequest request, String clubName, String ageGroup) {
+    private TrainingProgram createTrainingProgram(Members member, ProgramRequest request, String clubName,
+            String ageGroup) {
         TrainingProgram program = new TrainingProgram();
         program.setMember(member);
-        program.setProgramName(generateAdaptiveProgramName(request, clubName, ageGroup));
+        program.setProgramName(generateAdaptiveProgramName(request, clubName));
         program.setGoal(request.getGoal());
         program.setLevel(request.getLevel());
         program.setDurationWeeks(request.getDurationWeeks());
@@ -86,65 +97,44 @@ public class AdaptiveProgramGenerator {
         return program;
     }
 
-    private String generateAdaptiveProgramName(ProgramRequest request, String clubName, String ageGroup) {
+    private String generateAdaptiveProgramName(ProgramRequest request, String clubName) {
         String goalName = getGoalDisplayName(request.getGoal());
         String levelName = getLevelDisplayName(request.getLevel());
-        return String.format("Программа %s (%s) - %s [%s]", goalName, levelName, clubName, ageGroup);
+        return String.format("Программа %s (%s) - %s", goalName, levelName, clubName);
     }
 
     private Set<ProgramDay> generateAdaptiveProgramDays(TrainingProgram program, ProgramRequest request,
-            String clubName, String ageGroup) {
-        int daysPerWeek = getDaysPerWeek(request.getLevel(), ageGroup);
+            String clubName, String ageGroup, List<String> selectedDays) {
+
+        // Используем выбранные пользователем дни вместо фиксированного количества
+        int daysPerWeek = Math.min(selectedDays.size(),
+                getMaxDaysPerWeek(request.getLevel(), ageGroup));
+
         Map<String, List<Exercise>> availableExercises = getAvailableExercisesByMuscleGroup(clubName);
 
         Set<ProgramDay> days = new LinkedHashSet<>();
 
         for (int i = 0; i < daysPerWeek; i++) {
-            ProgramDay day = createAdaptiveProgramDay(program, i, request, availableExercises, ageGroup);
+            String dayName = selectedDays.get(i % selectedDays.size());
+            ProgramDay day = createAdaptiveProgramDay(program, i, request, availableExercises, ageGroup, dayName);
             days.add(day);
         }
 
         return days;
     }
 
-    // Обновленный метод с учетом возраста
-    private int getDaysPerWeek(String level, String ageGroup) {
-        int baseDays;
-        switch (level.toLowerCase()) {
-            case "начальный":
-                baseDays = 3;
-                break;
-            case "средний":
-                baseDays = 4;
-                break;
-            case "продвинутый":
-                baseDays = 5;
-                break;
-            default:
-                baseDays = 3;
-        }
-
-        // Корректировка по возрасту
-        switch (ageGroup) {
-            case "50-59":
-                return Math.min(baseDays, 4); // Максимум 4 дня для 50-59
-            case "60+":
-                return Math.min(baseDays, 3); // Максимум 3 дня для 60+
-            default:
-                return baseDays;
-        }
-    }
-
     private ProgramDay createAdaptiveProgramDay(TrainingProgram program, int dayIndex,
             ProgramRequest request,
-            Map<String, List<Exercise>> availableExercises, String ageGroup) {
+            Map<String, List<Exercise>> availableExercises, String ageGroup, String dayName) {
+
         ProgramDay day = new ProgramDay();
         day.setTrainingProgram(program);
         day.setDayNumber(dayIndex + 1);
-        day.setDayName(getDayName(dayIndex));
+        day.setDayName(dayName); // Используем выбранный пользователем день
 
         // Определяем группы мышц для дня на основе цели, уровня и возраста
-        String[] targetMuscleGroups = determineMuscleGroupsForDay(dayIndex, request.getGoal(), request.getLevel(), ageGroup);
+        String[] targetMuscleGroups = determineMuscleGroupsForDay(dayIndex, request.getGoal(), request.getLevel(),
+                ageGroup);
         day.setMuscleGroups(String.join(", ", targetMuscleGroups));
 
         Set<ProgramExercise> exercises = generateAdaptiveExercisesForDay(
@@ -152,6 +142,34 @@ public class AdaptiveProgramGenerator {
         day.setExercises(exercises);
 
         return day;
+    }
+
+    // Максимальное количество дней в зависимости от уровня и возраста
+    private int getMaxDaysPerWeek(String level, String ageGroup) {
+        int baseDays;
+        switch (level.toLowerCase()) {
+            case "начальный":
+                baseDays = 4;
+                break;
+            case "средний":
+                baseDays = 5;
+                break;
+            case "продвинутый":
+                baseDays = 6;
+                break;
+            default:
+                baseDays = 4;
+        }
+
+        // Корректировка по возрасту
+        switch (ageGroup) {
+            case "50-59":
+                return Math.min(baseDays, 4);
+            case "60+":
+                return Math.min(baseDays, 3);
+            default:
+                return baseDays;
+        }
     }
 
     private String[] determineMuscleGroupsForDay(int dayIndex, String goal, String level, String ageGroup) {
@@ -270,7 +288,8 @@ public class AdaptiveProgramGenerator {
         }
     }
 
-    private ProgramExercise createProgramExercise(ProgramDay day, Exercise exercise, int difficulty, int order, String ageGroup) {
+    private ProgramExercise createProgramExercise(ProgramDay day, Exercise exercise, int difficulty, int order,
+            String ageGroup) {
         ProgramExercise programExercise = new ProgramExercise();
         programExercise.setProgramDay(day);
         programExercise.setExercise(exercise);
@@ -361,7 +380,8 @@ public class AdaptiveProgramGenerator {
         exercise.setRestSeconds(90);
     }
 
-    private Set<ProgramExercise> generateCardioExercises(ProgramDay day, List<Exercise> cardioExercises, String ageGroup) {
+    private Set<ProgramExercise> generateCardioExercises(ProgramDay day, List<Exercise> cardioExercises,
+            String ageGroup) {
         Set<ProgramExercise> cardioProgramExercises = new HashSet<>();
 
         if (cardioExercises != null && !cardioExercises.isEmpty()) {
@@ -371,7 +391,7 @@ public class AdaptiveProgramGenerator {
             programExercise.setProgramDay(day);
             programExercise.setExercise(cardioExercise);
             programExercise.setSets(1);
-            
+
             // Время кардио в зависимости от возраста
             int cardioTime = getCardioTimeForAge(ageGroup);
             programExercise.setReps(cardioTime);
@@ -400,88 +420,59 @@ public class AdaptiveProgramGenerator {
         }
     }
 
-    // Метод для создания плана питания
-    private void createNutritionPlan(Members member, ProgramRequest request, String ageGroup) {
+    // ДОБАВИТЬ этот новый метод:
+    private void assignNutritionPlan(TrainingProgram program, ProgramRequest request, String ageGroup, Members member) {
         try {
-            NutritionPlan nutritionPlan = new NutritionPlan();
-            nutritionPlan.setMember(member);
-            
-            // Получаем последний Inbody анализ если есть
-            Set<InbodyAnalysis> analyses = member.getInbodyAnalysis();
-            InbodyAnalysis latestAnalysis = analyses.stream()
-                    .max((a1, a2) -> {
-                        // Сравниваем по дате, если есть
-                        return 0; // Простая реализация - в реальности нужно сравнивать даты
-                    })
-                    .orElse(null);
+            // Получаем подходящую диету на основе цели, уровня и возраста
+            NutritionPlan nutritionPlan = findAppropriateNutritionPlan(
+                    request.getGoal(),
+                    request.getLevel(),
+                    ageGroup,
+                    member);
 
-            String nutritionDescription = generateNutritionDescription(request.getGoal(), ageGroup, latestAnalysis);
-            nutritionPlan.setNutritionDescription(nutritionDescription);
+            if (nutritionPlan != null) {
+                program.setNutritionPlan(nutritionPlan);
+            } else {
+                log.warn("Не удалось найти подходящий план питания для цели: {}", request.getGoal());
+            }
 
-            nutritionPlanService.saveNutritionPlan(nutritionPlan);
-            log.info("Создан план питания для пользователя {}: {}", member.getIdMember(), nutritionDescription);
-            
         } catch (Exception e) {
-            log.warn("Не удалось создать план питания для пользователя {}: {}", member.getIdMember(), e.getMessage());
+            log.warn("Не удалось назначить план питания для программы {}: {}", program.getProgramName(),
+                    e.getMessage());
         }
     }
 
-    private String generateNutritionDescription(String goal, String ageGroup, InbodyAnalysis analysis) {
-        StringBuilder nutrition = new StringBuilder();
-        
-        // Базовые рекомендации по цели
-        switch (goal.toLowerCase()) {
-            case "похудение":
-                nutrition.append("Диета для снижения веса: ");
-                if (analysis != null && analysis.getFatPercent() != null && analysis.getFatPercent() > 25) {
-                    nutrition.append("снижение калорийности на 20%, акцент на белок и овощи.");
-                } else {
-                    nutrition.append("умеренное снижение калорий, баланс БЖУ 30/30/40.");
-                }
-                break;
-            case "набор_массы":
-                nutrition.append("Диета для набора мышечной массы: ");
-                nutrition.append("профицит калорий, высокое содержание белка (2г/кг веса).");
-                break;
-            case "поддержание":
-                nutrition.append("Сбалансированное питание для поддержания формы: ");
-                nutrition.append("баланс БЖУ 25/25/50, регулярное питание.");
-                break;
+    private NutritionPlan findAppropriateNutritionPlan(String goal, String level, String ageGroup, Members member) {
+        // Определяем сложность диеты на основе уровня подготовки
+        String difficulty = getNutritionDifficulty(level, ageGroup);
+
+        // Ищем подходящие диеты по цели и сложности
+        List<NutritionPlan> suitablePlans = nutritionPlanService.findByGoalAndDifficulty(goal, difficulty);
+
+        if (!suitablePlans.isEmpty()) {
+            return suitablePlans.get(0); // Возвращаем первую подходящую
+        }
+
+        // Если не нашли по сложности, ищем только по цели
+        List<NutritionPlan> goalPlans = nutritionPlanService.findByGoal(goal);
+        if (!goalPlans.isEmpty()) {
+            return goalPlans.get(0);
+        }
+
+        return null;
+    }
+
+    private String getNutritionDifficulty(String level, String ageGroup) {
+        switch (level.toLowerCase()) {
+            case "начальный":
+                return "легкий";
+            case "средний":
+                return "средний";
+            case "продвинутый":
+                return "сложный";
             default:
-                nutrition.append("Сбалансированное питание: 3 основных приема пищи + 2 перекуса.");
+                return "легкий";
         }
-
-        // Корректировки по возрасту
-        nutrition.append(" Рекомендации по возрасту (").append(ageGroup).append("): ");
-        switch (ageGroup) {
-            case "18-29":
-                nutrition.append("высокая метаболическая активность, можно больше углеводов.");
-                break;
-            case "30-39":
-                nutrition.append("умеренная метаболическая активность, баланс нутриентов.");
-                break;
-            case "40-49":
-                nutrition.append("снижение метаболизма, акцент на белок и клетчатку.");
-                break;
-            case "50-59":
-                nutrition.append("увеличить потребление кальция и витамина D.");
-                break;
-            case "60+":
-                nutrition.append("легкоусвояемая пища, достаточное количество белка для сохранения мышц.");
-                break;
-        }
-
-        // Дополнительные рекомендации на основе Inbody анализа
-        if (analysis != null) {
-            if (analysis.getBmi() != null && analysis.getBmi() > 25) {
-                nutrition.append(" Рекомендуется снизить потребление простых углеводов.");
-            }
-            if (analysis.getMusclePercent() != null && analysis.getMusclePercent() < 40) {
-                nutrition.append(" Увеличьте потребление белка для поддержания мышечной массы.");
-            }
-        }
-
-        return nutrition.toString();
     }
 
     // Остальные методы остаются без изменений
@@ -507,48 +498,59 @@ public class AdaptiveProgramGenerator {
     private String[] getMassGainMuscleGroups(int dayIndex, String level, String ageGroup) {
         if ("начальный".equalsIgnoreCase(level)) {
             switch (dayIndex % 3) {
-                case 0: return new String[] { "Грудные", "Трицепсы" };
-                case 1: return new String[] { "Спина", "Бицепсы" };
-                case 2: return new String[] { "Ноги", "Плечи" };
+                case 0:
+                    return new String[] { "Грудные", "Трицепсы" };
+                case 1:
+                    return new String[] { "Спина", "Бицепсы" };
+                case 2:
+                    return new String[] { "Ноги", "Плечи" };
             }
         } else {
             switch (dayIndex % 4) {
-                case 0: return new String[] { "Грудные" };
-                case 1: return new String[] { "Спина" };
-                case 2: return new String[] { "Ноги" };
-                case 3: return new String[] { "Плечи", "Руки" };
+                case 0:
+                    return new String[] { "Грудные" };
+                case 1:
+                    return new String[] { "Спина" };
+                case 2:
+                    return new String[] { "Ноги" };
+                case 3:
+                    return new String[] { "Плечи", "Руки" };
             }
         }
         return new String[] { "Кардио" };
     }
 
     private List<Exercise> selectRandomExercises(List<Exercise> exercises, int count) {
-        if (exercises.size() <= count) return new ArrayList<>(exercises);
+        if (exercises.size() <= count)
+            return new ArrayList<>(exercises);
         List<Exercise> shuffled = new ArrayList<>(exercises);
         Collections.shuffle(shuffled);
         return shuffled.subList(0, count);
     }
 
-    private String getDayName(int dayIndex) {
-        String[] days = { "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье" };
-        return days[dayIndex % days.length];
-    }
-
     private String getGoalDisplayName(String goal) {
         switch (goal.toLowerCase()) {
-            case "похудение": return "Похудения";
-            case "набор_массы": return "Набора Массы";
-            case "поддержание": return "Поддержания Формы";
-            default: return goal;
+            case "похудение":
+                return "Похудение";
+            case "набор мышц":
+                return "Набор мышц";
+            case "поддержание":
+                return "Поддержание формы";
+            default:
+                return goal;
         }
     }
 
     private String getLevelDisplayName(String level) {
         switch (level.toLowerCase()) {
-            case "начальный": return "Начальный Уровень";
-            case "средний": return "Средний Уровень";
-            case "продвинутый": return "Продвинутый Уровень";
-            default: return level;
+            case "начальный":
+                return "Начальный Уровень";
+            case "средний":
+                return "Средний Уровень";
+            case "продвинутый":
+                return "Продвинутый Уровень";
+            default:
+                return level;
         }
     }
 }

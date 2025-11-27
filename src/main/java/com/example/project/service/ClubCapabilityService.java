@@ -33,7 +33,6 @@ public class ClubCapabilityService {
         
         // Если требований нет - упражнение доступно
         if (requirements == null || requirements.isEmpty()) {
-            log.debug("Упражнение {} доступно - нет требований к оборудованию", exercise.getExerciseName());
             return true;
         }
 
@@ -46,17 +45,10 @@ public class ClubCapabilityService {
                 );
                 
                 if (availableQuantity < requirement.getQuantityRequired()) {
-                    log.debug("Клуб {} не может поддержать {}: требуется {} {}, доступно {}", 
-                             clubName, exercise.getExerciseName(), 
-                             requirement.getQuantityRequired(), 
-                             requirement.getEquipmentType().getTypeName(), 
-                             availableQuantity);
                     return false;
                 }
             }
         }
-        
-        log.debug("Клуб {} может поддержать упражнение {}", clubName, exercise.getExerciseName());
         return true;
     }
 
@@ -84,9 +76,6 @@ public class ClubCapabilityService {
         List<Exercise> availableExercises = allExercises.stream()
             .filter(exercise -> canClubSupportExercise(clubName, exercise.getIdExercise()))
             .collect(Collectors.toList());
-            
-        log.debug("Клуб {}: группа мышц {} - {} доступных упражнений из {}", 
-                 clubName, muscleGroup, availableExercises.size(), allExercises.size());
         
         return availableExercises;
     }
@@ -98,9 +87,6 @@ public class ClubCapabilityService {
         List<Exercise> availableExercises = allExercises.stream()
             .filter(exercise -> canClubSupportExercise(clubName, exercise.getIdExercise()))
             .collect(Collectors.toList());
-            
-        log.info("Клуб {}: {} доступных упражнений из {}", 
-                clubName, availableExercises.size(), allExercises.size());
         
         return availableExercises;
     }
@@ -138,9 +124,6 @@ public class ClubCapabilityService {
         // Анализ оборудования
         analysis.put("equipmentSummary", getClubEquipmentSummary(clubName));
         
-        log.info("Анализ возможностей клуба {} завершен: {} доступных упражнений", 
-                clubName, availableExercises.size());
-        
         return analysis;
     }
 
@@ -155,8 +138,6 @@ public class ClubCapabilityService {
                 equipment -> equipment.getEquipmentType().getTypeName(),
                 Collectors.summingInt(Equipment::getQuantity)
             ));
-            
-        log.debug("Оборудование клуба {}: {}", clubName, equipmentSummary);
         return equipmentSummary;
     }
 
