@@ -15,9 +15,20 @@
 
 **Используемые языки программирования:**
 - Java 17
+- JavaScript
+- PL/pgSQL
+
+**Языки разметки и стилей:**
+- HTML
+- CSS
+
+Язык запросов:
 - SQL
-- HTML/CSS/JavaScript
-- Thymeleaf
+
+**Технологии/Фреймворки:**
+- Spring Boot (Java фреймворк)
+- Thymeleaf (шаблонизатор для HTML)
+- Hibernate/JPA (ORM для работы с БД)
 
 ## 2. Функциональное назначение
 
@@ -221,4 +232,7 @@ mvn spring-boot:run
 
 Страницы:
 
-![фото1](./screenshots/)
+http://localhost:8080/login
+
+![фото1](./screenshots/login.png)
+
