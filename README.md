@@ -1,3 +1,5 @@
+# ТЕХНИЧЕСКОЕ ЗАДАНИЕ
+
 # ОПИСАНИЕ ПРОГРАММЫ
 
 ## 1. Общие сведения
@@ -100,7 +102,7 @@ com.example.project/
 - Windows 10/11, Linux, macOS
 - Java Runtime Environment 17
 - 4 ГБ оперативной памяти
-- 2 ГБ свободного места на диске
+- 1 ГБ свободного места на диске
 
 ## 5. Вызов и загрузка
 
@@ -229,10 +231,3 @@ mvn spring-boot:run
 * База данных инициализируется скриптами в папке src/main/resources/database/
 * Статические ресурсы (CSS, JS, иконки) расположены в src/main/resources/static/
 * HTML шаблоны находятся в src/main/resources/templates/
-
-Страницы:
-
-http://localhost:8080/login
-
-![фото1](./screenshots/login.png)
-

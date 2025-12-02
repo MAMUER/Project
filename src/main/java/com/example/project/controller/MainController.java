@@ -5,6 +5,13 @@ import java.security.Principal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.stream.Collectors;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -67,6 +74,7 @@ import java.util.Set;
 @Controller
 @CrossOrigin("*")
 @AllArgsConstructor
+@Tag(name = "Основной контроллер", description = "Основные API для работы с пользователями, тренировками, программами и расписанием")
 public class MainController {
     private final MembersService membersService;
     private final ClubsService clubsService;
@@ -87,8 +95,12 @@ public class MainController {
     private final AdaptiveProgramGenerator adaptiveProgramGenerator;
 
     @GetMapping("/programs/member/{id}")
-    public String memberPrograms(@PathVariable Integer id, Model model) {
-        // Проверка доступа
+    @Operation(summary = "Получить программы тренировок участника", description = "Возвращает все программы тренировок для указанного участника")
+    @ApiResponse(responseCode = "200", description = "Программы успешно получены")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String memberPrograms(
+            @Parameter(description = "ID участника", example = "123") @PathVariable Integer id,
+            Model model) {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = ((UserDetails) principal).getUsername();
         Integer currentUserId = userDetailsService.getUserId(username);
@@ -105,19 +117,15 @@ public class MainController {
                 .findFirst()
                 .orElse(null);
 
-        // Добавляем счетчики упражнений для каждой программы
         Map<Integer, Integer> exerciseCounts = new HashMap<>();
         for (TrainingProgram program : programs) {
             exerciseCounts.put(program.getIdProgram(), trainingProgramService.getTotalExercisesCount(program));
         }
 
-        // ДОБАВИТЬ: сортированные дни и упражнения для активной программы
         Map<Integer, List<ProgramExercise>> sortedExercisesByDay = new HashMap<>();
         if (activeProgram != null) {
             List<ProgramDay> sortedDays = trainingProgramService.getSortedProgramDays(activeProgram);
             model.addAttribute("sortedProgramDays", sortedDays);
-
-            // Создаем карту отсортированных упражнений по дням
             for (ProgramDay day : sortedDays) {
                 List<ProgramExercise> sortedExercises = trainingProgramService.getSortedExercises(day);
                 sortedExercisesByDay.put(day.getDayNumber(), sortedExercises);
@@ -132,15 +140,19 @@ public class MainController {
         model.addAttribute("activeProgram", activeProgram);
         model.addAttribute("programRequest", new ProgramRequest());
         model.addAttribute("exerciseCounts", exerciseCounts);
-        model.addAttribute("sortedExercisesByDay", sortedExercisesByDay); // Добавляем отсортированные упражнения
+        model.addAttribute("sortedExercisesByDay", sortedExercisesByDay);
 
         return "programs";
     }
 
     @GetMapping("/programs/generate/{id}")
     @Transactional(readOnly = true)
-    public String generateProgramForm(@PathVariable Integer id, Model model) {
-        // Проверка доступа
+    @Operation(summary = "Форма для генерации программы тренировок", description = "Показывает форму для создания новой программы тренировок")
+    @ApiResponse(responseCode = "200", description = "Форма успешно загружена")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String generateProgramForm(
+            @Parameter(description = "ID участника", example = "123") @PathVariable Integer id,
+            Model model) {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = ((UserDetails) principal).getUsername();
         Integer currentUserId = userDetailsService.getUserId(username);
@@ -150,20 +162,15 @@ public class MainController {
         }
 
         try {
-            // Получаем базовую информацию о пользователе
             Members member = membersService.getMember(id);
-
-            // Получаем информацию о клубе и его расписании
             String clubName = "Неизвестный клуб";
             String clubSchedule = "Расписание не доступно";
 
             if (member != null && member.getClub() != null) {
                 clubName = member.getClub().getClubName();
-                // Получаем расписание клуба
                 clubSchedule = getClubScheduleFormatted(member.getClub());
             }
 
-            // Рассчитываем возраст и возрастную группу
             int age = membersService.calculateAge(id);
             String ageGroup = membersService.getAgeGroup(id);
             boolean hasInbodyAnalysis = membersService.hasInbodyAnalysis(id);
@@ -171,7 +178,7 @@ public class MainController {
             model.addAttribute("membersService", membersService);
             model.addAttribute("member", member);
             model.addAttribute("memberId", id);
-            model.addAttribute("clubName", clubName); // Просто строка вместо объекта
+            model.addAttribute("clubName", clubName);
             model.addAttribute("age", age);
             model.addAttribute("ageGroup", ageGroup);
             model.addAttribute("hasInbodyAnalysis", hasInbodyAnalysis);
@@ -184,7 +191,6 @@ public class MainController {
             log.error("Критическая ошибка при загрузке формы генерации программы для пользователя {}: {}", id,
                     e.getMessage());
 
-            // Резервный вариант - минимальные данные
             Members member = membersService.getMember(id);
 
             model.addAttribute("membersService", membersService);
@@ -200,7 +206,6 @@ public class MainController {
         }
     }
 
-    // Метод для форматирования расписания клуба
     private String getClubScheduleFormatted(Clubs club) {
         if (club == null) {
             return "Расписание не доступно";
@@ -208,19 +213,16 @@ public class MainController {
 
         try {
             if (club.getSchedule() != null && !club.getSchedule().isEmpty()) {
-                // Парсим JSON расписания (простая реализация)
                 return parseClubSchedule(club.getSchedule());
             }
         } catch (Exception e) {
             log.warn("Не удалось распарсить расписание клуба: {}", e.getMessage());
         }
 
-        return "Пн-Вс: 7:00-23:00"; // расписание по умолчанию
+        return "Пн-Вс: 7:00-23:00";
     }
 
     private String parseClubSchedule(String scheduleJson) {
-        // Простая реализация парсинга JSON расписания
-        // В реальном приложении используйте Jackson/Gson
         if (scheduleJson.contains("Понедельник") || scheduleJson.contains("понедельник")) {
             return "Пн-Вс: 7:00-23:00";
         }
@@ -228,11 +230,15 @@ public class MainController {
     }
 
     @PostMapping("/programs/generate/{id}")
-    public String generateProgram(@PathVariable Integer id,
-            @ModelAttribute ProgramRequest programRequest,
+    @Operation(summary = "Создать программу тренировок", description = "Генерирует новую программу тренировок для участника")
+    @ApiResponse(responseCode = "200", description = "Программа успешно создана")
+    @ApiResponse(responseCode = "400", description = "Ошибка валидации")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String generateProgram(
+            @Parameter(description = "ID участника", example = "123") @PathVariable Integer id,
+            @Parameter(description = "Данные для создания программы") @ModelAttribute ProgramRequest programRequest,
             Model model) {
         try {
-            // Валидация выбранных дней
             if (programRequest.getTrainingDays() == null || programRequest.getTrainingDays().isEmpty()) {
                 throw new IllegalArgumentException("Выберите хотя бы один день для тренировок");
             }
@@ -241,7 +247,6 @@ public class MainController {
                 throw new IllegalArgumentException("Выберите предпочтительное время тренировок");
             }
 
-            // Проверка соответствия расписанию клуба
             Members member = membersService.getMember(id);
             if (member == null) {
                 throw new IllegalArgumentException("Пользователь не найден");
@@ -251,7 +256,6 @@ public class MainController {
                 throw new IllegalArgumentException("Выбранное время тренировок не совместимо с расписанием клуба");
             }
 
-            // Создаем программу
             adaptiveProgramGenerator.generateAdaptiveProgram(id, programRequest);
 
             model.addAttribute("success", "Программа тренировок успешно создана с учетом возможностей клуба!");
@@ -263,7 +267,6 @@ public class MainController {
             model.addAttribute("memberId", id);
             model.addAttribute("programRequest", programRequest);
 
-            // Добавляем информацию для повторного отображения формы
             Members member = membersService.getMember(id);
             if (member != null) {
                 model.addAttribute("member", member);
@@ -274,7 +277,6 @@ public class MainController {
                         member.getClub() != null ? member.getClub().getClubName() : "Неизвестный клуб");
                 model.addAttribute("clubSchedule", getClubScheduleFormatted(member.getClub()));
             } else {
-                // Резервные значения если member null
                 model.addAttribute("member", null);
                 model.addAttribute("age", 0);
                 model.addAttribute("ageGroup", "Неизвестно");
@@ -290,16 +292,13 @@ public class MainController {
     }
 
     private boolean isScheduleCompatible(Clubs club, ProgramRequest request) {
-        // Если клуб не указан, пропускаем проверку
         if (club == null) {
             log.warn("Клуб не указан для пользователя, пропускаем проверку расписания");
             return true;
         }
 
-        // Простая проверка - в реальном приложении анализируйте JSON расписания
         String preferredTime = request.getPreferredTime();
 
-        // Проверяем, что выбранное время в пределах работы клуба
         switch (preferredTime) {
             case "УТРО":
                 return true; // 7:00-11:00 обычно в пределах работы
@@ -315,23 +314,13 @@ public class MainController {
         }
     }
 
-    // НОВЫЙ метод для анализа возможностей клуба
-    @GetMapping("/club/capabilities/{clubName}")
-    @ResponseBody
-    public Map<String, Object> getClubCapabilities(@PathVariable String clubName) {
-        return clubCapabilityService.analyzeClubCapabilities(clubName);
-    }
-
-    // НОВЫЙ метод для получения оборудования клуба
-    @GetMapping("/club/equipment/{clubName}")
-    @ResponseBody
-    public Map<String, Integer> getClubEquipment(@PathVariable String clubName) {
-        return clubCapabilityService.getClubEquipmentSummary(clubName);
-    }
-
     @PostMapping("/programs/activate/{memberId}/{programId}")
-    public String activateProgram(@PathVariable Integer memberId,
-            @PathVariable Integer programId) {
+    @Operation(summary = "Активировать программу тренировок", description = "Активирует выбранную программу тренировок для участника")
+    @ApiResponse(responseCode = "200", description = "Программа успешно активирована")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String activateProgram(
+            @Parameter(description = "ID участника", example = "123") @PathVariable Integer memberId,
+            @Parameter(description = "ID программы", example = "456") @PathVariable Integer programId) {
         trainingProgramService.deactivateOtherPrograms(memberId, programId);
 
         TrainingProgram program = trainingProgramService.getProgram(programId);
@@ -344,47 +333,52 @@ public class MainController {
     }
 
     @GetMapping("/")
+    @Operation(summary = "Перенаправление на страницу входа", description = "Перенаправляет пользователя на страницу авторизации")
     public String redirectToLogin() {
         return "redirect:/login";
     }
 
     @GetMapping("/login")
-    public String login(@RequestParam(required = false) String error,
-            @RequestParam(required = false) String logout) {
+    @Operation(summary = "Страница входа", description = "Отображает форму для входа в систему")
+    public String login(
+            @Parameter(description = "Параметр ошибки", example = "true") @RequestParam(required = false) String error,
+            @Parameter(description = "Параметр выхода", example = "true") @RequestParam(required = false) String logout) {
         return "login";
     }
 
     @GetMapping("/logout")
+    @Operation(summary = "Выход из системы", description = "Выполняет выход пользователя из системы")
     public String logout() {
         return "redirect:/login?logout";
     }
 
     @GetMapping("/registration")
+    @Operation(summary = "Форма регистрации", description = "Отображает форму для регистрации нового пользователя")
     public String registrationForm(Model model) {
-        // Загружаем список клубов для выбора
         model.addAttribute("clubs", clubsService.getAllClubs());
         return "registration";
     }
 
     @PostMapping("/registration")
-    public String registerUser(@RequestParam String username,
-            @RequestParam String password,
-            @RequestParam String confirmPassword,
-            @RequestParam String firstName,
-            @RequestParam String lastName,
-            @RequestParam String birthDate,
-            @RequestParam String clubName,
-            @RequestParam Integer gender,
+    @Operation(summary = "Регистрация нового пользователя", description = "Регистрирует нового участника в системе")
+    @ApiResponse(responseCode = "200", description = "Регистрация успешна")
+    @ApiResponse(responseCode = "400", description = "Ошибка валидации данных")
+    public String registerUser(
+            @Parameter(description = "Имя пользователя", example = "john_doe", required = true) @RequestParam String username,
+            @Parameter(description = "Пароль", required = true) @RequestParam String password,
+            @Parameter(description = "Подтверждение пароля", required = true) @RequestParam String confirmPassword,
+            @Parameter(description = "Имя", example = "John", required = true) @RequestParam String firstName,
+            @Parameter(description = "Фамилия", example = "Doe", required = true) @RequestParam String lastName,
+            @Parameter(description = "Дата рождения", example = "1990-01-15", required = true) @RequestParam String birthDate,
+            @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'", required = true) @RequestParam String clubName,
+            @Parameter(description = "Пол (1 - мужской, 2 - женский)", example = "1", required = true) @RequestParam Integer gender,
             Model model) {
-
-        // Валидация паролей
         if (!password.equals(confirmPassword)) {
             model.addAttribute("error", "Пароли не совпадают");
             model.addAttribute("clubs", clubsService.getAllClubs());
             return "registration";
         }
 
-        // Проверка сложности пароля
         PasswordValidationService.PasswordValidationResult passwordValidation = passwordValidationService
                 .validatePassword(password, username, firstName, lastName);
         if (!passwordValidation.isValid()) {
@@ -393,7 +387,6 @@ public class MainController {
             return "registration";
         }
 
-        // Проверка на существование пользователя
         if (accountService.getAccountInfo(username) != null) {
             model.addAttribute("error", "Пользователь с таким именем уже существует");
             model.addAttribute("clubs", clubsService.getAllClubs());
@@ -401,17 +394,14 @@ public class MainController {
         }
 
         try {
-            // Парсинг даты рождения
             LocalDate parsedBirthDate = LocalDate.parse(birthDate);
 
-            // Проверка возраста (минимум 18 лет)
             if (parsedBirthDate.isAfter(LocalDate.now().minusYears(18))) {
                 model.addAttribute("error", "Регистрация доступна только с 18 лет");
                 model.addAttribute("clubs", clubsService.getAllClubs());
                 return "registration";
             }
 
-            // Регистрация пользователя
             boolean registrationSuccess = accountService.registerMember(
                     username, password, firstName, lastName, parsedBirthDate, clubName, gender);
 
@@ -433,7 +423,14 @@ public class MainController {
 
     @GetMapping("/profile/{role}/{id}")
     @Transactional
-    public String profile(@PathVariable Integer id, @PathVariable String role, Model model) {
+    @Operation(summary = "Профиль пользователя", description = "Отображает профиль пользователя в зависимости от его роли")
+    @ApiResponse(responseCode = "200", description = "Профиль успешно загружен")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String profile(
+            @Parameter(description = "ID пользователя", example = "123") @PathVariable Integer id,
+            @Parameter(description = "Роль пользователя", example = "member", schema = @Schema(allowableValues = {
+                    "member", "trainer", "staff" })) @PathVariable String role,
+            Model model) {
         model.addAttribute("role", role);
         model.addAttribute("membersService", membersService);
 
@@ -442,7 +439,6 @@ public class MainController {
         Integer currentUserId = userDetailsService.getUserId(username);
         String currentUserRole = userDetailsService.getUserRole(username);
 
-        // Проверка доступа
         if (!currentUserId.equals(id) || !currentUserRole.equals(role)) {
             return "redirect:/access-denied";
         }
@@ -452,7 +448,7 @@ public class MainController {
                 Members member = membersService.getMember(id);
                 model.addAttribute("memberId", id);
                 model.addAttribute("memberClub", member.getClub());
-                // Получаем фидбэки через аккаунт
+
                 if (member != null && member.getMembersAccount() != null) {
                     model.addAttribute("feedbacks", member.getMembersAccount().getFeedbacks());
                 } else {
@@ -533,8 +529,11 @@ public class MainController {
     @GetMapping("/profile/member/{id}/news")
     @ResponseBody
     @Transactional(readOnly = true)
-    public List<NewsDTO> getMemberNews(@PathVariable Integer id,
-            @RequestParam(required = false) String club) {
+    @Operation(summary = "Получить новости для участника", description = "Возвращает список новостей, отфильтрованных по клубу участника")
+    @ApiResponse(responseCode = "200", description = "Новости успешно получены", content = @Content(mediaType = "application/json", schema = @Schema(implementation = NewsDTO.class)))
+    public List<NewsDTO> getMemberNews(
+            @Parameter(description = "ID участника", example = "123") @PathVariable Integer id,
+            @Parameter(description = "Название клуба для фильтрации", example = "Фитнес Центр 'Энергия'") @RequestParam(required = false) String club) {
         if (club != null && !club.isEmpty()) {
             return newsService.getNewsByClubDTO(club);
         } else {
@@ -543,17 +542,23 @@ public class MainController {
     }
 
     @GetMapping("/calendar/{role}/{id}")
-    public String calendar(@PathVariable Integer id, @PathVariable String role, Model model) {
+    @Operation(summary = "Календарь пользователя", description = "Отображает календарь тренировок/работы в зависимости от роли")
+    @ApiResponse(responseCode = "200", description = "Календарь успешно загружен")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String calendar(
+            @Parameter(description = "ID пользователя", example = "123") @PathVariable Integer id,
+            @Parameter(description = "Роль пользователя", example = "member", schema = @Schema(allowableValues = {
+                    "member", "trainer", "staff" })) @PathVariable String role,
+            Model model) {
         model.addAttribute("role", role);
         model.addAttribute("TrainersSet", trainersService.getAllTrainers());
         model.addAttribute("TrainingTypeSet", trainingScheduleService.getTrainingTypes());
 
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = ((UserDetails) principal).getUsername();
-
-        // Проверка доступа
         Integer currentUserId = userDetailsService.getUserId(username);
         String currentUserRole = userDetailsService.getUserRole(username);
+
         if (!currentUserId.equals(id) || !currentUserRole.equals(role)) {
             return "redirect:/access-denied";
         }
@@ -583,9 +588,15 @@ public class MainController {
     }
 
     @GetMapping("/calendar/training/{id}")
-    @Transactional(readOnly = true) // Добавьте эту аннотацию
-    public String training(@PathVariable Integer id, Model model) {
+    @Transactional(readOnly = true)
+    @Operation(summary = "Детали тренировки", description = "Отображает детальную информацию о тренировке")
+    @ApiResponse(responseCode = "200", description = "Информация о тренировке загружена")
+    @ApiResponse(responseCode = "404", description = "Тренировка не найдена")
+    public String training(
+            @Parameter(description = "ID тренировки", example = "789") @PathVariable Integer id,
+            Model model) {
         TrainingSchedule workout = trainingScheduleService.getTrainingSchedule(id);
+
         if (workout == null) {
             return "redirect:/not-found";
         }
@@ -623,7 +634,12 @@ public class MainController {
     }
 
     @PostMapping("/calendar/training/subscribe")
-    public String trainingSignup(@ModelAttribute TrainingRequest form, Model model) {
+    @Operation(summary = "Записаться на тренировку", description = "Добавляет участника на тренировку")
+    @ApiResponse(responseCode = "200", description = "Успешно записан на тренировку")
+    @ApiResponse(responseCode = "400", description = "Ошибка при записи")
+    public String trainingSignup(
+            @Parameter(description = "Данные для записи на тренировку") @ModelAttribute TrainingRequest form,
+            Model model) {
         Integer memberId = form.getMemberId();
         Integer trainingId = form.getTrainingId();
 
@@ -640,8 +656,11 @@ public class MainController {
     }
 
     @PostMapping("/calendar/training/unsubscribe")
-    @Transactional // Добавляем транзакцию
-    public String trainingUnsubscribe(@ModelAttribute TrainingRequest form) {
+    @Transactional
+    @Operation(summary = "Отписаться от тренировки", description = "Удаляет участника из списка записанных на тренировку")
+    @ApiResponse(responseCode = "200", description = "Успешно отписан от тренировки")
+    public String trainingUnsubscribe(
+            @Parameter(description = "Данные для отписки от тренировки") @ModelAttribute TrainingRequest form) {
         Integer memberId = form.getMemberId();
         Integer trainingId = form.getTrainingId();
 
@@ -650,11 +669,9 @@ public class MainController {
             TrainingSchedule training = trainingScheduleService.getTrainingSchedule(trainingId);
 
             if (member != null && training != null) {
-                // Работаем напрямую с коллекцией entity
                 member.getTrainingSchedules().remove(training);
                 membersService.save(member);
             }
-
             return "redirect:/calendar/member/" + memberId;
 
         } catch (Exception e) {
@@ -663,21 +680,24 @@ public class MainController {
     }
 
     @PostMapping("/calendar/training/add")
-    public String trainingAdd(@ModelAttribute TrainingRequest form, BindingResult result, Model model) {
+    @Operation(summary = "Добавить тренировку", description = "Создает новую тренировку (для тренеров)")
+    @ApiResponse(responseCode = "200", description = "Тренировка успешно создана")
+    @ApiResponse(responseCode = "400", description = "Ошибка валидации")
+    public String trainingAdd(
+            @Parameter(description = "Данные для создания тренировки") @ModelAttribute TrainingRequest form,
+            BindingResult result,
+            Model model) {
         if (result.hasErrors()) {
             return "redirect:/calendar/trainer/" + form.getTrainerId();
         }
-
         try {
             TrainingSchedule training = new TrainingSchedule();
             training.setTrainer(trainersService.getTrainer(form.getTrainerId()));
             training.setTrainingType(trainingTypeService.getTrainingType(form.getTrainingTypeId()));
             training.setSessionDate(form.getSessionDate());
             training.setSessionTime(form.getSessionTime());
-
             TrainingSchedule savedTraining = trainingScheduleService.save(training);
             return "redirect:/calendar/training/" + savedTraining.getIdSession();
-
         } catch (Exception e) {
             model.addAttribute("error", "Ошибка при создании тренировки");
             return "redirect:/calendar/trainer/" + form.getTrainerId();
@@ -685,7 +705,14 @@ public class MainController {
     }
 
     @GetMapping("/statistic/{role}/{id}")
-    public String statistic(@PathVariable Integer id, @PathVariable String role, Model model) {
+    @Operation(summary = "Статистика пользователя", description = "Отображает статистику пользователя (достижения, тренировки и т.д.)")
+    @ApiResponse(responseCode = "200", description = "Статистика успешно загружена")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String statistic(
+            @Parameter(description = "ID пользователя", example = "123") @PathVariable Integer id,
+            @Parameter(description = "Роль пользователя", example = "member", schema = @Schema(allowableValues = {
+                    "member", "trainer", "staff" })) @PathVariable String role,
+            Model model) {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = ((UserDetails) principal).getUsername();
 
@@ -723,6 +750,7 @@ public class MainController {
     }
 
     @GetMapping("/trainers")
+    @Operation(summary = "Список тренеров", description = "Отображает список всех тренеров в системе")
     public String trainers(Model model) {
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         String username = ((UserDetails) principal).getUsername();
@@ -757,7 +785,13 @@ public class MainController {
 
     @PostMapping("/trainers/subscribe")
     @Transactional
-    public String subscribe(@ModelAttribute TrainingRequest form, Model model, Principal principal) {
+    @Operation(summary = "Записаться к тренеру", description = "Записывает участника на персональную тренировку к тренеру")
+    @ApiResponse(responseCode = "200", description = "Успешно записан к тренеру")
+    @ApiResponse(responseCode = "400", description = "Ошибка при записи")
+    public String subscribe(
+            @Parameter(description = "Данные для записи к тренеру") @ModelAttribute TrainingRequest form,
+            Model model,
+            Principal principal) {
         try {
             // Проверки безопасности...
             String username = principal.getName();
@@ -793,15 +827,17 @@ public class MainController {
 
     @GetMapping("/trainings")
     @ResponseBody
-    public String getTrainings(@RequestParam(value = "id_trainer", required = false) Set<Integer> trainerId,
-            @RequestParam(value = "id_training_type", required = false) Set<Integer> trainingTypeId,
-            @RequestParam(value = "session_date_start", required = false) String sessionDateStart,
-            @RequestParam(value = "session_date_end", required = false) String sessionDateEnd,
-            @RequestParam(value = "session_time_start", required = false) Integer sessionTimeStart,
-            @RequestParam(value = "session_time_end", required = false) Integer sessionTimeEnd,
-            @RequestParam(value = "trainer_schedule", required = false, defaultValue = "0") Integer trainerSchedule) {
+    @Operation(summary = "Получить список тренировок", description = "Возвращает список тренировок с фильтрацией по различным параметрам")
+    @ApiResponse(responseCode = "200", description = "Список тренировок успешно получен", content = @Content(mediaType = "application/json"))
+    public String getTrainings(
+            @Parameter(description = "ID тренеров для фильтрации") @RequestParam(value = "id_trainer", required = false) Set<Integer> trainerId,
+            @Parameter(description = "ID типов тренировок для фильтрации") @RequestParam(value = "id_training_type", required = false) Set<Integer> trainingTypeId,
+            @Parameter(description = "Начальная дата для фильтрации", example = "2024-01-15") @RequestParam(value = "session_date_start", required = false) String sessionDateStart,
+            @Parameter(description = "Конечная дата для фильтрации", example = "2024-01-31") @RequestParam(value = "session_date_end", required = false) String sessionDateEnd,
+            @Parameter(description = "Минимальное время тренировки (в минутах)", example = "30") @RequestParam(value = "session_time_start", required = false) Integer sessionTimeStart,
+            @Parameter(description = "Максимальное время тренировки (в минутах)", example = "120") @RequestParam(value = "session_time_end", required = false) Integer sessionTimeEnd,
+            @Parameter(description = "Фильтр по расписанию тренера (0/1)", example = "0") @RequestParam(value = "trainer_schedule", required = false, defaultValue = "0") Integer trainerSchedule) {
 
-        // Нормализация параметров
         if (trainerId != null && trainerId.isEmpty())
             trainerId = null;
         if (trainingTypeId != null && trainingTypeId.isEmpty())
@@ -822,7 +858,6 @@ public class MainController {
                 endDate = LocalDate.parse(sessionDateEnd).atTime(23, 59, 59);
             }
         } catch (Exception e) {
-            // Игнорируем ошибки парсинга дат
         }
 
         try {
@@ -842,6 +877,8 @@ public class MainController {
 
     @GetMapping("/calendar/work/events")
     @ResponseBody
+    @Operation(summary = "Получить рабочие события", description = "Возвращает список рабочих событий для staff")
+    @ApiResponse(responseCode = "200", description = "События успешно получены", content = @Content(mediaType = "application/json"))
     public String getWorks() {
         List<StaffSchedule> staffScheduleSet = staffScheduleService.getAllStaffSchedules();
         List<Event> eventsSet = staffScheduleService.staffScheduleToEvents(staffScheduleSet);
@@ -854,21 +891,34 @@ public class MainController {
         }
     }
 
-    @GetMapping("/access-denied")
-    public String accessDenied() {
-        return "access-denied";
+    // === API для анализа возможностей клуба ===
+
+    @GetMapping("/club/capabilities/{clubName}")
+    @ResponseBody
+    @Operation(summary = "Анализ возможностей клуба", description = "Возвращает анализ возможностей и оснащенности клуба")
+    @ApiResponse(responseCode = "200", description = "Анализ успешно выполнен", content = @Content(mediaType = "application/json"))
+    public Map<String, Object> getClubCapabilities(
+            @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName) {
+        return clubCapabilityService.analyzeClubCapabilities(clubName);
     }
 
-    @GetMapping("/not-found")
-    public String notFound() {
-        return "not-found";
+    @GetMapping("/club/equipment/{clubName}")
+    @ResponseBody
+    @Operation(summary = "Оборудование клуба", description = "Возвращает список оборудования с количеством для указанного клуба")
+    @ApiResponse(responseCode = "200", description = "Оборудование успешно получено", content = @Content(mediaType = "application/json"))
+    public Map<String, Integer> getClubEquipment(
+            @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName) {
+        return clubCapabilityService.getClubEquipmentSummary(clubName);
     }
 
-    // === ДИАГНОСТИЧЕСКИЕ МЕТОДЫ ===
+    // === ДИАГНОСТИЧЕСКИЕ API ===
 
     @GetMapping("/direct-diagnose")
     @ResponseBody
-    public String directDiagnose(@RequestParam String username) {
+    @Operation(summary = "Прямая диагностика пользователя", description = "Диагностический метод для проверки данных пользователя в БД")
+    @ApiResponse(responseCode = "200", description = "Диагностика выполнена")
+    public String directDiagnose(
+            @Parameter(description = "Имя пользователя для диагностики", example = "andrew.kachalkin") @RequestParam String username) {
         StringBuilder result = new StringBuilder();
         result.append("=== DIRECT DIAGNOSIS: ").append(username).append(" ===\n\n");
 
@@ -928,14 +978,33 @@ public class MainController {
 
     @GetMapping("/diagnose")
     @ResponseBody
-    public String diagnose(@RequestParam String username) {
+    @Operation(summary = "Диагностика пользователя", description = "Проверка существования пользователя в системе")
+    @ApiResponse(responseCode = "200", description = "Диагностика выполнена")
+    public String diagnose(
+            @Parameter(description = "Имя пользователя", example = "andrew.kachalkin") @RequestParam String username) {
         return accountService.diagnoseUser(username);
     }
 
     @GetMapping("/check-password")
     @ResponseBody
-    public String checkPassword(@RequestParam String username, @RequestParam String password) {
+    @Operation(summary = "Проверка пароля", description = "Проверяет корректность пароля для указанного пользователя")
+    @ApiResponse(responseCode = "200", description = "Проверка выполнена")
+    public String checkPassword(
+            @Parameter(description = "Имя пользователя", example = "andrew.kachalkin") @RequestParam String username,
+            @Parameter(description = "Пароль для проверки") @RequestParam String password) {
         boolean result = accountService.checkPassword(username, password);
         return String.format("Password check for %s: %s", username, result ? "✅ VALID" : "❌ INVALID");
+    }
+
+    @GetMapping("/access-denied")
+    @Operation(summary = "Доступ запрещен", description = "Страница отображается при отсутствии доступа")
+    public String accessDenied() {
+        return "access-denied";
+    }
+
+    @GetMapping("/not-found")
+    @Operation(summary = "Не найдено", description = "Страница отображается при отсутствии запрашиваемого ресурса")
+    public String notFound() {
+        return "not-found";
     }
 }

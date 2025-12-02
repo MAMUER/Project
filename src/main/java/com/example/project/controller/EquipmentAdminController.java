@@ -19,6 +19,12 @@ import com.example.project.service.EquipmentTypeService;
 import com.example.project.service.CustomUserDetailsService;
 import com.example.project.service.StaffScheduleService;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import io.swagger.v3.oas.annotations.media.Schema;
+
 import java.util.List;
 import java.util.Map;
 import java.net.URLDecoder;
@@ -30,6 +36,7 @@ import java.util.HashMap;
 @Controller
 @AllArgsConstructor
 @RequestMapping("/admin/equipment")
+@Tag(name = "Управление оборудованием", description = "API для управления оборудованием в фитнес-клубах (только для сотрудников STAFF)")
 public class EquipmentAdminController {
 
     private final ClubsService clubsService;
@@ -45,7 +52,6 @@ public class EquipmentAdminController {
                         .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("STAFF"));
     }
 
-    // ДОБАВИТЬ этот метод
     private Integer getCurrentStaffId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
@@ -59,6 +65,9 @@ public class EquipmentAdminController {
     @GetMapping
     @PreAuthorize("hasAuthority('STAFF')")
     @Transactional
+    @Operation(summary = "Панель управления оборудованием", description = "Отображает панель управления оборудованием с доступными клубами для текущего сотрудника STAFF")
+    @ApiResponse(responseCode = "200", description = "Панель управления успешно загружена")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен - требуется роль STAFF")
     public String equipmentManagement(Model model) {
         if (!isStaffUser()) {
             return "redirect:/error/403";
@@ -78,7 +87,7 @@ public class EquipmentAdminController {
         }
 
         model.addAttribute("clubs", staffClubs.values());
-        model.addAttribute("staffId", staffId); // ДОБАВИТЬ эту строку
+        model.addAttribute("staffId", staffId);
         return "admin/equipment-management";
     }
 
@@ -86,7 +95,12 @@ public class EquipmentAdminController {
     @GetMapping("/{clubName}")
     @PreAuthorize("hasAuthority('STAFF')")
     @Transactional
-    public String editClubEquipment(@PathVariable String clubName, Model model) {
+    @Operation(summary = "Редактирование оборудования клуба", description = "Отображает страницу для редактирования оборудования в указанном клубе")
+    @ApiResponse(responseCode = "200", description = "Страница редактирования оборудования успешно загружена")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен - нет прав доступа к этому клубу")
+    public String editClubEquipment(
+            @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'", schema = @Schema(type = "string", format = "uri")) @PathVariable String clubName,
+            Model model) {
         if (!isStaffUser()) {
             return "redirect:/error/403";
         }
@@ -94,17 +108,13 @@ public class EquipmentAdminController {
         String actualClubName;
 
         try {
-            // Пробуем декодировать название клуба
             actualClubName = URLDecoder.decode(clubName, StandardCharsets.UTF_8);
         } catch (Exception e) {
-            // Если декодирование не удалось, используем оригинальное название
             actualClubName = clubName;
         }
 
-        // Создаем effectively final копию для использования в лямбде
         final String finalClubName = actualClubName;
 
-        // Проверяем, что staff имеет доступ к этому клубу
         if (!hasAccessToClub(finalClubName)) {
             return "redirect:/error/403";
         }
@@ -112,17 +122,15 @@ public class EquipmentAdminController {
         Clubs club = clubsService.getClub(finalClubName);
         List<EquipmentType> equipmentTypes = equipmentTypeService.getAllEquipmentTypes();
 
-        // Фильтруем оборудование по клубу с инициализацией связей И СОРТИРОВКОЙ
         List<Equipment> allEquipment = equipmentService.getAllEquipment();
         List<Equipment> clubEquipment = allEquipment.stream()
                 .filter(e -> e.getClub() != null && finalClubName.equals(e.getClub().getClubName()))
                 .peek(e -> {
-                    // Принудительно инициализируем ленивые связи
                     if (e.getEquipmentType() != null) {
                         e.getEquipmentType().getTypeName();
                     }
                 })
-                .sorted(Comparator.comparing(e -> e.getEquipmentType().getTypeName())) // ДОБАВИТЬ СОРТИРОВКУ
+                .sorted(Comparator.comparing(e -> e.getEquipmentType().getTypeName()))
                 .toList();
 
         model.addAttribute("club", club);
@@ -138,9 +146,14 @@ public class EquipmentAdminController {
     @PostMapping("/{clubName}/update")
     @PreAuthorize("hasAuthority('STAFF')")
     @Transactional
-    public String updateEquipment(@PathVariable String clubName,
-            @RequestParam Integer equipmentId,
-            @RequestParam Integer quantity,
+    @Operation(summary = "Обновление количества оборудования", description = "Обновляет количество единиц указанного оборудования в клубе")
+    @ApiResponse(responseCode = "200", description = "Количество оборудования успешно обновлено")
+    @ApiResponse(responseCode = "400", description = "Ошибка обновления оборудования")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String updateEquipment(
+            @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName,
+            @Parameter(description = "ID оборудования", example = "1", required = true) @RequestParam Integer equipmentId,
+            @Parameter(description = "Новое количество", example = "10", required = true) @RequestParam Integer quantity,
             Model model) {
         if (!isStaffUser() || !hasAccessToClub(clubName)) {
             return "redirect:/error/403";
@@ -154,7 +167,6 @@ public class EquipmentAdminController {
                 equipmentService.saveEquipment(equipment);
             }
 
-            // Кодируем кириллическое название клуба в URL
             String encodedClubName = URLEncoder.encode(clubName, StandardCharsets.UTF_8);
             return "redirect:/admin/equipment/" + encodedClubName + "?success=Equipment updated";
         } catch (Exception e) {
@@ -167,9 +179,14 @@ public class EquipmentAdminController {
     @PostMapping("/{clubName}/add")
     @PreAuthorize("hasAuthority('STAFF')")
     @Transactional
-    public String addEquipment(@PathVariable String clubName,
-            @ModelAttribute Equipment newEquipment,
-            @RequestParam Integer equipmentTypeId,
+    @Operation(summary = "Добавление нового оборудования", description = "Добавляет новое оборудование в указанный клуб")
+    @ApiResponse(responseCode = "200", description = "Оборудование успешно добавлено")
+    @ApiResponse(responseCode = "400", description = "Ошибка добавления оборудования")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String addEquipment(
+            @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName,
+            @Parameter(description = "Данные нового оборудования") @ModelAttribute Equipment newEquipment,
+            @Parameter(description = "ID типа оборудования", example = "1", required = true) @RequestParam Integer equipmentTypeId,
             Model model) {
         if (!isStaffUser() || !hasAccessToClub(clubName)) {
             return "redirect:/error/403";
@@ -200,8 +217,13 @@ public class EquipmentAdminController {
     @PostMapping("/{clubName}/delete")
     @PreAuthorize("hasAuthority('STAFF')")
     @Transactional
-    public String deleteEquipment(@PathVariable String clubName,
-            @RequestParam Integer equipmentId,
+    @Operation(summary = "Удаление оборудования", description = "Удаляет оборудование из указанного клуба")
+    @ApiResponse(responseCode = "200", description = "Оборудование успешно удалено")
+    @ApiResponse(responseCode = "400", description = "Ошибка удаления оборудования")
+    @ApiResponse(responseCode = "403", description = "Доступ запрещен")
+    public String deleteEquipment(
+            @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName,
+            @Parameter(description = "ID оборудования", example = "1", required = true) @RequestParam Integer equipmentId,
             Model model) {
         if (!isStaffUser() || !hasAccessToClub(clubName)) {
             return "redirect:/error/403";
@@ -212,7 +234,6 @@ public class EquipmentAdminController {
             if (equipment != null && equipment.getClub() != null &&
                     clubName.equals(equipment.getClub().getClubName())) {
 
-                // Реальное удаление оборудования
                 equipmentService.deleteEquipment(equipmentId);
             }
 
