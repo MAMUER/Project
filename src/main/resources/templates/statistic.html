@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,6 +11,7 @@
     <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'>
     <title>Статистика</title>
 </head>
+
 <body>
     <div class="sidebar">
         <div class="logo">
@@ -29,10 +31,10 @@
                         <img th:src="@{/icons/statistic-white.svg}" alt="Statistic">
                     </a>
                     <a class="trainers" th:href="'/trainers'">
-                        <img th:src="@{/icons/trainers.svg}" alt="trainers">
+                        <img th:src="@{/icons/programs.svg}" alt="Programs">
                     </a>
                     <a class="programs" th:href="'/programs/member/' + ${memberId}">
-                        <img th:src="@{/icons/programs.svg}" alt="Programs">
+                        <img th:src="@{/icons/trainers.svg}" alt="trainers">
                     </a>
                 </div>
             </th:block>
@@ -73,8 +75,9 @@
                         Нет полученных достижений
                     </div>
                 </div>
-            </div>  
+            </div>
         </div>
     </div>
 </body>
+
 </html>
