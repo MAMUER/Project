@@ -158,7 +158,6 @@ body {
 #selected {
     width: 70px;
     height: 70px;
-    background: linear-gradient(135deg, #0795E8, #074EE8);
     border-radius: 16px;
     box-shadow: 0 4px 12px rgba(7, 149, 232, 0.3);
     border: 2px solid #074EE8;
@@ -211,7 +210,6 @@ body {
     left: 0;
     width: 60px;
     height: 3px;
-    background: linear-gradient(to right, #0795E8, #074EE8);
     border-radius: 2px;
 }
 
@@ -367,23 +365,21 @@ body {
 }
 
 .name {
-    font-size: 26px !important;
+    font-size: 20px !important;
     font-weight: 600;
     color: #0707E8;
     text-align: center;
-    background: linear-gradient(135deg, #E8EEFB, #FFFFFF) !important;
     line-height: 35.4px;
     border-color: #0795E8 !important;
 }
 
-/* Третья колонка - достижения и тренировки */
+/* Третья колонка - тренировки */
 .third-column {
     display: flex;
     flex-direction: column;
     gap: 25px;
 }
 
-.achievements-container,
 .workouts-container,
 .schedule-container {
     background: #FFFFFF;
@@ -395,7 +391,6 @@ body {
     transition: all 0.3s ease;
 }
 
-.achievements-container:hover,
 .workouts-container:hover,
 .schedule-container:hover {
     box-shadow: 0 8px 25px rgba(7, 7, 232, 0.15);
@@ -408,92 +403,10 @@ body {
     font-size: 20px;
     font-weight: 600;
     color: #0707E8;
+    margin-top: 0;
     margin-bottom: 20px;
     text-align: center;
     position: relative;
-}
-
-.workouts-title::after,
-.schedule-title::after {
-    content: "";
-    position: absolute;
-    bottom: -6px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 40px;
-    height: 2px;
-    background: linear-gradient(to right, #0795E8, #074EE8);
-    border-radius: 1px;
-}
-
-/* Стили для достижений */
-.achievements {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-    gap: 16px;
-    margin-bottom: 20px;
-}
-
-.achievement-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    gap: 10px;
-    padding: 18px 12px;
-    background: linear-gradient(135deg, #0795E8, #074EE8);
-    border-radius: 16px;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.2);
-    position: relative;
-    overflow: hidden;
-}
-
-.achievement-item::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-    transition: left 0.5s ease;
-}
-
-.achievement-item:hover {
-    background: linear-gradient(135deg, #074EE8, #0707E8);
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(7, 7, 232, 0.3);
-}
-
-.achievement-item:hover::before {
-    left: 100%;
-}
-
-.achievement-item img {
-    width: 55px;
-    height: 55px;
-    object-fit: contain;
-    margin-bottom: 5px;
-    transition: transform 0.3s ease;
-}
-
-.achievement-item:hover img {
-    transform: scale(1.1);
-}
-
-.achievement-item p {
-    font-size: 13px;
-    line-height: 17.7px;
-    color: #FFFFFF;
-    font-weight: 600;
-    margin: 0;
-    background: none !important;
-    border: none !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    position: relative;
-    z-index: 1;
 }
 
 /* Стили для тренировок */
@@ -556,7 +469,7 @@ body {
 .all-training-button,
 .all-schedule-button {
     padding: 12px 24px;
-    background: linear-gradient(135deg, #0795E8, #074EE8);
+    background: #0795E8;
     color: white;
     text-decoration: none;
     border-radius: 24px;
@@ -569,10 +482,7 @@ body {
 
 .all-training-button:hover,
 .all-schedule-button:hover {
-    background: linear-gradient(135deg, #074EE8, #0707E8);
     transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(7, 7, 232, 0.3);
-    border-color: #0707E8;
 }
 
 /* Новости */
@@ -697,10 +607,6 @@ body {
         grid-template-columns: 1fr;
     }
     
-    .achievements {
-        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-    }
-    
     .icons {
         gap: 20px;
         margin-top: 15px;
@@ -757,19 +663,6 @@ body {
         height: 120px;
     }
     
-    .achievements {
-        grid-template-columns: repeat(2, 1fr);
-    }
-    
-    .achievement-item {
-        padding: 14px 10px;
-    }
-    
-    .achievement-item img {
-        width: 45px;
-        height: 45px;
-    }
-    
     .container-bottom {
         flex-direction: column;
         gap: 12px;
@@ -778,6 +671,7 @@ body {
     
     .all-training-button,
     .all-schedule-button {
+        background: linear-gradient(135deg, #0795E8, #074EE8);
         text-align: center;
     }
     

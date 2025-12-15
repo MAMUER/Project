@@ -239,7 +239,7 @@
 #selected {
     width: 70px;
     height: 70px;
-    background: linear-gradient(135deg, #0795E8, #074EE8);
+    background: #0795E8;
     border-radius: 16px;
     box-shadow: 0 4px 12px rgba(7, 149, 232, 0.3);
     border: 2px solid #074EE8;
