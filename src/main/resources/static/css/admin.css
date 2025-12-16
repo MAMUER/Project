@@ -707,6 +707,6 @@
         right: 0;
         width: 20%;
         height: 1.2em;
-        background: linear-gradient(90deg, transparent, white 50%);
+        background: white 50%;
     }
 }

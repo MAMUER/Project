@@ -33,7 +33,6 @@ body {
 #selected {
     width: 70px;
     height: 70px;
-    background: linear-gradient(135deg, #0795E8, #074EE8);
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(7, 149, 232, 0.3);
     border: 2px solid #074EE8;
@@ -238,17 +237,14 @@ body {
 }
 
 .fc-event-training {
-    background: linear-gradient(135deg, #0795E8, #074EE8);
     border-color: #074EE8;
 }
 
 .fc-event-personal {
-    background: linear-gradient(135deg, #06D6A0, #04b486);
     border-color: #04b486;
 }
 
 .fc-event-group {
-    background: linear-gradient(135deg, #5007E8, #3a05a8);
     border-color: #3a05a8;
 }
 
@@ -259,7 +255,7 @@ body {
 }
 
 .fc-list-day-cushion {
-    background: linear-gradient(135deg, #0795E8, #074EE8) !important;
+    background: #0795E8;
     color: #FFFFFF !important;
     font-weight: 600;
     padding: 12px 16px !important;
@@ -319,7 +315,7 @@ body {
     transform: translateX(-50%);
     width: 60px;
     height: 3px;
-    background: linear-gradient(to right, #0795E8, #074EE8);
+    background: #0795E8;
     border-radius: 2px;
 }
 
@@ -366,7 +362,7 @@ body {
 /* Стили для кнопки создания тренировки */
 .create-training button {
     margin-top: 15px;
-    background: linear-gradient(135deg, #0795E8, #074EE8);
+    background: #0795E8;
     border: none;
     color: #FFFFFF;
     padding: 16px 32px;
@@ -396,12 +392,12 @@ body {
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    background: rgba(255, 255, 255, 0.2);
     transition: left 0.5s ease;
 }
 
 .create-training button:hover {
-    background: linear-gradient(135deg, #074EE8, #0707E8);
+    background: #0795E8;
     transform: translateY(-3px);
     box-shadow: 0 8px 20px rgba(7, 7, 232, 0.35);
     border-color: #0707E8;

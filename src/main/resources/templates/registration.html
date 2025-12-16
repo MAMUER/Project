@@ -220,10 +220,10 @@
             const matchDiv = document.getElementById('passwordMatch');
 
             if (confirmPassword && password !== confirmPassword) {
-                matchDiv.innerHTML = '❌ Пароли не совпадают';
+                matchDiv.innerHTML = 'Пароли не совпадают';
                 matchDiv.className = 'password-match error';
             } else if (confirmPassword && password === confirmPassword) {
-                matchDiv.innerHTML = '✓ Пароли совпадают';
+                matchDiv.innerHTML = 'Пароли совпадают';
                 matchDiv.className = 'password-match success';
             } else {
                 matchDiv.innerHTML = '';
