@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+
+<head>
+    <title>Вход</title>
+    <link rel="stylesheet" th:href="@{/css/login.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'>
+    
+    <!-- ВАЖНО: Запрещаем масштабирование -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-page">
+            <form th:action="@{/login}" method="post" class="form" autocomplete="on">
+                <div class="logo">
+                    <h2>Вход в систему</h2>
+                </div>
+                
+                <div class="input-group">
+                    <label for="username">Имя пользователя</label>
+                    <div class="input-with-icon">
+                        <ion-icon name="person-outline"></ion-icon>
+                        <input type="text" id="username" name="username" placeholder="Введите имя пользователя" autocomplete="username" required />
+                    </div>
+                </div>
+                
+                <div class="input-group">
+                    <label for="password">Пароль</label>
+                    <div class="input-with-icon">
+                        <ion-icon name="lock-closed-outline"></ion-icon>
+                        <input type="password" id="password" name="password" placeholder="············" autocomplete="current-password" required />
+                        <ion-icon name="eye-outline" class="toggle-password" onclick="togglePasswordVisibility('password')"></ion-icon>
+                    </div>
+                </div>
+                
+                <input class="login" type="submit" value="Войти" />
+            </form>
+
+            <button type="button" class="register-button" onclick="window.location.href='/registration'">
+                Зарегистрироваться
+            </button>
+            
+            <div class="messages">
+                <div th:if="${param.error}" class="error-message">Неправильное имя пользователя или пароль</div>
+                <div th:if="${param.logout}" class="logout-message">Вы вышли из системы</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function togglePasswordVisibility(fieldId) {
+            const passwordField = document.getElementById(fieldId);
+            const eyeIcon = passwordField.nextElementSibling;
+            
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+                eyeIcon.name = 'eye-off-outline';
+                eyeIcon.style.color = '#0795E8';
+            } else {
+                passwordField.type = 'password';
+                eyeIcon.name = 'eye-outline';
+                eyeIcon.style.color = '#074EE8';
+            }
+        }
+    </script>
+</body>
+
+</html>

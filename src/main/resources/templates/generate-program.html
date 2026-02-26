@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+
+<head>
+    <title>Создание программы тренировок</title>
+    <link rel="stylesheet" th:href="@{/css/generate-program.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Хедер -->
+        <header class="header">
+            <div class="header-content">
+                <a th:href="@{/programs/member/{id}(id=${memberId})}" class="back-link">
+                    <ion-icon name="arrow-back-outline"></ion-icon>
+                    Назад к программам
+                </a>
+                <h1 class="page-title">Создание программы тренировок</h1>
+                <p class="page-subtitle">Заполните параметры для генерации индивидуальной программы</p>
+            </div>
+        </header>
+
+        <!-- Сообщения -->
+        <div class="messages" th:if="${error}">
+            <div class="error-message" th:text="${error}"></div>
+        </div>
+
+        <!-- Информация о текущем клубе - УПРОЩЕННАЯ ВЕРСИЯ -->
+        <div class="club-info-section">
+            <div class="club-card">
+                <div class="club-header">
+                    <h2>Ваш клуб: <span th:text="${clubName} ?: 'Неизвестный клуб'"></span></h2>
+                    <p class="club-address">Программа будет адаптирована под оборудование вашего клуба</p>
+                </div>
+
+                <div class="club-capabilities">
+                    <div class="capability-item">
+                        <ion-icon name="barbell-outline"></ion-icon>
+                        <div class="capability-info">
+                            <h4>Адаптивная программа</h4>
+                            <p>Программа будет автоматически подобрана под оборудование вашего клуба</p>
+                        </div>
+                    </div>
+
+                    <div class="capability-item">
+                        <ion-icon name="stats-chart-outline"></ion-icon>
+                        <div class="capability-info">
+                            <h4>Оптимальные упражнения</h4>
+                            <p>Мы учтем доступное оборудование для максимальной эффективности</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Информация о пользователе -->
+        <div class="user-info-section" th:if="${member != null}">
+            <div class="user-card">
+                <div class="user-header">
+                    <h2>👤 Информация о пользователе</h2>
+                </div>
+                <div class="user-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Возраст:</span>
+                        <span class="detail-value" th:text="${age} + ' лет (' + ${ageGroup} + ')'">Возраст</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Пол:</span>
+                        <span class="detail-value" th:text="${membersService.getGenderName(member.gender)}">Пол</span>
+                    </div>
+                    <div class="detail-item" th:if="${hasInbodyAnalysis}">
+                        <span class="detail-label">Inbody анализ:</span>
+                        <span class="detail-value"> Доступен</span>
+                    </div>
+                    <div class="detail-item" th:unless="${hasInbodyAnalysis}">
+                        <span class="detail-label">Inbody анализ:</span>
+                        <span class="detail-value"> Не проводился</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Форма генерации -->
+        <div class="generation-form">
+            <form th:action="@{/programs/generate/{id}(id=${memberId})}" method="post" class="form">
+                <div class="form-section">
+                    <h2 class="section-title">🎯 Цель тренировок</h2>
+                    <div class="options-grid">
+                        <label class="option-card">
+                            <input type="radio" name="goal" value="похудение" required>
+                            <div class="option-content">
+                                <ion-icon name="flame-outline"></ion-icon>
+                                <span class="option-title">Похудение</span>
+                                <span class="option-description">Сжигание жира, повышение выносливости</span>
+                            </div>
+                        </label>
+
+                        <label class="option-card">
+                            <input type="radio" name="goal" value="набор мышц" required>
+                            <div class="option-content">
+                                <ion-icon name="barbell-outline"></ion-icon>
+                                <span class="option-title">Набор мышц</span>
+                                <span class="option-description">Увеличение мышечной массы и силы</span>
+                            </div>
+                        </label>
+
+                        <label class="option-card">
+                            <input type="radio" name="goal" value="поддержание" required>
+                            <div class="option-content">
+                                <ion-icon name="fitness-outline"></ion-icon>
+                                <span class="option-title">Поддержание формы</span>
+                                <span class="option-description">Сохранение текущей формы и тонуса</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2 class="section-title">Уровень подготовки</h2>
+                    <div class="options-grid">
+                        <label class="option-card">
+                            <input type="radio" name="level" value="начальный" required>
+                            <div class="option-content">
+                                <ion-icon name="walk-outline"></ion-icon>
+                                <span class="option-title">Начальный</span>
+                                <span class="option-description">3 дня в неделю, базовые упражнения</span>
+                            </div>
+                        </label>
+
+                        <label class="option-card">
+                            <input type="radio" name="level" value="средний" required>
+                            <div class="option-content">
+                                <ion-icon name="bicycle-outline"></ion-icon>
+                                <span class="option-title">Средний</span>
+                                <span class="option-description">4 дня в неделю, разнообразные упражнения</span>
+                            </div>
+                        </label>
+
+                        <label class="option-card">
+                            <input type="radio" name="level" value="продвинутый" required>
+                            <div class="option-content">
+                                <ion-icon name="rocket-outline"></ion-icon>
+                                <span class="option-title">Продвинутый</span>
+                                <span class="option-description">5 дней в неделю, интенсивные тренировки</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h2 class="section-title">⏱️ Длительность программы</h2>
+                    <div class="duration-selector">
+                        <label class="duration-option">
+                            <input type="radio" name="durationWeeks" value="4" required>
+                            <span class="duration-content">
+                                <span class="duration-time">4 недели</span>
+                                <span class="duration-desc">Краткосрочная программа</span>
+                            </span>
+                        </label>
+
+                        <label class="duration-option">
+                            <input type="radio" name="durationWeeks" value="8" required checked>
+                            <span class="duration-content">
+                                <span class="duration-time">8 недель</span>
+                                <span class="duration-desc">Стандартная программа</span>
+                            </span>
+                        </label>
+
+                        <label class="duration-option">
+                            <input type="radio" name="durationWeeks" value="12" required>
+                            <span class="duration-content">
+                                <span class="duration-time">12 недель</span>
+                                <span class="duration-desc">Долгосрочная программа</span>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Секция расписания тренировок -->
+                <div class="form-section">
+                    <h2 class="section-title">📅 Расписание тренировок</h2>
+
+                    <!-- Предупреждение о расписании клуба -->
+                    <div class="warning-card" th:if="${clubSchedule}">
+                        <div class="warning-header">
+                            <ion-icon name="time-outline"></ion-icon>
+                            <h2>Расписание вашего клуба</h2>
+                        </div>
+                        <p th:text="${clubSchedule}">Расписание клуба будет здесь</p>
+                    </div>
+
+                    <!-- Выбор дней недели -->
+                    <div class="schedule-section">
+                        <h3 class="subsection-title">Дни тренировок</h3>
+                        <p class="subsection-description">Выберите дни, когда вы планируете посещать клуб</p>
+
+                        <div class="days-selector">
+                            <label class="day-option">
+                                <input type="checkbox" name="trainingDays" value="ПОНЕДЕЛЬНИК">
+                                <span class="day-content">
+                                    <span class="day-name">Понедельник</span>
+                                </span>
+                            </label>
+
+                            <label class="day-option">
+                                <input type="checkbox" name="trainingDays" value="ВТОРНИК">
+                                <span class="day-content">
+                                    <span class="day-name">Вторник</span>
+                                </span>
+                            </label>
+
+                            <label class="day-option">
+                                <input type="checkbox" name="trainingDays" value="СРЕДА">
+                                <span class="day-content">
+                                    <span class="day-name">Среда</span>
+                                </span>
+                            </label>
+
+                            <label class="day-option">
+                                <input type="checkbox" name="trainingDays" value="ЧЕТВЕРГ">
+                                <span class="day-content">
+                                    <span class="day-name">Четверг</span>
+                                </span>
+                            </label>
+
+                            <label class="day-option">
+                                <input type="checkbox" name="trainingDays" value="ПЯТНИЦА">
+                                <span class="day-content">
+                                    <span class="day-name">Пятница</span>
+                                </span>
+                            </label>
+
+                            <label class="day-option">
+                                <input type="checkbox" name="trainingDays" value="СУББОТА">
+                                <span class="day-content">
+                                    <span class="day-name">Суббота</span>
+                                </span>
+                            </label>
+
+                            <label class="day-option">
+                                <input type="checkbox" name="trainingDays" value="ВОСКРЕСЕНЬЕ">
+                                <span class="day-content">
+                                    <span class="day-name">Воскресенье</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Выбор времени -->
+                    <div class="time-section">
+                        <h3 class="subsection-title">Время посещения</h3>
+                        <p class="subsection-description">Выберите удобное время для тренировок</p>
+
+                        <div class="time-grid">
+                            <label class="time-option">
+                                <input type="radio" name="preferredTime" value="УТРО" required>
+                                <span class="time-content">
+                                    <ion-icon name="sunny-outline"></ion-icon>
+                                    <span class="time-range">Утро</span>
+                                    <span class="time-desc">7:00 - 11:00</span>
+                                </span>
+                            </label>
+
+                            <label class="time-option">
+                                <input type="radio" name="preferredTime" value="ДЕНЬ">
+                                <span class="time-content">
+                                    <ion-icon name="partly-sunny-outline"></ion-icon>
+                                    <span class="time-range">День</span>
+                                    <span class="time-desc">11:00 - 17:00</span>
+                                </span>
+                            </label>
+
+                            <label class="time-option">
+                                <input type="radio" name="preferredTime" value="ВЕЧЕР">
+                                <span class="time-content">
+                                    <ion-icon name="moon-outline"></ion-icon>
+                                    <span class="time-range">Вечер</span>
+                                    <span class="time-desc">17:00 - 22:00</span>
+                                </span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Кнопки действий ПЕРЕМЕЩЕНЫ В КОНЕЦ -->
+                <div class="form-actions">
+                    <button type="submit" class="generate-button">
+                        <ion-icon name="sparkles-outline"></ion-icon>
+                        Сгенерировать программу
+                    </button>
+                    <a th:href="@{/programs/member/{id}(id=${memberId})}" class="cancel-button">
+                        Отмена
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const goalInputs = document.querySelectorAll('input[name="goal"]');
+            const levelInputs = document.querySelectorAll('input[name="level"]');
+            const dayCheckboxes = document.querySelectorAll('input[name="trainingDays"]');
+            const timeRadios = document.querySelectorAll('input[name="preferredTime"]');
+            const form = document.querySelector('form');
+
+            // Ограничение максимального количества выбранных дней
+            const maxDays = 6;
+
+            function updateRecommendations() {
+                const selectedGoal = document.querySelector('input[name="goal"]:checked')?.value;
+                const selectedLevel = document.querySelector('input[name="level"]:checked')?.value;
+                const selectedDays = document.querySelectorAll('input[name="trainingDays"]:checked').length;
+                const selectedTime = document.querySelector('input[name="preferredTime"]:checked')?.value;
+
+                if (selectedGoal && selectedLevel && selectedDays > 0 && selectedTime) {
+                    console.log(`Программа: ${selectedGoal}, уровень: ${selectedLevel}, дней: ${selectedDays}, время: ${selectedTime}`);
+                }
+            }
+
+            // Ограничение выбора дней
+            dayCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function () {
+                    const checkedCount = document.querySelectorAll('input[name="trainingDays"]:checked').length;
+
+                    if (checkedCount > maxDays) {
+                        this.checked = false;
+                        showTemporaryMessage(`Максимум можно выбрать ${maxDays} дней`, 'warning');
+                    }
+                    updateRecommendations();
+                });
+            });
+
+            // Валидация формы на стороне клиента
+            form.addEventListener('submit', function (e) {
+                const checkedDays = document.querySelectorAll('input[name="trainingDays"]:checked').length;
+                const selectedTime = document.querySelector('input[name="preferredTime"]:checked');
+                const selectedGoal = document.querySelector('input[name="goal"]:checked');
+                const selectedLevel = document.querySelector('input[name="level"]:checked');
+                const selectedDuration = document.querySelector('input[name="durationWeeks"]:checked');
+
+                let hasErrors = false;
+
+                // Проверка всех обязательных полей
+                if (!selectedGoal) {
+                    showTemporaryMessage('Пожалуйста, выберите цель тренировок', 'error');
+                    hasErrors = true;
+                }
+
+                if (!selectedLevel) {
+                    showTemporaryMessage('Пожалуйста, выберите уровень подготовки', 'error');
+                    hasErrors = true;
+                }
+
+                if (!selectedDuration) {
+                    showTemporaryMessage('Пожалуйста, выберите длительность программы', 'error');
+                    hasErrors = true;
+                }
+
+                if (checkedDays === 0) {
+                    showTemporaryMessage('Пожалуйста, выберите хотя бы один день для тренировок', 'error');
+                    hasErrors = true;
+                }
+
+                if (!selectedTime) {
+                    showTemporaryMessage('Пожалуйста, выберите предпочтительное время тренировок', 'error');
+                    hasErrors = true;
+                }
+
+                if (hasErrors) {
+                    e.preventDefault();
+                    return;
+                }
+
+                // Показываем информацию о выборе
+                const daysText = Array.from(document.querySelectorAll('input[name="trainingDays"]:checked'))
+                    .map(cb => cb.value).join(', ');
+                console.log(`Выбраны дни: ${daysText}, время: ${selectedTime.value}`);
+            });
+
+            function showTemporaryMessage(message, type) {
+                // Удаляем предыдущие сообщения
+                const existingMessages = document.querySelectorAll('.temporary-message');
+                existingMessages.forEach(msg => msg.remove());
+
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `temporary-message ${type === 'error' ? 'error-message' : 'warning-message'}`;
+                messageDiv.style.marginBottom = '20px';
+                messageDiv.style.animation = 'fadeInUp 0.3s ease-out';
+                messageDiv.textContent = message;
+
+                const messagesContainer = document.querySelector('.messages') || document.querySelector('.generation-form');
+                messagesContainer.prepend(messageDiv);
+
+                setTimeout(() => {
+                    messageDiv.style.opacity = '0';
+                    messageDiv.style.transition = 'opacity 0.3s ease';
+                    setTimeout(() => messageDiv.remove(), 300);
+                }, 4000);
+            }
+
+            // Назначаем обработчики для всех полей
+            goalInputs.forEach(input => input.addEventListener('change', updateRecommendations));
+            levelInputs.forEach(input => input.addEventListener('change', updateRecommendations));
+            timeRadios.forEach(input => input.addEventListener('change', updateRecommendations));
+        });
+    </script>
+
+</body>
+
+</html>

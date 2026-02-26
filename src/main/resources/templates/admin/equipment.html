@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+<head>
+    <title>Оборудование клуба</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>Оборудование клуба: <span th:text="${clubName}">Название клуба</span></h1>
+            <a th:href="@{/admin/clubs}" class="back-button">← Назад к клубам</a>
+        </header>
+
+        <div class="equipment-section">
+            <div class="section-header">
+                <h2>Сводка по оборудованию</h2>
+                <p th:if="${equipmentSummary.empty}">В клубе нет оборудования</p>
+            </div>
+
+            <div class="equipment-grid" th:if="${not equipmentSummary.empty}">
+                <div class="equipment-card" th:each="item : ${equipmentSummary}">
+                    <div class="equipment-icon">
+                        <ion-icon name="barbell-outline"></ion-icon>
+                    </div>
+                    <div class="equipment-info">
+                        <h3 th:text="${item.key}">Тип оборудования</h3>
+                        <p class="equipment-quantity" th:text="'Количество: ' + ${item.value}">Количество: 0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- JSON данные для отладки -->
+            <div class="debug-section" style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 12px;">
+                <h3>📋 Данные оборудования (JSON):</h3>
+                <pre th:text="${equipmentSummary}">{"equipment": "data"}</pre>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

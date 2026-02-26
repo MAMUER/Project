@@ -1,0 +1,42 @@
+﻿# Environment variables
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode/
+.idea/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings
+.springBeans
+
+# Build
+target/
+*.jar
+*.war
+*.ear
+
+# Logs
+logs/
+*.log
+
+# Docker volumes
+data/
+postgres_data/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backups
+backup_*.sql
+*.backup
+*.bak
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar

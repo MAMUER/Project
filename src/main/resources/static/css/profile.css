@@ -1,0 +1,738 @@
+* {
+    font-family: "Open Sans";
+    font-size: 16px;
+    line-height: 21.8px;
+    color: #000000;
+    box-sizing: border-box;
+}
+
+/* Запрещаем масштабирование на мобильных */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    background: #E8EEFB;
+    height: 100vh;
+    overflow: hidden;
+    
+    /* Запрещаем масштабирование жестами */
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+/* Сайдбар стили */
+.sidebar {
+    width: 100px;
+    height: 100vh;
+    background-color: #FFFFFF;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 30px 0;
+    border-right: 2px solid #E8EEFB;
+    position: fixed;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
+    transition: all 0.3s ease;
+}
+
+.icons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    flex-grow: 1;
+    justify-content: flex-start;
+    gap: 25px;
+    margin-top: 20px;
+}
+
+.icon-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 25px;
+    width: 100%;
+}
+
+.icons a {
+    display: flex;
+    width: 70px;
+    height: 70px;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+    transition: all 0.3s ease;
+}
+
+.logout-container {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.profile,
+.calendar,
+.statistic,
+.trainers,
+.logout {
+    width: 70px;
+    height: 70px;
+    background-color: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    border-radius: 16px;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    text-decoration: none;
+    position: relative;
+    overflow: hidden;
+}
+
+.profile:hover,
+.calendar:hover,
+.statistic:hover,
+.trainers:hover {
+    background-color: #E8EEFB;
+    border-color: #0795E8;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(7, 149, 232, 0.2);
+}
+
+.logout:hover {
+    background-color: #FF6B6B;
+    border-color: #FF5252;
+    transform: translateY(-3px);
+    box-shadow: 0 6px 16px rgba(255, 107, 107, 0.25);
+}
+
+.logo {
+    margin-bottom: 15%;
+    transition: transform 0.3s ease;
+}
+
+.logo:hover {
+    transform: scale(1.05);
+}
+
+.logo img {
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.1);
+    transition: all 0.3s ease;
+}
+
+.logo:hover img {
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.15);
+}
+
+.icons img,
+.logout-container img {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    width: 35px !important;
+    height: 35px !important;
+    max-width: 35px !important;
+    max-height: 35px !important;
+    object-fit: contain;
+    transition: all 0.3s ease;
+}
+
+#selected {
+    width: 70px;
+    height: 70px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.3);
+    border: 2px solid #074EE8;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+#selected img {
+    display: block;
+    margin: auto;
+    width: 32px !important;
+    height: 32px !important;
+    max-width: 32px !important;
+    max-height: 32px !important;
+    transition: transform 0.3s ease;
+}
+
+#selected:hover img {
+    transform: scale(1.1);
+}
+
+/* Контент стили */
+.content {
+    flex-grow: 1;
+    padding: 40px;
+    padding-top: 30px;
+    width: calc(100% - 100px);
+    margin-left: 100px;
+    overflow-y: auto;
+    height: 100vh;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+}
+
+.content h1 {
+    font-size: 32px;
+    line-height: 43.6px;
+    color: #0707E8;
+    font-weight: 600;
+    margin-bottom: 30px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    position: relative;
+}
+
+.content h1::after {
+    content: "";
+    position: absolute;
+    bottom: -8px;
+    left: 0;
+    width: 60px;
+    height: 3px;
+    border-radius: 2px;
+}
+
+/* Стили для админ-панели в профиле STAFF */
+.admin-panel-container {
+    margin-bottom: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.admin-panel-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    text-decoration: none;
+    border-radius: 12px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.3);
+    border: 2px solid transparent;
+}
+
+.admin-panel-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(7, 149, 232, 0.4);
+    border-color: #0795E8;
+}
+
+.admin-panel-button ion-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+}
+
+.admin-panel-button span {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.admin-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0 0 15px 0;
+    text-align: center;
+}
+
+/* Адаптивность для админ-панели */
+@media (max-width: 768px) {
+    .admin-panel-container {
+        margin-bottom: 20px;
+        gap: 12px;
+    }
+    
+    .admin-panel-button {
+        padding: 14px 16px;
+    }
+    
+    .admin-panel-button span {
+        font-size: 13px;
+    }
+    
+    .admin-panel-button ion-icon {
+        font-size: 18px;
+    }
+}
+
+/* Адаптивная сетка для профиля */
+.profile-info {
+    margin-top: 30px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 30px;
+    align-items: start;
+}
+
+/* Первая колонка - фото и основная информация */
+.first-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    align-items: center;
+    text-align: center;
+}
+
+.profile-photo {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid #E8EEFB;
+    box-shadow: 0 6px 20px rgba(7, 149, 232, 0.15);
+    background-color: #FFFFFF;
+    user-select: none;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.profile-photo:hover {
+    border-color: #0795E8;
+    box-shadow: 0 8px 25px rgba(7, 149, 232, 0.25);
+    transform: scale(1.02);
+}
+
+.first-column p {
+    margin: 5px 0;
+    padding: 16px 20px;
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    border: 2px solid #E8EEFB;
+    width: 100%;
+    box-sizing: border-box;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
+    font-size: 16px;
+    line-height: 21.8px;
+    transition: all 0.3s ease;
+}
+
+.first-column p:hover {
+    border-color: #0795E8;
+    box-shadow: 0 6px 16px rgba(7, 149, 232, 0.15);
+    transform: translateY(-1px);
+}
+
+/* Вторая колонка - личная информация */
+.info {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.info p {
+    margin: 4px 0;
+    padding: 18px 20px;
+    background-color: #FFFFFF;
+    border-radius: 16px;
+    border: 2px solid #E8EEFB;
+    font-size: 16px;
+    line-height: 21.8px;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.info p:hover {
+    border-color: #0795E8;
+    box-shadow: 0 6px 16px rgba(7, 149, 232, 0.15);
+    transform: translateY(-1px);
+}
+
+.name {
+    font-size: 20px !important;
+    font-weight: 600;
+    color: #0707E8;
+    text-align: center;
+    line-height: 35.4px;
+    border-color: #0795E8 !important;
+}
+
+/* Третья колонка - тренировки */
+.third-column {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+.workouts-container,
+.schedule-container {
+    background: #FFFFFF;
+    padding: 24px;
+    border-radius: 20px;
+    border: 2px solid #E8EEFB;
+    box-shadow: 0 6px 20px rgba(7, 7, 232, 0.1);
+    width: 100%;
+    transition: all 0.3s ease;
+}
+
+.workouts-container:hover,
+.schedule-container:hover {
+    box-shadow: 0 8px 25px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
+    transform: translateY(-2px);
+}
+
+.workouts-title,
+.schedule-title {
+    font-size: 20px;
+    font-weight: 600;
+    color: #0707E8;
+    margin-top: 0;
+    margin-bottom: 20px;
+    text-align: center;
+    position: relative;
+}
+
+/* Стили для тренировок */
+.workouts,
+.schedule {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 20px;
+    border-top: 2px solid #E8EEFB;
+    padding-top: 20px;
+}
+
+.workout-item,
+.schedule-item {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: 16px;
+    padding: 16px;
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    border: 1px solid #E8EEFB;
+    align-items: center;
+    transition: all 0.3s ease;
+}
+
+.workout-item:hover,
+.schedule-item:hover {
+    background-color: #E8EEFB;
+    border-color: #0795E8;
+    transform: translateX(4px);
+}
+
+.workout-item p,
+.schedule-item p {
+    margin: 0;
+    font-size: 14px;
+    background: none;
+    border: none;
+    box-shadow: none;
+    padding: 0;
+}
+
+.container-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 2px solid #E8EEFB;
+}
+
+.other-workouts {
+    color: #666;
+    font-size: 14px;
+    margin: 0;
+    font-weight: 500;
+}
+
+.all-training-button,
+.all-schedule-button {
+    padding: 12px 24px;
+    background: #0795E8;
+    color: white;
+    text-decoration: none;
+    border-radius: 24px;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.2);
+}
+
+.all-training-button:hover,
+.all-schedule-button:hover {
+    transform: translateY(-2px);
+}
+
+/* Новости */
+.news {
+    margin-top: 50px;
+    padding-bottom: 40px;
+}
+
+.news h1 {
+    color: #074EE8;
+    margin-bottom: 25px;
+}
+
+.news-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 25px;
+    padding: 14px 18px;
+    background-color: #f8f9fa;
+    border-radius: 12px;
+    border: 2px solid #E8EEFB;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.news-button:hover {
+    background-color: #E8EEFB;
+    border-color: #0795E8;
+    transform: translateY(-1px);
+}
+
+.news-button input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #0795E8;
+    cursor: pointer;
+}
+
+.headlines {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    gap: 25px;
+}
+
+.news-item {
+    padding: 24px;
+    background-color: white;
+    border-radius: 20px;
+    border: 2px solid #E8EEFB;
+    box-shadow: 0 6px 20px rgba(7, 7, 232, 0.1);
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.news-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
+}
+
+.news-item:hover::before {
+    opacity: 1;
+}
+
+.headline-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #0707E8;
+    margin-bottom: 12px;
+    line-height: 24.5px;
+}
+
+.headline-text {
+    color: #666;
+    line-height: 1.6;
+    margin: 0;
+    font-size: 14px;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 900px) {
+    .sidebar {
+        width: 80px;
+        padding: 25px 0;
+    }
+    
+    .content {
+        padding: 30px 25px;
+        padding-top: 25px;
+        margin-left: 80px;
+        width: calc(100% - 80px);
+    }
+    
+    .profile-info {
+        grid-template-columns: 1fr;
+        gap: 25px;
+        margin-top: 25px;
+    }
+    
+    .first-column,
+    .info,
+    .third-column {
+        min-width: 100%;
+    }
+    
+    .profile-photo {
+        width: 140px;
+        height: 140px;
+    }
+    
+    .workout-item,
+    .schedule-item {
+        grid-template-columns: 1fr;
+        gap: 10px;
+        text-align: center;
+    }
+    
+    .headlines {
+        grid-template-columns: 1fr;
+    }
+    
+    .icons {
+        gap: 20px;
+        margin-top: 15px;
+    }
+    
+    .icons img,
+    .logout-container img {
+        width: 30px !important;
+        height: 30px !important;
+    }
+    
+    #selected {
+        width: 60px;
+        height: 60px;
+    }
+    
+    #selected img {
+        width: 28px !important;
+        height: 28px !important;
+    }
+    
+    .logout-container {
+        margin-bottom: 15px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        overflow: auto;
+    }
+    
+    .sidebar {
+        width: 70px;
+    }
+    
+    .content {
+        padding: 20px;
+        margin-left: 70px;
+        width: calc(100% - 70px);
+    }
+    
+    .content h1 {
+        font-size: 24px;
+        line-height: 32.7px;
+    }
+    
+    .first-column p,
+    .info p {
+        padding: 14px 16px;
+    }
+    
+    .profile-photo {
+        width: 120px;
+        height: 120px;
+    }
+    
+    .container-bottom {
+        flex-direction: column;
+        gap: 12px;
+        align-items: stretch;
+    }
+    
+    .all-training-button,
+    .all-schedule-button {
+        background: linear-gradient(135deg, #0795E8, #074EE8);
+        text-align: center;
+    }
+    
+    .headlines {
+        grid-template-columns: 1fr;
+    }
+    
+    .news-item {
+        padding: 20px;
+    }
+}
+
+/* Для очень больших экранов */
+@media (min-width: 1440px) {
+    .content {
+        padding: 60px;
+        padding-top: 40px;
+    }
+    
+    .profile-info {
+        gap: 40px;
+    }
+    
+    .profile-photo {
+        width: 180px;
+        height: 180px;
+    }
+}
+
+/* Запрет выделения текста */
+* {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+/* Разрешаем выделение для полей ввода */
+input, textarea {
+    -webkit-user-select: text;
+    -khtml-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+    user-select: text;
+}
+
+/* Анимация появления */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.profile-info,
+.news {
+    animation: fadeInUp 0.6s ease-out;
+}

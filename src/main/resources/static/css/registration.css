@@ -1,0 +1,793 @@
+* {
+    font-family: "Open Sans";
+    font-size: 16px;
+    line-height: 21.8px;
+    color: #000000;
+    box-sizing: border-box;
+}
+
+/* Запрещаем масштабирование на мобильных */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+body {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    overflow-y: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #E8EEFB;
+    min-height: 100vh;
+    padding: 20px;
+    margin: 0;
+    
+    /* Запрещаем масштабирование жестами */
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* Добавьте в registration.css */
+.password-requirements {
+    margin-top: 10px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: 12px;
+}
+
+.password-requirements ul {
+    margin: 5px 0;
+    padding-left: 20px;
+}
+
+.password-requirements li {
+    margin: 3px 0;
+}
+
+.password-requirements .valid {
+    color: #28a745;
+}
+
+.password-requirements .invalid {
+    color: #dc3545;
+}
+
+.password-match, .age-validation {
+    margin-top: 5px;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.password-match.success, .age-validation.success {
+    color: #28a745;
+}
+
+.password-match.error, .age-validation.error {
+    color: #dc3545;
+}
+
+.age-info {
+    font-size: 11px;
+    color: #6c757d;
+    margin-top: 5px;
+}
+
+.register-btn:disabled {
+    background: #6c757d;
+    cursor: not-allowed;
+}
+
+.register-btn:disabled:hover {
+    background: #6c757d;
+    transform: none;
+}
+
+.registration-container {
+    width: 100%;
+    max-width: 500px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.registration-page {
+    background: #FFFFFF;
+    padding: clamp(24px, 4vw, 40px);
+    display: flex;
+    flex-direction: column;
+    border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(7, 7, 232, 0.12);
+    gap: clamp(20px, 3vw, 28px);
+    max-width: min(95vw, 480px);
+    width: 100%;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+    
+    /* Критически важные стили */
+    overflow: hidden;
+    min-width: min-content;
+    box-sizing: border-box;
+    margin: 0 auto;
+}
+
+.registration-page:hover {
+    box-shadow: 0 12px 40px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
+}
+
+.registration-page h2 {
+    text-align: center;
+    color: #0707E8;
+    margin-bottom: 8px;
+    margin-top: 0;
+    font-size: 28px;
+    line-height: 38.2px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.registration-page h2::after {
+    content: "";
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 3px;
+    background: linear-gradient(to right, #0795E8, #074EE8);
+    border-radius: 2px;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.input-group label {
+    color: #0707E8;
+    font-size: 16px;
+    font-weight: 600;
+    padding-left: 12px;
+    margin-bottom: 4px;
+}
+
+.input-with-icon {
+    background: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border-radius: 16px;
+    color: #000000;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.input-with-icon:focus-within {
+    border-color: #0795E8;
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.2);
+    transform: translateY(-1px);
+}
+
+.input-with-icon.error {
+    border-color: #FF6B6B;
+    background-color: rgba(255, 107, 107, 0.05);
+}
+
+.input-with-icon.success {
+    border-color: #06D6A0;
+    background-color: rgba(6, 214, 160, 0.05);
+}
+
+.input-with-icon input,
+.input-with-icon select {
+    outline: none;
+    border: none;
+    width: 100%;
+    font-size: 16px;
+    background: transparent;
+    color: #000000;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+.input-with-icon input::-moz-placeholder {
+    color: #666666;
+    font-size: 16px;
+}
+
+.input-with-icon input:-ms-input-placeholder {
+    color: #666666;
+    font-size: 16px;
+}
+
+.input-with-icon input::placeholder {
+    color: #666666;
+    font-size: 16px;
+}
+
+.input-with-icon ion-icon {
+    color: #074EE8;
+    font-size: 22px;
+    flex-shrink: 0;
+    transition: color 0.3s ease;
+}
+
+.input-with-icon:focus-within ion-icon {
+    color: #0707E8;
+}
+
+.input-with-icon.error ion-icon {
+    color: #FF6B6B;
+}
+
+.input-with-icon.success ion-icon {
+    color: #06D6A0;
+}
+
+/* Кастомная стрелка для select */
+.input-with-icon.select-container::after {
+    content: '▼';
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #074EE8;
+    font-size: 12px;
+    pointer-events: none;
+    transition: color 0.3s ease;
+}
+
+.input-with-icon.select-container:focus-within::after {
+    color: #0707E8;
+}
+
+.register-btn {
+    padding: 18px;
+    background: linear-gradient(135deg, #0795E8, #074EE8);
+    color: #FFFFFF;
+    border: none;
+    border-radius: 24px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 16px;
+    font-size: 17px;
+    box-shadow: 0 4px 16px rgba(7, 7, 232, 0.25);
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+    
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.register-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.register-btn:hover {
+    background: linear-gradient(135deg, #074EE8, #0707E8);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.35);
+    border-color: #0707E8;
+}
+
+.register-btn:hover::before {
+    left: 100%;
+}
+
+.register-btn:active {
+    transform: translateY(-1px);
+}
+
+.register-btn:disabled {
+    background: #CCCCCC;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    border-color: #CCCCCC;
+}
+
+.login-link {
+    text-align: center;
+    color: #000000;
+    font-size: 16px;
+    margin-top: 20px;
+}
+
+.login-link a {
+    color: #0795E8;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.login-link a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(to right, #0795E8, #074EE8);
+    transition: width 0.3s ease;
+}
+
+.login-link a:hover {
+    color: #074EE8;
+}
+
+.login-link a:hover::after {
+    width: 100%;
+}
+
+.error-message {
+    background: rgba(255, 107, 107, 0.1);
+    color: #FF6B6B;
+    padding: 16px 20px;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 16px;
+    border: 1px solid #FF6B6B;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.success-message {
+    background: rgba(6, 214, 160, 0.1);
+    color: #06D6A0;
+    padding: 16px 20px;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 16px;
+    border: 1px solid #06D6A0;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+/* Стили для радио-кнопок */
+.radio-group {
+    display: flex;
+    gap: 24px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    font-size: 16px;
+    color: #000000;
+    font-weight: 500;
+    transition: color 0.3s ease;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.radio-label:hover {
+    background-color: rgba(7, 149, 232, 0.05);
+    color: #0707E8;
+}
+
+.radio-label input[type="radio"] {
+    display: none;
+}
+
+.radio-custom {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #0795E8;
+    border-radius: 50%;
+    position: relative;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.radio-label input[type="radio"]:checked + .radio-custom {
+    border-color: #074EE8;
+    background: #074EE8;
+    box-shadow: 0 0 0 3px rgba(7, 78, 232, 0.2);
+}
+
+.radio-label input[type="radio"]:checked + .radio-custom::after {
+    content: '';
+    width: 8px;
+    height: 8px;
+    background: #FFFFFF;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.radio-label:hover .radio-custom {
+    border-color: #074EE8;
+    box-shadow: 0 0 8px rgba(7, 78, 232, 0.3);
+}
+
+/* Стили для выпадающих списков */
+select {
+    width: 100%;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 16px;
+    color: #666666;
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+select option {
+    color: #000000;
+    background: #FFFFFF;
+    padding: 12px;
+}
+
+/* Стили для полей ввода даты */
+input[type="date"] {
+    color: #666666;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+    filter: invert(0.5) sepia(1) saturate(5) hue-rotate(175deg);
+    cursor: pointer;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+    body {
+        padding: 16px;
+        align-items: flex-start;
+    }
+    
+    .registration-container {
+        margin-top: 10px;
+    }
+    
+    .registration-page {
+        padding: 28px;
+        max-width: 100%;
+    }
+    
+    .registration-page h2 {
+        font-size: 24px;
+        line-height: 32.7px;
+    }
+    
+    .radio-group {
+        flex-direction: column;
+        gap: 16px;
+    }
+    
+    .input-with-icon {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 12px;
+    }
+    
+    .registration-page {
+        padding: 24px;
+        gap: 20px;
+    }
+    
+    .input-with-icon {
+        padding: 14px 16px;
+    }
+    
+    .registration-page h2 {
+        font-size: 22px;
+        line-height: 30px;
+    }
+    
+    .register-btn {
+        padding: 16px;
+    }
+    
+    .form {
+        gap: 20px;
+    }
+}
+
+@media (max-width: 320px) {
+    .registration-page {
+        padding: 20px;
+    }
+    
+    .input-with-icon {
+        padding: 12px 14px;
+    }
+}
+
+/* Для очень больших экранов */
+@media (min-width: 1440px) {
+    .registration-container {
+        max-width: 550px;
+    }
+    
+    .registration-page {
+        max-width: 500px;
+        padding: 48px;
+    }
+}
+
+/* Анимация появления */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.registration-page {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* Добавьте в registration.css */
+.password-requirements {
+    margin-top: 10px;
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    font-size: 12px;
+    border: 1px solid #e2e8f0;
+}
+
+.password-requirements h4 {
+    margin: 0 0 8px 0;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.password-requirements ul {
+    margin: 5px 0;
+    padding-left: 20px;
+}
+
+.password-requirements li {
+    margin: 4px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.password-requirements .valid {
+    color: #06D6A0;
+    font-weight: 500;
+}
+
+.password-requirements .valid::before {
+    content: "✓";
+    color: #06D6A0;
+    font-weight: bold;
+}
+
+.password-requirements .invalid {
+    color: #FF6B6B;
+    font-weight: 500;
+}
+
+.password-requirements .invalid::before {
+    content: "✗";
+    color: #FF6B6B;
+    font-weight: bold;
+}
+
+.password-match, .age-validation {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.password-match.success, .age-validation.success {
+    color: #06D6A0;
+}
+
+.password-match.error, .age-validation.error {
+    color: #FF6B6B;
+}
+
+.password-match::before, .age-validation::before {
+    font-weight: bold;
+}
+
+.password-match.success::before {
+    content: "✓";
+}
+
+.password-match.error::before {
+    content: "✗";
+}
+
+.age-info {
+    font-size: 11px;
+    color: #6c757d;
+    margin-top: 5px;
+    line-height: 1.4;
+}
+
+.register-btn:disabled {
+    background: #CCCCCC !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    border-color: #CCCCCC !important;
+}
+
+/* Стили для реальтной валидации в реальном времени */
+.validation-feedback {
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.3s ease;
+}
+
+.validation-feedback.success {
+    color: #06D6A0;
+}
+
+.validation-feedback.error {
+    color: #FF6B6B;
+}
+
+.validation-feedback::before {
+    font-weight: bold;
+}
+
+.validation-feedback.success::before {
+    content: "✓";
+}
+
+.validation-feedback.error::before {
+    content: "✗";
+}
+
+/* Анимация для появления сообщений об ошибках */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.validation-feedback {
+    animation: slideIn 0.3s ease-out;
+}
+
+/* Стили для индикатора сложности пароля */
+.password-strength {
+    margin-top: 8px;
+    height: 4px;
+    border-radius: 2px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+
+.password-strength-bar {
+    height: 100%;
+    border-radius: 2px;
+    transition: all 0.3s ease;
+}
+
+.password-strength.weak .password-strength-bar {
+    background: #FF6B6B;
+    width: 25%;
+}
+
+.password-strength.medium .password-strength-bar {
+    background: #FFD166;
+    width: 50%;
+}
+
+.password-strength.strong .password-strength-bar {
+    background: #06D6A0;
+    width: 75%;
+}
+
+.password-strength.very-strong .password-strength-bar {
+    background: #118AB2;
+    width: 100%;
+}
+
+.password-strength-text {
+    font-size: 11px;
+    color: #64748b;
+    margin-top: 4px;
+    text-align: right;
+}
+
+/* Стили для кнопки показа/скрытия пароля */
+.toggle-password {
+    cursor: pointer;
+    color: #074EE8;
+    font-size: 20px;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.toggle-password:hover {
+    color: #0707E8;
+    transform: scale(1.1);
+}
+
+/* Убедимся, что иконки правильно расположены */
+.input-with-icon {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.input-with-icon ion-icon:first-child {
+    flex-shrink: 0;
+}
+
+.input-with-icon input {
+    flex: 1;
+}
+
+.input-with-icon .toggle-password {
+    margin-left: auto;
+}

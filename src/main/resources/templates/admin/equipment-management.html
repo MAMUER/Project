@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+<head>
+    <title>Управление оборудованием</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>Управление оборудованием</h1>
+            <div class="header-actions">
+                <a th:href="@{/profile/staff/{id}(id=${staffId})}" class="back-button">В профиль</a>
+            </div>
+        </header>
+
+        <!-- Сообщения -->
+        <div class="messages" th:if="${param.success} or ${param.error}">
+            <div class="success-message" th:if="${param.success}" th:text="${param.success}"></div>
+            <div class="error-message" th:if="${param.error}" th:text="${param.error}"></div>
+        </div>
+
+        <!-- Список доступных клубов -->
+        <div class="section">
+            <h2>Ваши клубы</h2>
+            <p>Выберите клуб для управления оборудованием:</p>
+            
+            <div class="clubs-grid">
+                <div class="club-card" th:each="club : ${clubs}">
+                    <div class="club-header">
+                        <h3 th:text="${club.clubName}">Название клуба</h3>
+                        <span class="club-address" th:text="${club.address}">Адрес</span>
+                    </div>
+                    
+                    <div class="club-actions">
+                        <a th:href="@{/admin/equipment/{clubName}(clubName=${club.clubName})}" 
+                           class="action-btn equipment-btn">
+                            <ion-icon name="construct-outline"></ion-icon>
+                            Управлять оборудованием
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="empty-state" th:if="${#lists.isEmpty(clubs)}">
+                <div class="empty-icon">
+                    <ion-icon name="business-outline"></ion-icon>
+                </div>
+                <h3>У вас нет доступных клубов</h3>
+                <p>Обратитесь к администратору для назначения в клуб</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

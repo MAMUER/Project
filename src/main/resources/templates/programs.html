@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+
+<head>
+    <title>Мои программы тренировок</title>
+    <link rel="stylesheet" th:href="@{/css/programs.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="container">
+        <!-- Хедер -->
+        <header class="header">
+            <div class="header-content">
+                <h1 class="page-title">Мои программы тренировок</h1>
+                <div class="header-actions">
+                    <a th:href="@{/profile/member/{id}(id=${memberId})}" class="back-button">
+                        <ion-icon name="arrow-back-outline"></ion-icon>
+                        Назад в профиль
+                    </a>
+                    <a th:href="@{/programs/generate/{id}(id=${memberId})}" class="generate-button">
+                        <ion-icon name="add-outline"></ion-icon>
+                        Новая программа
+                    </a>
+                </div>
+            </div>
+        </header>
+
+        <!-- Сообщения -->
+        <div class="messages" th:if="${success} or ${error}">
+            <div class="success-message" th:if="${success}" th:text="${success}"></div>
+            <div class="error-message" th:if="${error}" th:text="${error}"></div>
+        </div>
+
+        <!-- Активная программа -->
+        <div class="active-program-section" th:if="${activeProgram}">
+            <div class="section-header">
+                <h2>Активная программа</h2>
+                <span class="active-badge">АКТИВНА</span>
+            </div>
+            <div class="program-card active">
+                <div class="program-header">
+                    <h3 th:text="${activeProgram.programName}">Название программы</h3>
+                    <div class="program-meta">
+                        <span class="meta-item">
+                            <ion-icon name="flag-outline"></ion-icon>
+                            <span th:text="${activeProgram.goal}">Цель</span>
+                        </span>
+                        <span class="meta-item">
+                            <ion-icon name="fitness-outline"></ion-icon>
+                            <span th:text="${activeProgram.level}">Уровень</span>
+                        </span>
+                        <span class="meta-item">
+                            <ion-icon name="calendar-outline"></ion-icon>
+                            <span th:text="${activeProgram.durationWeeks} + ' недель'">Длительность</span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="program-days" th:if="${not #lists.isEmpty(sortedProgramDays)}">
+                    <!-- ИСПОЛЬЗУЕМ ОТСОРТИРОВАННЫЕ ДНИ -->
+                    <div class="day-card" th:each="day : ${sortedProgramDays}">
+                        <h4 th:text="${day.dayName} + ' (День ' + ${day.dayNumber} + ')'">День</h4>
+                        <span class="muscle-groups" th:text="${day.muscleGroups}">Группы мышц</span>
+
+                        <div class="exercises-list"
+                            th:if="${not #lists.isEmpty(sortedExercisesByDay.get(day.dayNumber))}">
+                            <!-- ИСПОЛЬЗУЕМ ОТСОРТИРОВАННЫЕ УПРАЖНЕНИЯ -->
+                            <div class="exercise-item" th:each="exercise : ${sortedExercisesByDay.get(day.dayNumber)}">
+                                <div class="exercise-info">
+                                    <span class="exercise-name exercise-tooltip-trigger"
+                                        th:text="${exercise.exercise.exerciseName}"
+                                        th:data-description="${exercise.exercise.description}"
+                                        th:data-equipment="${exercise.exercise.equipmentRequired}"
+                                        th:data-calories="${exercise.exercise.estimatedCalories}">
+                                        Упражнение
+                                    </span>
+                                    <span class="exercise-sets"
+                                        th:text="${exercise.sets} + 'x' + ${exercise.reps}">Подходы×Повторения</span>
+                                </div>
+                                <div class="exercise-details" th:if="${exercise.weight != null}">
+                                    <span th:text="${exercise.weight} + ' кг'">Вес</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="no-exercises" th:if="${#lists.isEmpty(sortedExercisesByDay.get(day.dayNumber))}">
+                            <p>Упражнения не назначены</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="no-days" th:if="${#lists.isEmpty(sortedProgramDays)}">
+                    <p>Дни тренировок не настроены</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Секция с назначенной диетой для активной программы -->
+        <div class="nutrition-section" th:if="${activeProgram != null and activeProgram.nutritionPlan != null}">
+            <div class="section-header">
+                <h2>🥗 Назначенный план питания</h2>
+            </div>
+
+            <div class="nutrition-cards">
+                <div class="nutrition-card">
+                    <div class="nutrition-header">
+                        <ion-icon name="restaurant-outline"></ion-icon>
+                        <h3 th:text="${activeProgram.nutritionPlan.planName}">Название плана питания</h3>
+                    </div>
+                    <div class="nutrition-content">
+                        <!-- УЛУЧШЕННОЕ ОПИСАНИЕ ДИЕТЫ -->
+                        <div class="nutrition-description">
+                            <p th:text="${activeProgram.nutritionPlan.nutritionDescription}">Описание плана питания</p>
+                            
+                            <!-- ПОДРОБНЫЕ ДЕТАЛИ -->
+                            <div class="nutrition-details" th:if="${activeProgram.nutritionPlan.goalType != null or activeProgram.nutritionPlan.difficultyLevel != null}">
+                                <div class="detail-item" th:if="${activeProgram.nutritionPlan.goalType != null}">
+                                    <strong>Цель:</strong> <span th:text="${activeProgram.nutritionPlan.goalType}"></span>
+                                </div>
+                                <div class="detail-item" th:if="${activeProgram.nutritionPlan.difficultyLevel != null}">
+                                    <strong>Уровень:</strong> <span th:text="${activeProgram.nutritionPlan.difficultyLevel}"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Статистика питания, если доступна -->
+                        <div class="nutrition-stats" th:if="${activeProgram.nutritionPlan.caloriesPerDay != null}">
+                            <div class="nutrition-stat">
+                                <span class="stat-label">Калории в день:</span>
+                                <span class="stat-value"
+                                    th:text="${activeProgram.nutritionPlan.caloriesPerDay} + ' ккал'"></span>
+                            </div>
+                            <div class="nutrition-stat" th:if="${activeProgram.nutritionPlan.proteinPercent != null}">
+                                <span class="stat-label">Белки:</span>
+                                <span class="stat-value"
+                                    th:text="${activeProgram.nutritionPlan.proteinPercent} + '%'"></span>
+                            </div>
+                            <div class="nutrition-stat" th:if="${activeProgram.nutritionPlan.carbsPercent != null}">
+                                <span class="stat-label">Углеводы:</span>
+                                <span class="stat-value"
+                                    th:text="${activeProgram.nutritionPlan.carbsPercent} + '%'"></span>
+                            </div>
+                            <div class="nutrition-stat" th:if="${activeProgram.nutritionPlan.fatPercent != null}">
+                                <span class="stat-label">Жиры:</span>
+                                <span class="stat-value"
+                                    th:text="${activeProgram.nutritionPlan.fatPercent} + '%'"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="nutrition-footer">
+                        <span class="nutrition-type"
+                            th:text="'Цель: ' + ${activeProgram.nutritionPlan.goalType} + ' • Уровень: ' + ${activeProgram.nutritionPlan.difficultyLevel}">
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="empty-nutrition" th:if="${activeProgram != null and activeProgram.nutritionPlan == null}">
+            <div class="empty-state">
+                <div class="empty-icon">
+                    <ion-icon name="restaurant-outline"></ion-icon>
+                </div>
+                <h3>План питания не назначен</h3>
+                <p>Для активной программы пока не создан план питания</p>
+            </div>
+        </div>
+
+        <!-- Все программы -->
+        <div class="all-programs-section">
+            <div class="section-header">
+                <h2>📁 Все программы</h2>
+                <span class="programs-count" th:text="${#lists.size(programs)} + ' программ'"></span>
+            </div>
+
+            <div class="programs-grid" th:if="${not #lists.isEmpty(programs)}">
+                <div class="program-card" th:each="program : ${programs}"
+                    th:classappend="${program.isActive} ? 'active' : ''">
+                    <div class="program-header">
+                        <h3 th:text="${program.programName}">Название программы</h3>
+                        <div class="program-actions">
+                            <form
+                                th:action="@{/programs/activate/{memberId}/{programId}(memberId=${memberId}, programId=${program.idProgram})}"
+                                method="post" th:if="${not program.isActive}">
+                                <button type="submit" class="activate-btn">
+                                    <ion-icon name="play-circle-outline"></ion-icon>
+                                    Активировать
+                                </button>
+                            </form>
+                            <span class="active-indicator" th:if="${program.isActive}">
+                                <ion-icon name="checkmark-circle"></ion-icon>
+                                Активна
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="program-info">
+                        <div class="info-row">
+                            <span class="info-label">Цель:</span>
+                            <span th:text="${program.goal}" class="info-value">Цель</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Уровень:</span>
+                            <span th:text="${program.level}" class="info-value">Уровень</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Длительность:</span>
+                            <span th:text="${program.durationWeeks} + ' недель'" class="info-value">Длительность</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Создана:</span>
+                            <span th:text="${#temporals.format(program.createdDate, 'dd.MM.yyyy')}"
+                                class="info-value">Дата</span>
+                        </div>
+                    </div>
+
+                    <div class="program-stats">
+                        <div class="stat">
+                            <span class="stat-number"
+                                th:text="${program.programDays != null ? program.programDays.size() : 0}">0</span>
+                            <span class="stat-label">дней в неделю</span>
+                        </div>
+                        <div class="stat">
+                            <!-- УПРОЩЕННОЕ ВЫРАЖЕНИЕ ДЛЯ ПОДСЧЕТА УПРАЖНЕНИЙ -->
+                            <span class="stat-number"
+                                th:text="${program.programDays != null ? #lists.size(program.programDays) : 0}">0</span>
+                            <span class="stat-label">упражнений</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="empty-state" th:if="${#lists.isEmpty(programs)}">
+                <div class="empty-icon">
+                    <ion-icon name="barbell-outline"></ion-icon>
+                </div>
+                <h3>У вас пока нет программ тренировок</h3>
+                <p>Создайте свою первую программу, чтобы начать тренироваться по плану</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Тултип для упражнений -->
+    <div id="exercise-tooltip" class="exercise-tooltip">
+        <div class="tooltip-content">
+            <h4 id="tooltip-title"></h4>
+            <p id="tooltip-description"></p>
+            <div class="tooltip-details">
+                <div id="equipment-detail" style="display: none;">
+                    <strong>Оборудование:</strong> <span id="tooltip-equipment"></span>
+                </div>
+                <div id="calories-detail" style="display: none;">
+                    <strong>Калории:</strong> <span id="tooltip-calories"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        /* Стили для тултипа упражнений */
+        .exercise-tooltip {
+            display: none;
+            position: absolute; /* Меняем на absolute для позиционирования относительно страницы */
+            z-index: 99999;
+            background: #FFFFFF;
+            border: 2px solid #0795E8;
+            border-radius: 12px;
+            padding: 16px;
+            max-width: 300px;
+            width: auto;
+            box-shadow: 0 10px 40px rgba(7, 149, 232, 0.25);
+            pointer-events: none;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+        
+        .exercise-tooltip .tooltip-content h4 {
+            color: #0707E8;
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .exercise-tooltip .tooltip-content p {
+            color: #666666;
+            margin: 0 0 12px 0;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+        
+        .exercise-tooltip .tooltip-details {
+            font-size: 13px;
+            border-top: 1px solid #E8EEFB;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+        
+        .exercise-tooltip .tooltip-details div {
+            margin-bottom: 6px;
+        }
+        
+        .exercise-tooltip .tooltip-details strong {
+            color: #666666;
+        }
+        
+        .exercise-tooltip .tooltip-details span {
+            color: #0707E8;
+            font-weight: 600;
+        }
+        
+        /* Стили для триггера тултипа */
+        .exercise-name.exercise-tooltip-trigger {
+            cursor: help;
+            border-bottom: 1px dotted #0795E8;
+            color: #0795E8;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .exercise-name.exercise-tooltip-trigger:hover {
+            color: #074EE8;
+            text-decoration: underline;
+        }
+        
+        /* Улучшенные стили для описания диеты */
+        .nutrition-description {
+            margin-bottom: 16px;
+        }
+        
+        .nutrition-description p {
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+        
+        .nutrition-details {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 12px;
+        }
+        
+        .detail-item {
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+        
+        .detail-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .detail-item strong {
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .detail-item span {
+            color: white;
+        }
+        
+        @media (max-width: 768px) {
+            .exercise-tooltip {
+                position: fixed !important;
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+                max-width: 90vw;
+                top: 50% !important;
+                margin-top: 0 !important;
+            }
+            
+            .exercise-name.exercise-tooltip-trigger {
+                cursor: pointer;
+            }
+        }
+    </style>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tooltip = document.getElementById('exercise-tooltip');
+            const tooltipTriggers = document.querySelectorAll('.exercise-tooltip-trigger');
+            let activeTrigger = null;
+            
+            // Обработчики для десктопов (hover)
+            tooltipTriggers.forEach(trigger => {
+                // Hover для десктопов
+                trigger.addEventListener('mouseenter', function(e) {
+                    if (window.innerWidth > 768) {
+                        showTooltip(this, e);
+                    }
+                });
+                
+                trigger.addEventListener('mouseleave', function() {
+                    if (window.innerWidth > 768) {
+                        hideTooltip();
+                    }
+                });
+                
+                // Клик для мобильных
+                trigger.addEventListener('click', function(e) {
+                    if (window.innerWidth <= 768) {
+                        e.preventDefault();
+                        
+                        if (activeTrigger === this) {
+                            hideTooltip();
+                            activeTrigger = null;
+                        } else {
+                            showTooltip(this, e);
+                            activeTrigger = this;
+                        }
+                    }
+                });
+            });
+            
+            // Закрытие тултипа при клике вне (для мобильных)
+            document.addEventListener('click', function(e) {
+                if (window.innerWidth <= 768 && 
+                    activeTrigger && 
+                    !e.target.closest('.exercise-tooltip-trigger') && 
+                    !e.target.closest('.exercise-tooltip')) {
+                    hideTooltip();
+                    activeTrigger = null;
+                }
+            });
+            
+            // Закрытие по ESC
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape') {
+                    hideTooltip();
+                    activeTrigger = null;
+                }
+            });
+            
+            function showTooltip(trigger, event) {
+                // Получаем данные из data-атрибутов
+                const title = trigger.textContent;
+                const description = trigger.getAttribute('data-description') || 'Описание упражнения отсутствует';
+                const equipment = trigger.getAttribute('data-equipment');
+                const calories = trigger.getAttribute('data-calories');
+                
+                // Заполняем тултип
+                document.getElementById('tooltip-title').textContent = title;
+                document.getElementById('tooltip-description').textContent = description;
+                
+                // Оборудование
+                const equipmentDetail = document.getElementById('equipment-detail');
+                const equipmentSpan = document.getElementById('tooltip-equipment');
+                if (equipment && equipment !== 'null') {
+                    equipmentSpan.textContent = equipment;
+                    equipmentDetail.style.display = 'block';
+                } else {
+                    equipmentDetail.style.display = 'none';
+                }
+                
+                // Калории
+                const caloriesDetail = document.getElementById('calories-detail');
+                const caloriesSpan = document.getElementById('tooltip-calories');
+                if (calories && calories !== 'null') {
+                    caloriesSpan.textContent = calories + ' ккал';
+                    caloriesDetail.style.display = 'block';
+                } else {
+                    caloriesDetail.style.display = 'none';
+                }
+                
+                // Позиционируем тултип РЯДОМ С ЭЛЕМЕНТОМ
+                const rect = trigger.getBoundingClientRect();
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+                
+                if (window.innerWidth > 768) {
+                    // Позиционируем справа от элемента
+                    let left = rect.left + scrollLeft + rect.width + 10;
+                    let top = rect.top + scrollTop - 10;
+                    
+                    // Если не помещается справа, показываем слева
+                    if (left + tooltip.offsetWidth > window.innerWidth) {
+                        left = rect.left + scrollLeft - tooltip.offsetWidth - 10;
+                    }
+                    
+                    // Если не помещается сверху, корректируем
+                    if (top + tooltip.offsetHeight > window.innerHeight + scrollTop) {
+                        top = window.innerHeight + scrollTop - tooltip.offsetHeight - 10;
+                    }
+                    
+                    tooltip.style.position = 'absolute';
+                    tooltip.style.top = top + 'px';
+                    tooltip.style.left = left + 'px';
+                    tooltip.style.transform = 'none';
+                } else {
+                    // Для мобильных - по центру экрана
+                    tooltip.style.position = 'fixed';
+                    tooltip.style.top = '50%';
+                    tooltip.style.left = '50%';
+                    tooltip.style.transform = 'translate(-50%, -50%)';
+                }
+                
+                // Показываем тултип
+                tooltip.style.display = 'block';
+                
+                // Добавляем небольшую задержку для плавного появления
+                setTimeout(() => {
+                    tooltip.style.opacity = '1';
+                }, 10);
+            }
+            
+            function hideTooltip() {
+                tooltip.style.opacity = '0';
+                setTimeout(() => {
+                    tooltip.style.display = 'none';
+                }, 200);
+            }
+            
+            // Скрываем тултип при скролле (для десктопов)
+            window.addEventListener('scroll', function() {
+                if (window.innerWidth > 768) {
+                    hideTooltip();
+                }
+            });
+            
+            // Добавляем transition для плавности
+            tooltip.style.transition = 'opacity 0.2s ease';
+        });
+    </script>
+</body>
+
+</html>

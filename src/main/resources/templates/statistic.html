@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/sidebar.css}">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/statistic.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'>
+    <title>Статистика</title>
+</head>
+
+<body>
+    <div class="sidebar">
+        <div class="logo">
+            <img th:src="@{/icons/logo.png}" alt="Logo">
+        </div>
+
+        <div class="icons">
+            <th:block th:switch="${role}">
+                <div th:case="'member'" class="icon-group">
+                    <a class="profile" th:href="'/profile/member/' + ${memberId}">
+                        <img th:src="@{/icons/profile.svg}" alt="Profile">
+                    </a>
+                    <a class="calendar" th:href="'/calendar/member/' + ${memberId}">
+                        <img th:src="@{/icons/calendar.svg}" alt="Calendar">
+                    </a>
+                    <a class="statistic" id="selected" th:href="'/statistic/member/' + ${memberId}">
+                        <img th:src="@{/icons/statistic-white.svg}" alt="Statistic">
+                    </a>
+                    <a class="trainers" th:href="'/trainers'">
+                        <img th:src="@{/icons/programs.svg}" alt="Programs">
+                    </a>
+                    <a class="programs" th:href="'/programs/member/' + ${memberId}">
+                        <img th:src="@{/icons/trainers.svg}" alt="trainers">
+                    </a>
+                </div>
+            </th:block>
+        </div>
+
+        <div class="logout-container">
+            <a class="logout" th:href="'/logout'">
+                <img th:src="@{/icons/logout.svg}" alt="Log out">
+            </a>
+        </div>
+    </div>
+
+    <div class="content">
+        <h1>Статистика</h1>
+        <div class="stats-grid">
+            <div class="training-container">
+                <p class="container-title">Тренировки:</p>
+                <div class="statistics-list">
+                    <div class="statistics-item" th:each="statistic : ${statistics}">
+                        <p th:text="${statistic.activityType.activityName}"></p>
+                    </div>
+                    <div th:if="${statistics == null || statistics.empty}" class="empty-state">
+                        Нет данных о тренировках
+                    </div>
+                </div>
+            </div>
+            <div class="achievements-container">
+                <p class="container-title">Полученные достижения:</p>
+                <div class="achievements-list">
+                    <div class="achievements-item" th:each="achievement : ${achievements}">
+                        <p class="achievement-title" th:text="${achievement.achievementTitle}"></p>
+                        <p class="achievement-description" th:text="${achievement.achievementDescription}"></p>
+                        <div class="achievement-img">
+                            <img th:src="${achievement.achievementIconUrl}" alt="Achievement Icon">
+                        </div>
+                    </div>
+                    <div th:if="${achievements == null || achievements.empty}" class="empty-state">
+                        Нет полученных достижений
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

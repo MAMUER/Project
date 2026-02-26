@@ -1,0 +1,474 @@
+* {
+    font-family: "Open Sans";
+    font-size: 16px;
+    line-height: 21.8px;
+    box-sizing: border-box;
+}
+
+/* Запрещаем масштабирование на мобильных */
+html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+}
+
+body {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #E8EEFB;
+    min-height: 100vh;
+    margin: 0;
+    padding: 20px;
+    
+    /* Запрещаем масштабирование жестами */
+    touch-action: pan-x pan-y;
+    -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.login-container {
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.login-page {
+    background: #FFFFFF;
+    padding: clamp(28px, 4vw, 40px);
+    display: flex;
+    flex-direction: column;
+    border-radius: 24px;
+    box-shadow: 0 8px 32px rgba(7, 7, 232, 0.12);
+    gap: clamp(20px, 3vw, 28px);
+    width: 100%;
+    max-width: 400px;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+    
+    /* Защита от растягивания */
+    flex-shrink: 0;
+    overflow: hidden;
+    min-width: min-content;
+    box-sizing: border-box;
+    margin: 0 auto;
+}
+
+.login-page:hover {
+    box-shadow: 0 12px 40px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
+}
+
+.form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.login-page .logo {
+    text-align: center;
+    margin-bottom: 4px;
+}
+
+.login-page .logo h2 {
+    font-size: 28px;
+    line-height: 38.2px;
+    color: #0707E8;
+    margin: 0 0 8px 0;
+    font-weight: 600;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.login-page .logo h2::after {
+    content: "";
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 50px;
+    height: 3px;
+    background: #0795E8;
+    border-radius: 2px;
+}
+
+/* ОБНОВЛЕННЫЕ СТИЛИ ДЛЯ ПОЛЕЙ ВВОДА */
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.input-group label {
+    font-weight: 600;
+    color: #0707E8;
+    font-size: 16px;
+    padding-left: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.input-with-icon {
+    background: #FFFFFF;
+    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-radius: 16px;
+    border: 2px solid #E8EEFB;
+    color: #000000;
+    transition: all 0.3s ease;
+    position: relative;
+    min-width: 0; /* Важно для предотвращения растягивания */
+}
+
+.input-with-icon:focus-within {
+    border-color: #0795E8;
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.15);
+    transform: translateY(-1px);
+}
+
+.input-with-icon.error {
+    border-color: #FF6B6B;
+    background-color: rgba(255, 107, 107, 0.05);
+}
+
+.input-with-icon.success {
+    border-color: #06D6A0;
+    background-color: rgba(6, 214, 160, 0.05);
+}
+
+.input-with-icon input {
+    outline: none;
+    border: none;
+    background: transparent;
+    font-size: 16px;
+    color: #000000;
+    width: 100%;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    min-width: 0; /* Важно для предотвращения растягивания */
+    flex: 1;
+}
+
+.input-with-icon input::-moz-placeholder {
+    color: #666666;
+    font-size: 16px;
+}
+
+.input-with-icon input:-ms-input-placeholder {
+    color: #666666;
+    font-size: 16px;
+}
+
+.input-with-icon input::placeholder {
+    color: #666666;
+    font-size: 16px;
+}
+
+.input-with-icon ion-icon {
+    color: #074EE8;
+    font-size: 22px;
+    flex-shrink: 0;
+    transition: color 0.3s ease;
+    min-width: 22px; /* Фиксированная ширина для иконок */
+}
+
+.input-with-icon:focus-within ion-icon {
+    color: #0707E8;
+}
+
+.input-with-icon.error ion-icon {
+    color: #FF6B6B;
+}
+
+.input-with-icon.success ion-icon {
+    color: #06D6A0;
+}
+
+/* Стили для кнопки показа/скрытия пароля */
+.toggle-password {
+    cursor: pointer;
+    color: #074EE8;
+    font-size: 20px;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    min-width: 20px;
+}
+
+.toggle-password:hover {
+    color: #0707E8;
+    transform: scale(1.1);
+}
+
+/* Одинаковые стили для обеих кнопок */
+.login-page .login,
+.login-page .register-button {
+    padding: 18px;
+    background: #0795E8;
+    color: #FFFFFF;
+    border: none;
+    border-radius: 24px;
+    font-weight: 600;
+    font-size: 17px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 12px;
+    text-align: center;
+    text-decoration: none;
+    display: block;
+    width: 100%;
+    font-family: "Open Sans";
+    box-shadow: 0 4px 16px rgba(7, 7, 232, 0.25);
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+    
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.login-page .login::before,
+.login-page .register-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.2);
+    transition: left 0.5s ease;
+}
+
+.login-page .login:hover,
+.login-page .register-button:hover {
+    background: #0795E8;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.35);
+    border-color: #0707E8;
+}
+
+/* Стили для сообщений */
+.login-page .messages {
+    margin-top: 16px;
+}
+
+.login-page .error-message {
+    color: #FF6B6B;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+    padding: 16px 20px;
+    background: rgba(255, 107, 107, 0.1);
+    border-radius: 12px;
+    border: 1px solid #FF6B6B;
+    transition: all 0.3s ease;
+}
+
+.login-page .logout-message {
+    color: #06D6A0;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 16px 20px;
+    background: rgba(6, 214, 160, 0.1);
+    border-radius: 12px;
+    border: 1px solid #06D6A0;
+    transition: all 0.3s ease;
+}
+
+.login-page .success-message {
+    color: #06D6A0;
+    font-weight: 600;
+    font-size: 14px;
+    padding: 16px 20px;
+    background: rgba(6, 214, 160, 0.1);
+    border-radius: 12px;
+    border: 1px solid #06D6A0;
+    transition: all 0.3s ease;
+}
+
+input {
+    cursor: pointer;
+}
+
+/* Дополнительные ссылки */
+.additional-links {
+    text-align: center;
+    margin-top: 16px;
+}
+
+.additional-links a {
+    color: #0795E8;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    position: relative;
+}
+
+.additional-links a::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: #0795E8;
+    transition: width 0.3s ease;
+}
+
+.additional-links a:hover {
+    color: #074EE8;
+}
+
+.additional-links a:hover::after {
+    width: 100%;
+}
+
+/* Анимация появления */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.login-page {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* Адаптивность для мобильных */
+@media (max-width: 768px) {
+    body {
+        padding: 16px;
+        align-items: flex-start;
+        min-height: 100vh;
+        height: auto;
+    }
+    
+    .login-container {
+        margin-top: 20px;
+    }
+    
+    .login-page {
+        padding: 28px;
+        gap: 20px;
+        max-width: 400px;
+    }
+    
+    .login-page .logo h2 {
+        font-size: 24px;
+        line-height: 32.7px;
+    }
+    
+    .input-with-icon {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 12px;
+    }
+    
+    .login-page {
+        padding: 24px;
+        gap: 16px;
+        max-width: 100%;
+    }
+    
+    .login-page .logo h2 {
+        font-size: 22px;
+        line-height: 30px;
+    }
+    
+    .input-with-icon {
+        padding: 14px 16px;
+    }
+    
+    .login-page .login,
+    .login-page .register-button {
+        padding: 16px;
+    }
+}
+
+@media (max-width: 320px) {
+    .login-page {
+        padding: 20px;
+    }
+    
+    .input-with-icon {
+        padding: 12px 14px;
+    }
+    
+    .login-page .login,
+    .login-page .register-button {
+        padding: 14px;
+    }
+}
+
+/* Для очень больших экранов */
+@media (min-width: 1440px) {
+    .login-container {
+        max-width: 480px;
+    }
+    
+    .login-page {
+        max-width: 420px;
+        padding: 48px;
+    }
+}
+
+/* Запрет масштабирования на очень маленьких экранах */
+@media (max-width: 240px) {
+    .login-page {
+        min-width: 200px;
+        padding: 16px;
+    }
+}
+
+/* Стили для кнопки показа/скрытия пароля в логине */
+.login-page .password .sec-2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+}
+
+.login-page .password .sec-2 ion-icon:first-child {
+    flex-shrink: 0;
+}
+
+.login-page .password .sec-2 input {
+    flex: 1;
+}
+
+.login-page .password .sec-2 .toggle-password {
+    cursor: pointer;
+    color: #074EE8;
+    font-size: 20px;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+.login-page .password .sec-2 .toggle-password:hover {
+    color: #0707E8;
+    transform: scale(1.1);
+}

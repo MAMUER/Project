@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+
+<head>
+    <title>Регистрация</title>
+    <link rel="stylesheet" th:href="@{/css/registration.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'>
+
+    <!-- Запрещаем масштабирование -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="registration-container">
+        <div class="registration-page">
+            <form th:action="@{/registration}" method="post" class="form" id="registrationForm">
+                <h2>Регистрация</h2>
+
+                <!-- Основная информация -->
+                <div class="input-group">
+                    <label for="username">Имя пользователя</label>
+                    <div class="input-with-icon">
+                        <ion-icon name="person-outline"></ion-icon>
+                        <input type="text" id="username" name="username" placeholder="Придумайте имя пользователя"
+                            required />
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="password">Пароль</label>
+                    <div class="input-with-icon">
+                        <ion-icon name="lock-closed-outline"></ion-icon>
+                        <input type="password" id="password" name="password" placeholder="············" required
+                            oninput="validatePassword()" />
+                        <ion-icon name="eye-outline" class="toggle-password" onclick="togglePasswordVisibility('password')"></ion-icon>
+                    </div>
+                    <div id="passwordRequirements" class="password-requirements">
+                        <p><strong>Требования к паролю:</strong></p>
+                        <ul>
+                            <li id="reqLength">Минимум 12 символов</li>
+                            <li id="reqUpper">Заглавная буква</li>
+                            <li id="reqLower">Строчная буква</li>
+                            <li id="reqDigit">Цифра</li>
+                            <li id="reqSpecial">Символ !, @ или #</li>
+                            <li id="reqComplexity">Не содержит простых комбинаций</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="confirmPassword">Подтвердите пароль</label>
+                    <div class="input-with-icon">
+                        <ion-icon name="lock-closed-outline"></ion-icon>
+                        <input type="password" id="confirmPassword" name="confirmPassword" placeholder="············"
+                            required oninput="validatePasswordMatch()" />
+                        <ion-icon name="eye-outline" class="toggle-password" onclick="togglePasswordVisibility('confirmPassword')"></ion-icon>
+                    </div>
+                    <div id="passwordMatch" class="password-match"></div>
+                </div>
+
+                <!-- Остальная форма без изменений -->
+                <div class="input-group">
+                    <label for="firstName">Имя</label>
+                    <div class="input-with-icon">
+                        <ion-icon name="person-circle-outline"></ion-icon>
+                        <input type="text" id="firstName" name="firstName" placeholder="Ваше имя" required />
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="lastName">Фамилия</label>
+                    <div class="input-with-icon">
+                        <ion-icon name="people-outline"></ion-icon>
+                        <input type="text" id="lastName" name="lastName" placeholder="Ваша фамилия" required />
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="birthDate">Дата рождения</label>
+                    <div class="input-with-icon">
+                        <ion-icon name="calendar-outline"></ion-icon>
+                        <input type="date" id="birthDate" name="birthDate" required onchange="validateAge()" max="" />
+                    </div>
+                    <div id="ageValidation" class="age-validation"></div>
+                </div>
+
+                <!-- Выбор клуба -->
+                <div class="input-group">
+                    <label for="clubName">Выберите клуб</label>
+                    <div class="input-with-icon">
+                        <ion-icon name="business-outline"></ion-icon>
+                        <select id="clubName" name="clubName" required>
+                            <option value="">-- Выберите клуб --</option>
+                            <option th:each="club : ${clubs}" th:value="${club.clubName}" th:text="${club.clubName}">
+                            </option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Пол -->
+                <div class="input-group">
+                    <label>Пол</label>
+                    <div class="radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="gender" value="1" required>
+                            <span class="radio-custom"></span>
+                            Мужской
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="gender" value="2" required>
+                            <span class="radio-custom"></span>
+                            Женский
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Сообщения об ошибках/успехе -->
+                <div th:if="${error}" class="error-message" th:text="${error}"></div>
+                <div th:if="${success}" class="success-message" th:text="${success}"></div>
+
+                <button type="submit" class="register-btn" id="submitBtn">Зарегистрироваться</button>
+
+                <div class="login-link">
+                    Уже есть аккаунт? <a th:href="@{/login}">Войдите</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Иконки -->
+    <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+
+    <script>
+        // Функция переключения видимости пароля
+        function togglePasswordVisibility(fieldId) {
+            const passwordField = document.getElementById(fieldId);
+            const eyeIcon = passwordField.nextElementSibling;
+            
+            if (passwordField.type === 'password') {
+                passwordField.type = 'text';
+                eyeIcon.name = 'eye-off-outline';
+                eyeIcon.style.color = '#0795E8';
+            } else {
+                passwordField.type = 'password';
+                eyeIcon.name = 'eye-outline';
+                eyeIcon.style.color = '#074EE8';
+            }
+        }
+
+        // Устанавливаем максимальную дату (сегодня - 18 лет)
+        document.addEventListener('DOMContentLoaded', function () {
+            const today = new Date();
+            const minDate = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate());
+            const maxDate = new Date(today.getFullYear() - 100, today.getMonth(), today.getDate());
+
+            document.getElementById('birthDate').max = minDate.toISOString().split('T')[0];
+            document.getElementById('birthDate').min = maxDate.toISOString().split('T')[0];
+        });
+
+        // Остальные функции без изменений
+        function validateAge() {
+            const birthDate = new Date(document.getElementById('birthDate').value);
+            const today = new Date();
+            const age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+
+            const isValid = age > 18 || (age === 18 && monthDiff >= 0);
+            const ageValidation = document.getElementById('ageValidation');
+
+            if (birthDate && !isValid) {
+                ageValidation.innerHTML = ' Регистрация доступна только с 18 лет';
+                ageValidation.className = 'age-validation error';
+            } else if (birthDate) {
+                ageValidation.innerHTML = '✓ Возраст подходит';
+                ageValidation.className = 'age-validation success';
+            } else {
+                ageValidation.innerHTML = '';
+            }
+
+            updateSubmitButton();
+        }
+
+        function validatePassword() {
+            const password = document.getElementById('password').value;
+
+            // Проверка длины
+            document.getElementById('reqLength').className = password.length >= 12 ? 'valid' : 'invalid';
+
+            // Проверка заглавных букв
+            document.getElementById('reqUpper').className = /[A-Z]/.test(password) ? 'valid' : 'invalid';
+
+            // Проверка строчных букв
+            document.getElementById('reqLower').className = /[a-z]/.test(password) ? 'valid' : 'invalid';
+
+            // Проверка цифр
+            document.getElementById('reqDigit').className = /[0-9]/.test(password) ? 'valid' : 'invalid';
+
+            // Проверка специальных символов
+            document.getElementById('reqSpecial').className = /[!@#]/.test(password) ? 'valid' : 'invalid';
+
+            // Проверка сложности (базовая)
+            const isComplex = password.length >= 12 &&
+                /[A-Z]/.test(password) &&
+                /[a-z]/.test(password) &&
+                /[0-9]/.test(password) &&
+                /[!@#]/.test(password) &&
+                !/(.)\1{2,}/.test(password); // нет 3+ повторяющихся символов
+            document.getElementById('reqComplexity').className = isComplex ? 'valid' : 'invalid';
+
+            validatePasswordMatch();
+            updateSubmitButton();
+        }
+
+        function validatePasswordMatch() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const matchDiv = document.getElementById('passwordMatch');
+
+            if (confirmPassword && password !== confirmPassword) {
+                matchDiv.innerHTML = 'Пароли не совпадают';
+                matchDiv.className = 'password-match error';
+            } else if (confirmPassword && password === confirmPassword) {
+                matchDiv.innerHTML = 'Пароли совпадают';
+                matchDiv.className = 'password-match success';
+            } else {
+                matchDiv.innerHTML = '';
+            }
+
+            updateSubmitButton();
+        }
+
+        function updateSubmitButton() {
+            const password = document.getElementById('password').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            const birthDate = document.getElementById('birthDate').value;
+
+            const isPasswordValid = password.length >= 12 &&
+                /[A-Z]/.test(password) &&
+                /[a-z]/.test(password) &&
+                /[0-9]/.test(password) &&
+                /[!@#]/.test(password);
+
+            const isPasswordMatch = password === confirmPassword;
+
+            // Проверка возраста
+            let isAgeValid = false;
+            if (birthDate) {
+                const birthDateObj = new Date(birthDate);
+                const today = new Date();
+                const age = today.getFullYear() - birthDateObj.getFullYear();
+                const monthDiff = today.getMonth() - birthDateObj.getMonth();
+                isAgeValid = age > 18 || (age === 18 && monthDiff >= 0);
+            }
+
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.disabled = !(isPasswordValid && isPasswordMatch && isAgeValid);
+        }
+
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function () {
+            validatePassword();
+            validatePasswordMatch();
+            validateAge();
+        });
+    </script>
+</body>
+
+</html>

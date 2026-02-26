@@ -1,0 +1,816 @@
+* {
+    font-family: "Open Sans", sans-serif;
+    box-sizing: border-box;
+}
+
+body {
+    background: #E8EEFB;
+    margin: 0;
+    padding: 0;
+    min-height: 100vh;
+    color: #000000;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Хедер */
+.header {
+    text-align: center;
+    margin-bottom: 40px;
+}
+
+.back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #666666;
+    text-decoration: none;
+    font-weight: 600;
+    margin-bottom: 16px;
+    transition: all 0.3s ease;
+    padding: 8px 16px;
+    border-radius: 8px;
+}
+
+.back-link:hover {
+    color: #0795E8;
+    background-color: rgba(7, 149, 232, 0.1);
+}
+
+.page-title {
+    font-size: 32px;
+    line-height: 43.6px;
+    font-weight: 700;
+    color: #0707E8;
+    margin: 0 0 8px 0;
+}
+
+.page-subtitle {
+    font-size: 18px;
+    line-height: 24.5px;
+    color: #666666;
+    margin: 0;
+}
+
+/* Сообщения */
+.messages {
+    margin-bottom: 24px;
+}
+
+.error-message {
+    background: rgba(255, 107, 107, 0.1);
+    color: #FF6B6B;
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid #FF6B6B;
+    font-weight: 600;
+}
+
+.success-message {
+    background: rgba(6, 214, 160, 0.1);
+    color: #06D6A0;
+    padding: 16px 20px;
+    border-radius: 12px;
+    border: 1px solid #06D6A0;
+    font-weight: 600;
+}
+
+/* Форма */
+.generation-form {
+    background: #FFFFFF;
+    border-radius: 20px;
+    padding: 40px;
+    box-shadow: 0 8px 32px rgba(7, 7, 232, 0.1);
+    margin-bottom: 40px;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.generation-form:hover {
+    box-shadow: 0 12px 40px rgba(7, 7, 232, 0.15);
+}
+
+.form-section {
+    margin-bottom: 40px;
+}
+
+.section-title {
+    font-size: 20px;
+    line-height: 27.3px;
+    font-weight: 700;
+    color: #0707E8;
+    margin: 0 0 20px 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+}
+
+/* Сетка опций */
+.options-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 20px;
+}
+
+.option-card {
+    position: relative;
+    cursor: pointer;
+}
+
+.option-card input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.option-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 24px 20px;
+    border: 2px solid #E8EEFB;
+    border-radius: 16px;
+    transition: all 0.3s ease;
+    background: #FFFFFF;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+.option-content::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(7, 149, 232, 0.1), transparent);
+    transition: left 0.5s ease;
+}
+
+.option-card input[type="radio"]:checked + .option-content {
+    border-color: #0795E8;
+    background: rgba(7, 149, 232, 0.05);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(7, 149, 232, 0.15);
+}
+
+.option-card input[type="radio"]:checked + .option-content::before {
+    left: 100%;
+}
+
+.option-card:hover .option-content {
+    border-color: #0795E8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.1);
+}
+
+.option-card ion-icon {
+    font-size: 32px;
+    color: #0795E8;
+    margin-bottom: 16px;
+    transition: all 0.3s ease;
+}
+
+.option-card input[type="radio"]:checked + .option-content ion-icon {
+    color: #074EE8;
+    transform: scale(1.1);
+}
+
+.option-title {
+    font-size: 16px;
+    line-height: 21.8px;
+    font-weight: 700;
+    color: #0707E8;
+    margin-bottom: 8px;
+}
+
+.option-description {
+    font-size: 14px;
+    line-height: 19.1px;
+    color: #666666;
+}
+
+/* Выбор длительности */
+.duration-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+}
+
+.duration-option {
+    position: relative;
+    cursor: pointer;
+}
+
+.duration-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.duration-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+    border: 2px solid #E8EEFB;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    background: #FFFFFF;
+    text-align: center;
+}
+
+.duration-option input[type="radio"]:checked + .duration-content {
+    border-color: #0795E8;
+    background: rgba(7, 149, 232, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.15);
+}
+
+.duration-option:hover .duration-content {
+    border-color: #0795E8;
+    transform: translateY(-1px);
+}
+
+.duration-time {
+    font-size: 16px;
+    line-height: 21.8px;
+    font-weight: 700;
+    color: #0707E8;
+    margin-bottom: 4px;
+}
+
+.duration-desc {
+    font-size: 12px;
+    line-height: 16.4px;
+    color: #666666;
+}
+
+/* Секция информации о клубе */
+.club-info-section {
+    margin-bottom: 30px;
+}
+
+.club-card {
+    background: #FFFFFF;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 16px rgba(7, 7, 232, 0.08);
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.club-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.12);
+    border-color: #0795E8;
+}
+
+.club-header h2 {
+    font-size: 20px;
+    line-height: 27.3px;
+    font-weight: 700;
+    color: #0707E8;
+    margin: 0 0 8px 0;
+}
+
+.club-address {
+    color: #666666;
+    font-size: 14px;
+    line-height: 19.1px;
+    margin: 0 0 20px 0;
+}
+
+.club-capabilities {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+}
+
+.capability-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    flex: 1;
+    min-width: 250px;
+    padding: 16px;
+    background: #F8FAFC;
+    border-radius: 12px;
+    border: 1px solid #E8EEFB;
+}
+
+.capability-item ion-icon {
+    font-size: 24px;
+    color: #0795E8;
+    margin-top: 4px;
+    flex-shrink: 0;
+}
+
+.capability-info h4 {
+    font-size: 16px;
+    line-height: 21.8px;
+    font-weight: 600;
+    color: #0707E8;
+    margin: 0 0 4px 0;
+}
+
+.capability-info p {
+    font-size: 14px;
+    line-height: 19.1px;
+    color: #666666;
+    margin: 0;
+}
+
+/* Действия формы */
+.form-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: 40px;
+    padding-top: 32px;
+    border-top: 1px solid #E8EEFB;
+}
+
+.generate-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: linear-gradient(135deg, #0795E8, #074EE8);
+    color: #FFFFFF;
+    border: none;
+    padding: 18px 32px;
+    border-radius: 24px;
+    font-size: 16px;
+    line-height: 21.8px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.3);
+    border: 2px solid transparent;
+    position: relative;
+    overflow: hidden;
+}
+
+.generate-button::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    transition: left 0.5s ease;
+}
+
+.generate-button:hover {
+    background: linear-gradient(135deg, #074EE8, #0707E8);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(7, 149, 232, 0.4);
+    border-color: #0707E8;
+}
+
+.generate-button:hover::before {
+    left: 100%;
+}
+
+.generate-button:active {
+    transform: translateY(-1px);
+}
+
+.cancel-button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 32px;
+    background: #FFFFFF;
+    color: #666666;
+    border: 2px solid #E8EEFB;
+    border-radius: 24px;
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.cancel-button:hover {
+    background: #E8EEFB;
+    color: #0707E8;
+    border-color: #0795E8;
+    transform: translateY(-2px);
+}
+
+/* Предпросмотр */
+.preview-section {
+    text-align: center;
+}
+
+.preview-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    margin-top: 24px;
+}
+
+.preview-card {
+    background: #FFFFFF;
+    padding: 32px 24px;
+    border-radius: 16px;
+    box-shadow: 0 4px 16px rgba(7, 7, 232, 0.08);
+    transition: all 0.3s ease;
+    border: 2px solid #E8EEFB;
+}
+
+.preview-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.12);
+    border-color: #0795E8;
+}
+
+.preview-card ion-icon {
+    font-size: 40px;
+    color: #0795E8;
+    margin-bottom: 16px;
+    transition: all 0.3s ease;
+}
+
+.preview-card:hover ion-icon {
+    transform: scale(1.1);
+    color: #074EE8;
+}
+
+.preview-card h3 {
+    font-size: 18px;
+    line-height: 24.5px;
+    font-weight: 700;
+    color: #0707E8;
+    margin: 0 0 12px 0;
+}
+
+.preview-card p {
+    font-size: 14px;
+    line-height: 19.1px;
+    color: #666666;
+    margin: 0;
+}
+
+/* Анимация появления */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.generation-form,
+.preview-section {
+    animation: fadeInUp 0.6s ease-out;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .container {
+        padding: 16px;
+    }
+    
+    .generation-form {
+        padding: 24px;
+    }
+    
+    .page-title {
+        font-size: 28px;
+        line-height: 38.2px;
+    }
+    
+    .options-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .duration-selector {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .club-capabilities {
+        flex-direction: column;
+    }
+    
+    .capability-item {
+        min-width: auto;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .generate-button,
+    .cancel-button {
+        text-align: center;
+        justify-content: center;
+    }
+    
+    .preview-cards {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .generation-form {
+        padding: 20px;
+    }
+    
+    .page-title {
+        font-size: 24px;
+        line-height: 32.7px;
+    }
+    
+    .section-title {
+        font-size: 18px;
+        line-height: 24.5px;
+    }
+    
+    .option-content,
+    .duration-content {
+        padding: 20px 16px;
+    }
+    
+    .duration-selector {
+        grid-template-columns: 1fr;
+    }
+}
+
+.warning-card {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    border: 2px solid #ffc107;
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.warning-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.warning-header ion-icon {
+    font-size: 24px;
+    color: #856404;
+}
+
+.warning-header h2 {
+    color: #856404;
+    margin: 0;
+    font-size: 20px;
+}
+
+.warning-card p {
+    color: #856404;
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Стили для информации о пользователе в generate-program */
+.user-info-section {
+    margin: 20px 0;
+}
+
+.user-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.user-header h2 {
+    margin: 0 0 15px 0;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.user-details {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 6px;
+}
+
+.detail-label {
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.detail-value {
+    font-weight: 500;
+    font-size: 14px;
+}
+
+/* Стили для секции расписания */
+.schedule-section, .time-section {
+    margin-bottom: 30px;
+}
+
+.subsection-title {
+    font-size: 18px;
+    line-height: 24.5px;
+    font-weight: 600;
+    color: #0707E8;
+    margin: 0 0 8px 0;
+}
+
+.subsection-description {
+    color: #666666;
+    font-size: 14px;
+    line-height: 19.1px;
+    margin: 0 0 20px 0;
+}
+
+/* Выбор дней */
+.days-selector {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.day-option {
+    position: relative;
+    cursor: pointer;
+}
+
+.day-option input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.day-content {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 12px;
+    border: 2px solid #E8EEFB;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    background: #FFFFFF;
+    text-align: center;
+}
+
+.day-option input[type="checkbox"]:checked + .day-content {
+    border-color: #0795E8;
+    background: rgba(7, 149, 232, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.15);
+}
+
+.day-option:hover .day-content {
+    border-color: #0795E8;
+    transform: translateY(-1px);
+}
+
+.day-name {
+    font-size: 14px;
+    line-height: 19.1px;
+    font-weight: 600;
+    color: #0707E8;
+}
+
+/* Выбор времени */
+.time-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 16px;
+}
+
+.time-option {
+    position: relative;
+    cursor: pointer;
+}
+
+.time-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+
+.time-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 16px;
+    border: 2px solid #E8EEFB;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    background: #FFFFFF;
+    text-align: center;
+}
+
+.time-option input[type="radio"]:checked + .time-content {
+    border-color: #0795E8;
+    background: rgba(7, 149, 232, 0.05);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(7, 149, 232, 0.15);
+}
+
+.time-option:hover .time-content {
+    border-color: #0795E8;
+    transform: translateY(-1px);
+}
+
+.time-option ion-icon {
+    font-size: 24px;
+    color: #0795E8;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.time-option input[type="radio"]:checked + .time-content ion-icon {
+    color: #074EE8;
+    transform: scale(1.1);
+}
+
+.time-range {
+    font-size: 16px;
+    line-height: 21.8px;
+    font-weight: 700;
+    color: #0707E8;
+    margin-bottom: 4px;
+}
+
+.time-desc {
+    font-size: 12px;
+    line-height: 16.4px;
+    color: #666666;
+}
+
+/* Адаптивность для расписания */
+@media (max-width: 768px) {
+    .days-selector {
+        grid-template-columns: repeat(3, 1fr);
+    }
+    
+    .time-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 480px) {
+    .days-selector {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .day-content {
+        padding: 14px 8px;
+    }
+}
+
+/* Стили для временных сообщений */
+.temporary-message {
+    padding: 16px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    animation: fadeInUp 0.3s ease-out;
+    border: 2px solid transparent;
+}
+
+.temporary-message.error-message {
+    background: rgba(255, 107, 107, 0.1);
+    color: #FF6B6B;
+    border-color: #FF6B6B;
+}
+
+.temporary-message.warning-message {
+    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+    color: #856404;
+    border-color: #ffc107;
+}
+
+/* Анимация для временных сообщений */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

@@ -1,0 +1,443 @@
+* {
+    font-family: "Open Sans";
+    font-size: 16px;
+    line-height: 21.8px;
+    color: #000000;
+    box-sizing: border-box;
+}
+
+body {
+    display: flex;
+    margin: 0;
+    padding: 0;
+    background: #E8EEFB;      
+    min-height: 100vh;
+}
+
+#selected {
+    width: 70px;
+    height: 70px;
+    background-color: #0795E8;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.2);
+    border: 2px solid #074EE8;
+    transition: all 0.3s ease;
+}
+
+#selected:hover {
+    background-color: #074EE8;
+    box-shadow: 0 6px 16px rgba(7, 78, 232, 0.3);
+}
+
+#selected img {
+    display: block;
+    margin: auto;
+    width: 40px;
+    height: 40px;
+    filter: brightness(0) invert(1);
+    transition: transform 0.3s ease;
+}
+
+#selected:hover img {
+    transform: scale(1.1);
+}
+
+.content {
+    flex-grow: 1;
+    padding: 40px 40px 40px 140px;
+    width: calc(100% - 140px);
+}
+
+.content .title {
+    font-size: 32px;
+    line-height: 43.6px;
+    color: #0707E8;
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.club {
+    color: #666666;
+    font-size: 16px;
+    margin-bottom: 30px;
+}
+
+.containers {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 30px;
+    align-items: start;
+}
+
+.info-container {
+    display: flex;
+    justify-content: flex-start;
+}
+
+.workout-info {
+    background-color: #FFFFFF;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
+    padding: 24px;
+    width: 100%;
+    border-radius: 16px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.workout-info:hover {
+    box-shadow: 0 6px 20px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
+}
+
+.description {
+    font-size: 16px;
+    line-height: 1.6;
+    color: #000000;
+    margin-bottom: 20px;
+}
+
+.workout-prop {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.date,
+.duration {
+    padding: 12px 20px;
+    background-color: #0795E8;
+    color: #FFFFFF;
+    text-align: center;
+    text-decoration: none;
+    border-radius: 24px;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(7, 149, 232, 0.2);
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.date:hover,
+.duration:hover {
+    background-color: #074EE8;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(7, 78, 232, 0.3);
+    border-color: #0707E8;
+}
+
+.trainer-container {
+    background-color: #FFFFFF;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
+    padding: 24px;
+    border-radius: 16px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.trainer-container:hover {
+    box-shadow: 0 6px 20px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
+}
+
+.trainer {
+    font-size: 18px;
+    line-height: 24.5px;
+    color: #0707E8;
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.trainer-photo {
+    width: 100%;
+    height: 220px;
+    display: block;
+    margin: 0 auto;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.trainer-photo:hover {
+    border-color: #0795E8;
+    box-shadow: 0 6px 16px rgba(7, 149, 232, 0.2);
+}
+
+.trainer-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 10px;
+    transition: transform 0.3s ease;
+}
+
+.trainer-photo:hover img {
+    transform: scale(1.05);
+}
+
+.members-container {
+    background-color: #FFFFFF;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
+    padding: 24px;
+    border-radius: 16px;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    border: 2px solid #E8EEFB;
+    transition: all 0.3s ease;
+}
+
+.members-container:hover {
+    box-shadow: 0 6px 20px rgba(7, 7, 232, 0.15);
+    border-color: #0795E8;
+}
+
+.members-title {
+    font-size: 20px;
+    line-height: 27.3px;
+    color: #0707E8;
+    font-weight: 600;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.members-list {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.members-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.members-list::-webkit-scrollbar-track {
+    background: #E8EEFB;
+    border-radius: 3px;
+}
+
+.members-list::-webkit-scrollbar-thumb {
+    background: #0795E8;
+    border-radius: 3px;
+}
+
+.members-list::-webkit-scrollbar-thumb:hover {
+    background: #074EE8;
+}
+
+.members-list li {
+    margin-bottom: 12px;
+    padding: 12px 16px;
+    background-color: #E8EEFB;
+    border-radius: 8px;
+    font-size: 14px;
+    border: 1px solid #0795E8;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.members-list li:hover {
+    background-color: #0795E8;
+    color: #FFFFFF;
+    transform: translateX(4px);
+    box-shadow: 0 2px 8px rgba(7, 149, 232, 0.3);
+}
+
+.buttons-container {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-top: 20px;
+}
+
+.signup-button,
+.unsubscribe-button,
+.trainer-button {
+    padding: 16px 32px;
+    text-align: center;
+    text-decoration: none;
+    display: inline-block;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 24px;
+    box-shadow: 0 4px 12px rgba(7, 7, 232, 0.2);
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    border: none;
+    transition: all 0.3s ease;
+    flex: 1;
+    min-width: 140px;
+    border: 2px solid transparent;
+}
+
+.signup-button {
+    background-color: #0795E8;
+    color: #FFFFFF;
+}
+
+.signup-button:hover:not(:disabled) {
+    background-color: #074EE8;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(7, 78, 232, 0.3);
+    border-color: #0707E8;
+}
+
+.unsubscribe-button {
+    background-color: #FF6B6B;
+    color: #FFFFFF;
+}
+
+.unsubscribe-button:hover {
+    background-color: #FF5252;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(255, 107, 107, 0.3);
+    border-color: #FF5252;
+}
+
+.trainer-button {
+    background-color: #06D6A0;
+    color: #FFFFFF;
+    cursor: default;
+    border-color: #06D6A0;
+}
+
+.gray-button {
+    background-color: #CCCCCC;
+    color: #666666;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    border-color: #CCCCCC !important;
+}
+
+.gray-button:hover {
+    background-color: #CCCCCC !important;
+    transform: none !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+    border-color: #CCCCCC !important;
+}
+
+/* Стили для текстовых элементов */
+.small-text {
+    font-size: 12px;
+    line-height: 16.4px;
+}
+
+.medium-text {
+    font-size: 16px;
+    line-height: 21.8px;
+}
+
+.large-text {
+    font-size: 24px;
+    line-height: 32.7px;
+}
+
+.xlarge-text {
+    font-size: 32px;
+    line-height: 43.6px;
+}
+
+.xxlarge-text {
+    font-size: 40px;
+    line-height: 54.5px;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 900px) {
+    .content {
+        padding: 100px 20px 20px 20px;
+        width: calc(100% - 100px);
+    }
+    
+    .containers {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .workout-info,
+    .trainer-container,
+    .members-container {
+        width: 100%;
+        grid-column: 1;
+        grid-row: auto;
+    }
+    
+    .buttons-container {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 768px) {
+    .content {
+        padding: 100px 15px 15px 15px;
+        width: calc(100% - 80px);
+    }
+    
+    .content .title {
+        font-size: 24px;
+        line-height: 32.7px;
+    }
+    
+    .members-list {
+        max-height: 250px;
+    }
+}
+
+@media (max-width: 480px) {
+    .content {
+        padding: 100px 10px 10px 10px;
+    }
+    
+    .workout-prop {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .date,
+    .duration {
+        width: 100%;
+        max-width: 200px;
+    }
+    
+    .buttons-container {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .signup-button,
+    .unsubscribe-button,
+    .trainer-button {
+        width: 100%;
+        max-width: 280px;
+    }
+    
+    .trainer-photo {
+        height: 180px;
+    }
+    
+    .members-list {
+        max-height: 200px;
+    }
+}

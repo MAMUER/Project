@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/sidebar.css}">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/training.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'>
+    <title>Тренировка</title>
+</head>
+
+<body>
+
+    <div class="sidebar">
+        <div class="logo">
+            <img th:src="@{/icons/logo.png}" alt="Logo">
+        </div>
+
+        <div class="icons">
+            <th:block th:switch="${role}">
+                <div th:case="'member'" class="icon-group">
+                    <a class="profile" th:href="'/profile/member/' + ${memberId}">
+                        <img th:src="@{/icons/profile.svg}" alt="Profile">
+                    </a>
+                    <a class="calendar" id="selected" th:href="'/calendar/member/' + ${memberId}">
+                        <img th:src="@{/icons/calendar-white.svg}" alt="Calendar">
+                    </a>
+                    <a class="statistic" th:href="'/statistic/member/' + ${memberId}">
+                        <img th:src="@{/icons/statistic.svg}" alt="Statistic">
+                    </a>
+                    <a class="trainers" th:href="'/trainers'">
+                        <img th:src="@{/icons/programs.svg}" alt="Programs">
+                    </a>
+                </div>
+                <div th:case="'trainer'" class="icon-group">
+                    <a class="profile" id="selected" th:href="'/profile/trainer/' + ${trainerId}">
+                        <img th:src="@{/icons/profile-white.svg}" alt="Profile">
+                    </a>
+                    <a class="calendar" th:href="'/calendar/trainer/' + ${trainerId}">
+                        <img th:src="@{/icons/calendar.svg}" alt="Calendar">
+                    </a>
+                </div>
+                <div th:case="'staff'" class="icon-group">
+                    <a class="profile" id="selected" th:href="'/profile/staff/' + ${staffId}">
+                        <img th:src="@{/icons/profile-white.svg}" alt="Profile">
+                    </a>
+                    <a class="calendar" th:href="'/calendar/staff/' + ${staffId}">
+                        <img th:src="@{/icons/calendar.svg}" alt="Calendar">
+                    </a>
+                </div>
+            </th:block>
+        </div>
+
+        <div class="logout-container">
+            <a class="logout" th:href="'/logout'">
+                <img th:src="@{/icons/logout.svg}" alt="Log out">
+            </a>
+        </div>
+    </div>
+
+    <div class="content">
+        <h2 class="title" th:text="${training.trainingType.trainingTypeName}"></h2>
+        <p class="club" th:text="'xxd София'"></p>
+
+        <div class="containers">
+            <div class="info-container">
+                <div class="workout-info">
+                    <p class="description" th:text="${training.trainingType.workoutDescription}"></p>
+                    <div class="workout-prop">
+                        <!-- Исправленная строка: используем #temporals.format() для LocalDateTime -->
+                        <p class="date" th:text="${#temporals.format(training.sessionDate, 'HH:mm dd-MM, EEE')}"></p>
+                        <p class="duration" th:text="${training.sessionTime}+' мин'"></p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="trainer-container" th:if="${role == 'member'}">
+                <p class="trainer" th:text="'Тренер: ' + ${trainer.firstName}+' '+${trainer.secondName}"></p>
+                <div class="trainer-photo">
+                    <img th:src="${trainer.trainersAccount.trainersPhoto.imageUrl}">
+                </div>
+            </div>
+
+            <div class="members-container" th:if="${role == 'trainer'}">
+                <h3 class="members-title">Участники</h3>
+                <ul class="members-list">
+                    <li th:each="member : ${training.members}"
+                        th:text="${member.firstName} + ' ' + ${member.secondName}">
+                    </li>
+                </ul>
+            </div>
+
+            <div class="buttons-container">
+                <th:block th:switch="${role}">
+                    <div th:case="'member'">
+                        <form th:action="'/calendar/training/subscribe'" method="post">
+                            <input type="hidden" name="memberId" th:value="${memberId}">
+                            <input type="hidden" name="trainingId" th:value="${training.idSession}">
+                            <button type="submit" class="signup-button" th:disabled="${isSignedUp}"
+                                th:classappend="${isSignedUp} ? 'gray-button' : ''"
+                                th:text="${isSignedUp} ? 'Вы записаны' : 'Записаться'"></button>
+                        </form>
+
+                        <!-- Отдельная форма для отписки -->
+                        <form th:action="'/calendar/training/unsubscribe'" method="post" th:if="${isSignedUp}">
+                            <input type="hidden" name="memberId" th:value="${memberId}">
+                            <input type="hidden" name="trainingId" th:value="${training.idSession}">
+                            <button type="submit" class="unsubscribe-button">Отписаться</button>
+                        </form>
+                    </div>
+                    <div th:case="'trainer'">
+                        <button type="button" class="trainer-button">Вы ведете</button>
+                    </div>
+                </th:block>
+            </div>
+        </div>
+    </div>
+
+    <script th:if="${role == 'member'}" th:inline="javascript">
+        var training_date = new Date(/*[[${session_date}]]*/);
+        var current_date = new Date();
+        if (training_date < current_date) {
+            var container = document.getElementsByClassName('buttons-container');
+            container[0].style.display = 'none';
+        }
+    </script>
+
+</body>
+
+</html>

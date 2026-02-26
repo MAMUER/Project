@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+
+<head>
+    <title>Ошибка сервера</title>
+    <link rel="stylesheet" th:href="@{/css/error.css}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'>
+</head>
+
+<body>
+    <div class="login-page">
+        <div class="error-container">
+            <div class="error-icon">
+                <ion-icon name="alert-circle-outline" style="font-size: 64px; color: #FF6B6B;"></ion-icon>
+            </div>
+            <h1>500 - Ошибка сервера</h1>
+            <p>На сервере произошла непредвиденная ошибка. Пожалуйста, попробуйте позже.</p>
+            <div class="error-actions">
+                <a th:href="@{/}" class="error-btn">На главную</a>
+                <a th:href="@{/login}" class="error-btn">Войти в систему</a>
+            </div>
+        </div>
+    </div>
+
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+</body>
+
+</html>

@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+
+<head>
+    <title>Редактирование оборудования</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>⚙️ Редактирование оборудования: <span th:text="${club.clubName}">Клуб</span></h1>
+            <div class="header-actions">
+                <a th:href="@{/admin/equipment}" class="back-button">← К списку клубов</a>
+                <a th:href="@{/profile/staff/{id}(id=${staffId})}" class="back-button">В профиль</a>
+            </div>
+        </header>
+
+        <!-- Сообщения -->
+        <div class="messages" th:if="${param.success} or ${param.error}">
+            <div class="success-message" th:if="${param.success}" th:text="${param.success}"></div>
+            <div class="error-message" th:if="${param.error}" th:text="${param.error}"></div>
+        </div>
+
+        <!-- Существующее оборудование -->
+        <div class="section">
+            <h2>Текущее оборудование</h2>
+
+            <div class="equipment-grid" th:if="${not #lists.isEmpty(clubEquipment)}">
+                <div class="equipment-card" th:each="equipment : ${clubEquipment}">
+                    <div class="equipment-icon">
+                        <ion-icon name="barbell-outline"></ion-icon>
+                    </div>
+                    <div class="equipment-info">
+                        <h3 th:text="${equipment.equipmentType.typeName}">Тип оборудования</h3>
+                        <p class="equipment-quantity">Количество:
+                            <span th:text="${equipment.quantity}">0</span>
+                        </p>
+                    </div>
+
+                    <div class="equipment-actions">
+                        <!-- В форме обновления количества -->
+                        <form th:action="@{/admin/equipment/{clubName}/update(clubName=${club.clubName})}" method="post"
+                            class="quantity-form">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                            <input type="hidden" name="equipmentId" th:value="${equipment.idEquipment}">
+                            <div class="quantity-controls">
+                                <button type="button" class="quantity-btn minus"
+                                    onclick="changeQuantity(this, -1)">-</button>
+                                <input type="number" name="quantity" th:value="${equipment.quantity}" min="0" max="100"
+                                    class="quantity-input">
+                                <button type="button" class="quantity-btn plus"
+                                    onclick="changeQuantity(this, 1)">+</button>
+                            </div>
+                            <button type="submit" class="update-btn">Обновить</button>
+                        </form>
+
+                        <!-- В форме удаления -->
+                        <form th:action="@{/admin/equipment/{clubName}/delete(clubName=${club.clubName})}" method="post"
+                            onsubmit="return confirm('Удалить это оборудование?')">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                            <input type="hidden" name="equipmentId" th:value="${equipment.idEquipment}">
+                            <button type="submit" class="delete-btn">
+                                <ion-icon name="trash-outline"></ion-icon>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="empty-state" th:if="${#lists.isEmpty(clubEquipment)}">
+                <div class="empty-icon">
+                    <ion-icon name="barbell-outline"></ion-icon>
+                </div>
+                <h3>В клубе нет оборудования</h3>
+                <p>Добавьте новое оборудование используя форму ниже</p>
+            </div>
+        </div>
+
+        <!-- Добавление нового оборудования -->
+        <div class="section">
+            <h2>➕ Добавить новое оборудование</h2>
+
+            <!-- В форме добавления оборудования -->
+            <form th:action="@{/admin/equipment/{clubName}/add(clubName=${club.clubName})}" method="post"
+                class="add-equipment-form">
+                <!-- ДОБАВИТЬ CSRF ТОКЕН -->
+                <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="equipmentType">Тип оборудования:</label>
+                        <select id="equipmentType" name="equipmentTypeId" required class="form-select">
+                            <option value="">Выберите тип оборудования</option>
+                            <option th:each="type : ${equipmentTypes}" th:value="${type.idEquipmentType}"
+                                th:text="${type.typeName}">
+                            </option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="quantity">Количество:</label>
+                        <input type="number" id="quantity" name="quantity" th:field="*{newEquipment.quantity}" min="1"
+                            max="100" value="1" required class="form-input">
+                    </div>
+                </div>
+
+                <button type="submit" class="add-btn">
+                    <ion-icon name="add-circle-outline"></ion-icon>
+                    Добавить оборудование
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function changeQuantity(button, change) {
+            const form = button.closest('.quantity-form');
+            const input = form.querySelector('.quantity-input');
+            let newValue = parseInt(input.value) + change;
+
+            if (newValue >= 0 && newValue <= 100) {
+                input.value = newValue;
+            }
+        }
+
+        // Авто-обновление при изменении количества
+        document.addEventListener('DOMContentLoaded', function () {
+            const quantityInputs = document.querySelectorAll('.quantity-input');
+            quantityInputs.forEach(input => {
+                input.addEventListener('change', function () {
+                    this.closest('form').submit();
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+<head>
+    <title>Возможности клуба</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>Возможности клуба: <span th:text="${club.clubName}">Название клуба</span></h1>
+            <div class="header-actions">
+                <a th:href="@{/admin/clubs}" class="back-button">← К списку клубов</a>
+                <a th:href="@{/profile/staff/{id}(id=${staffId})}" class="back-button">В профиль</a>
+            </div>
+        </header>
+
+        <!-- Статистика -->
+        <div class="stats-section">
+            <div class="stat-card">
+                <h3>📈 Доступные упражнения</h3>
+                <p class="stat-value" th:text="${capabilities['totalAvailableExercises']} + ' из ' + ${capabilities['totalExercisesInDatabase']}">0 из 0</p>
+            </div>
+            <div class="stat-card">
+                <h3>🎯 Покрытие тренировок</h3>
+                <p class="stat-value" th:if="${capabilities['totalExercisesInDatabase'] > 0}" 
+                   th:text="${#numbers.formatDecimal((capabilities['totalAvailableExercises'] / capabilities['totalExercisesInDatabase']) * 100, 1, 2) + '%'}">0%</p>
+                <p class="stat-value" th:if="${capabilities['totalExercisesInDatabase'] == 0}">0%</p>
+            </div>
+        </div>
+
+        <!-- Упражнения по группам мышц -->
+        <div class="section" th:if="${not #maps.isEmpty(capabilities['exercisesByMuscleGroup'])}">
+            <h2>💪 Упражнения по группам мышц</h2>
+            <div class="muscle-group-grid">
+                <div class="muscle-card" th:each="muscleGroup : ${capabilities['exercisesByMuscleGroup']}">
+                    <h4 th:text="${muscleGroup.key}">Группа мышц</h4>
+                    <p th:text="${muscleGroup.value} + ' упражнений'">0 упражнений</p>
+                </div>
+            </div>
+        </div>
+        <div class="section" th:if="${#maps.isEmpty(capabilities['exercisesByMuscleGroup'])}">
+            <h2>💪 Упражнения по группам мышц</h2>
+            <p>Нет данных о группах мышц</p>
+        </div>
+
+        <!-- Упражнения по сложности -->
+        <div class="section" th:if="${not #maps.isEmpty(capabilities['exercisesByDifficulty'])}">
+            <h2>Упражнения по уровню сложности</h2>
+            <div class="difficulty-grid">
+                <div class="difficulty-card" th:each="difficulty : ${capabilities['exercisesByDifficulty']}">
+                    <h4 th:text="'Уровень ' + ${difficulty.key}">Уровень 1</h4>
+                    <p th:text="${difficulty.value} + ' упражнений'">0 упражнений</p>
+                </div>
+            </div>
+        </div>
+        <div class="section" th:if="${#maps.isEmpty(capabilities['exercisesByDifficulty'])}">
+            <h2>Упражнения по уровню сложности</h2>
+            <p>Нет данных по уровням сложности</p>
+        </div>
+
+        <!-- Оборудование -->
+        <div class="section" th:if="${not #maps.isEmpty(capabilities['equipmentSummary'])}">
+            <h2>Оборудование клуба</h2>
+            <div class="equipment-grid">
+                <div class="equipment-card" th:each="item : ${capabilities['equipmentSummary']}">
+                    <div class="equipment-icon">
+                        <ion-icon name="barbell-outline"></ion-icon>
+                    </div>
+                    <div class="equipment-info">
+                        <h3 th:text="${item.key}">Тип оборудования</h3>
+                        <p class="equipment-quantity" th:text="'Количество: ' + ${item.value}">Количество: 0</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="section" th:if="${#maps.isEmpty(capabilities['equipmentSummary'])}">
+            <h2>Оборудование клуба</h2>
+            <p>В клубе нет оборудования</p>
+        </div>
+
+        <!-- Рекомендации -->
+        <div class="section" th:if="${recommendations != null and not #maps.isEmpty(recommendations)}">
+            <h2>💡 Рекомендации по улучшению</h2>
+            <div class="recommendations-card">
+                <div th:each="suggestion : ${recommendations['suggestions']}">
+                    <p th:text="${suggestion}">Рекомендация</p>
+                </div>
+                <p th:if="${recommendations['unavailableExercisesCount'] > 0}" 
+                   th:text="'Недоступно упражнений: ' + ${recommendations['unavailableExercisesCount']}">
+                   Недоступно упражнений: 0
+                </p>
+            </div>
+        </div>
+
+        <!-- Отладочная информация -->
+        <div class="debug-section">
+            <h3>🔍 Отладочная информация</h3>
+            <details>
+                <summary>Показать полные данные</summary>
+                <div class="debug-data">
+                    <h4>Capabilities:</h4>
+                    <pre th:text="${capabilities != null ? capabilities.toString() : 'null'}">Capabilities data</pre>
+                    
+                    <h4>Recommendations:</h4>
+                    <pre th:text="${recommendations != null ? recommendations.toString() : 'null'}">Recommendations data</pre>
+                    
+                    <h4>Club:</h4>
+                    <pre th:text="${club != null ? club.toString() : 'null'}">Club data</pre>
+                </div>
+            </details>
+        </div>
+    </div>
+</body>
+</html>

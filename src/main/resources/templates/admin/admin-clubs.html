@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+
+<head>
+    <title>Управление клубами</title>
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+    <script src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js" type="module"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+    <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap'>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+</head>
+
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>Управление клубами</h1>
+            <a th:href="@{/profile/staff/{id}(id=${staffId})}" class="back-button">В профиль</a>
+        </header>
+
+        <div class="clubs-grid">
+            <div class="club-card" th:each="club : ${clubs}">
+                <div class="club-header">
+                    <h3 th:text="${club.clubName}">Название клуба</h3>
+                    <span class="club-address" th:text="${club.address}">Адрес</span>
+                </div>
+
+                <div class="club-actions">
+                    <a th:href="@{/admin/clubs/{clubName}/capabilities(clubName=${club.clubName})}"
+                        class="action-btn capabilities-btn">
+                        <ion-icon name="analytics-outline"></ion-icon>
+                        Возможности
+                    </a>
+                    <a th:href="@{/admin/clubs/{clubName}/equipment-page(clubName=${club.clubName})}"
+                        class="action-btn equipment-btn">
+                        <ion-icon name="barbell-outline"></ion-icon>
+                        Оборудование
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
