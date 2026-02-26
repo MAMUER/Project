@@ -25,7 +25,7 @@ services:
     build: .
     container_name: fitness_club_app
     ports:
-      - "${SERVER_PORT:-8080}:8080"
+      - "0.0.0.0:${SERVER_PORT:-8080}:8080"  # Добавьте 0.0.0.0:
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-fitness_club_db}?currentSchema=${DB_NAME:-fitness_club_db}
       SPRING_DATASOURCE_USERNAME: ${DB_USERNAME:-postgres}
