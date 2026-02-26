@@ -1,3 +1,4 @@
+SET search_path TO fitness_club_db;
 -- Create necessary tables first
 CREATE TABLE IF NOT EXISTS equipment_supplies (
     id_supply INT,

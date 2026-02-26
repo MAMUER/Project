@@ -1,3 +1,4 @@
+SET search_path TO fitness_club_db;
 -- ЗАПОЛНЕНИЕ ДАННЫХ --
 
 -- 1. Заполнение типов залов
