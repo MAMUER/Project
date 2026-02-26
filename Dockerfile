@@ -1,6 +1,22 @@
 # Stage 1: Build the application
 FROM maven:3.9.6-eclipse-temurin-21 AS builder
 
+# Настройка зеркал для Maven (для ускорения и обхода блокировок)
+RUN mkdir -p /root/.m2 && \
+    echo '<?xml version="1.0" encoding="UTF-8"?> \
+    <settings xmlns="http://maven.apache.org/SETTINGS/1.0.0" \
+              xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" \
+              xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0 http://maven.apache.org/xsd/settings-1.0.0.xsd"> \
+        <mirrors> \
+            <mirror> \
+                <id>aliyun</id> \
+                <name>Aliyun Maven Mirror</name> \
+                <url>https://maven.aliyun.com/repository/public</url> \
+                <mirrorOf>central</mirrorOf> \
+            </mirror> \
+        </mirrors> \
+    </settings>' > /root/.m2/settings.xml
+
 WORKDIR /app
 
 # Copy pom.xml and download dependencies
