@@ -88,6 +88,10 @@ public class AdaptiveProgramGenerator {
 
     // Метод для определения возрастной группы
     private String determineAgeGroup(int age) {
+        return getStringFromAge(age);
+    }
+
+    static String getStringFromAge(int age) {
         if (age >= 18 && age <= 29) {
             return "18-29";
         } else if (age >= 30 && age <= 39) {

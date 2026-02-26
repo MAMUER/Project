@@ -43,7 +43,7 @@ body {
 
 .page-title {
     font-size: 32px;
-    line-height: 43.6px;
+    line-height: 44px;
     font-weight: 700;
     color: #0707E8;
     margin: 0 0 8px 0;
@@ -51,7 +51,7 @@ body {
 
 .page-subtitle {
     font-size: 18px;
-    line-height: 24.5px;
+    line-height: 25px;
     color: #666666;
     margin: 0;
 }
@@ -100,7 +100,7 @@ body {
 
 .section-title {
     font-size: 20px;
-    line-height: 27.3px;
+    line-height: 27px;
     font-weight: 700;
     color: #0707E8;
     margin: 0 0 20px 0;
@@ -184,7 +184,7 @@ body {
 
 .option-title {
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     font-weight: 700;
     color: #0707E8;
     margin-bottom: 8px;
@@ -192,7 +192,7 @@ body {
 
 .option-description {
     font-size: 14px;
-    line-height: 19.1px;
+    line-height: 19px;
     color: #666666;
 }
 
@@ -239,7 +239,7 @@ body {
 
 .duration-time {
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     font-weight: 700;
     color: #0707E8;
     margin-bottom: 4px;
@@ -247,7 +247,7 @@ body {
 
 .duration-desc {
     font-size: 12px;
-    line-height: 16.4px;
+    line-height: 16px;
     color: #666666;
 }
 
@@ -273,7 +273,7 @@ body {
 
 .club-header h2 {
     font-size: 20px;
-    line-height: 27.3px;
+    line-height: 27px;
     font-weight: 700;
     color: #0707E8;
     margin: 0 0 8px 0;
@@ -282,7 +282,7 @@ body {
 .club-address {
     color: #666666;
     font-size: 14px;
-    line-height: 19.1px;
+    line-height: 19px;
     margin: 0 0 20px 0;
 }
 
@@ -313,7 +313,7 @@ body {
 
 .capability-info h4 {
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     font-weight: 600;
     color: #0707E8;
     margin: 0 0 4px 0;
@@ -321,7 +321,7 @@ body {
 
 .capability-info p {
     font-size: 14px;
-    line-height: 19.1px;
+    line-height: 19px;
     color: #666666;
     margin: 0;
 }
@@ -344,11 +344,10 @@ body {
     gap: 12px;
     background: linear-gradient(135deg, #0795E8, #074EE8);
     color: #FFFFFF;
-    border: none;
     padding: 18px 32px;
     border-radius: 24px;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -406,31 +405,6 @@ body {
 }
 
 /* Предпросмотр */
-.preview-section {
-    text-align: center;
-}
-
-.preview-cards {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 24px;
-    margin-top: 24px;
-}
-
-.preview-card {
-    background: #FFFFFF;
-    padding: 32px 24px;
-    border-radius: 16px;
-    box-shadow: 0 4px 16px rgba(7, 7, 232, 0.08);
-    transition: all 0.3s ease;
-    border: 2px solid #E8EEFB;
-}
-
-.preview-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(7, 7, 232, 0.12);
-    border-color: #0795E8;
-}
 
 .preview-card ion-icon {
     font-size: 40px;
@@ -446,7 +420,7 @@ body {
 
 .preview-card h3 {
     font-size: 18px;
-    line-height: 24.5px;
+    line-height: 25px;
     font-weight: 700;
     color: #0707E8;
     margin: 0 0 12px 0;
@@ -454,7 +428,7 @@ body {
 
 .preview-card p {
     font-size: 14px;
-    line-height: 19.1px;
+    line-height: 19px;
     color: #666666;
     margin: 0;
 }
@@ -471,11 +445,6 @@ body {
     }
 }
 
-.generation-form,
-.preview-section {
-    animation: fadeInUp 0.6s ease-out;
-}
-
 /* Адаптивность */
 @media (max-width: 768px) {
     .container {
@@ -488,7 +457,7 @@ body {
     
     .page-title {
         font-size: 28px;
-        line-height: 38.2px;
+        line-height: 38px;
     }
     
     .options-grid {
@@ -517,10 +486,7 @@ body {
         text-align: center;
         justify-content: center;
     }
-    
-    .preview-cards {
-        grid-template-columns: 1fr;
-    }
+
 }
 
 @media (max-width: 480px) {
@@ -530,12 +496,12 @@ body {
     
     .page-title {
         font-size: 24px;
-        line-height: 32.7px;
+        line-height: 33px;
     }
     
     .section-title {
         font-size: 18px;
-        line-height: 24.5px;
+        line-height: 25px;
     }
     
     .option-content,
@@ -631,7 +597,7 @@ body {
 
 .subsection-title {
     font-size: 18px;
-    line-height: 24.5px;
+    line-height: 25px;
     font-weight: 600;
     color: #0707E8;
     margin: 0 0 8px 0;
@@ -640,7 +606,7 @@ body {
 .subsection-description {
     color: #666666;
     font-size: 14px;
-    line-height: 19.1px;
+    line-height: 19px;
     margin: 0 0 20px 0;
 }
 
@@ -688,7 +654,7 @@ body {
 
 .day-name {
     font-size: 14px;
-    line-height: 19.1px;
+    line-height: 19px;
     font-weight: 600;
     color: #0707E8;
 }
@@ -748,7 +714,7 @@ body {
 
 .time-range {
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     font-weight: 700;
     color: #0707E8;
     margin-bottom: 4px;
@@ -756,7 +722,7 @@ body {
 
 .time-desc {
     font-size: 12px;
-    line-height: 16.4px;
+    line-height: 16px;
     color: #666666;
 }
 
@@ -782,26 +748,6 @@ body {
 }
 
 /* Стили для временных сообщений */
-.temporary-message {
-    padding: 16px 20px;
-    border-radius: 12px;
-    font-weight: 600;
-    margin-bottom: 20px;
-    animation: fadeInUp 0.3s ease-out;
-    border: 2px solid transparent;
-}
-
-.temporary-message.error-message {
-    background: rgba(255, 107, 107, 0.1);
-    color: #FF6B6B;
-    border-color: #FF6B6B;
-}
-
-.temporary-message.warning-message {
-    background: linear-gradient(135deg, #fff3cd, #ffeaa7);
-    color: #856404;
-    border-color: #ffc107;
-}
 
 /* Анимация для временных сообщений */
 @keyframes fadeInUp {

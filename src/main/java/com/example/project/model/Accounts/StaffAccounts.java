@@ -1,4 +1,4 @@
-package com.example.project.model.Accounts;
+package com.example.project.model.accounts;
 
 import jakarta.persistence.*;
 

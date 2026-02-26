@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:15-alpine
@@ -35,6 +33,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_PROFILES_ACTIVE: docker
       REMEMBER_ME_KEY: ${REMEMBER_ME_KEY}
+      STATS_SERVICE_URL: http://stats-service:8081
     depends_on:
       postgres:
         condition: service_healthy
@@ -42,6 +41,22 @@ services:
       - fitness_network
     volumes:
       - ./logs:/app/logs
+    env_file:
+      - .env
+
+  stats-service:
+    build: ./stats-service
+    container_name: fitness_club_stats
+    ports:
+      - "8081:8081"
+    environment:
+      DB_CONNECTION: postgres://${DB_USERNAME:-postgres}:${DB_PASSWORD}@postgres:5432/${DB_NAME:-fitness_club_db}?sslmode=disable
+      PORT: 8081
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - fitness_network
     env_file:
       - .env
 

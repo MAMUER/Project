@@ -35,7 +35,7 @@ public class Members {
     private Integer gender;
 
     @OneToOne(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
-    private com.example.project.model.Accounts.MembersAccounts membersAccount;
+    private com.example.project.model.accounts.MembersAccounts membersAccount;
 
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<MembersHaveAchievements> membersHaveAchievements = new HashSet<>();

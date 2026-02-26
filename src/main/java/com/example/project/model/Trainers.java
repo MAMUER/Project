@@ -37,7 +37,7 @@ public class Trainers {
     private LocalDate hireDate;
 
     @OneToOne(mappedBy = "trainer", cascade = CascadeType.ALL, orphanRemoval = true)
-    private com.example.project.model.Accounts.TrainersAccounts trainersAccount;
+    private com.example.project.model.accounts.TrainersAccounts trainersAccount;
 
     @OneToMany(mappedBy = "trainer", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TrainingSchedule> trainingSchedules = new ArrayList<>();

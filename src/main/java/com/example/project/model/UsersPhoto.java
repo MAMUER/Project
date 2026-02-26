@@ -5,7 +5,7 @@ import lombok.*;
 import java.util.HashSet;
 import java.util.Set;
 
-import com.example.project.model.Accounts.MembersAccounts;
+import com.example.project.model.accounts.MembersAccounts;
 
 import jakarta.persistence.*;
 

@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" type="text/css" th:href="@{/css/sidebar.css}">
     <link rel="stylesheet" type="text/css" th:href="@{/css/statistic.css}">
+    <link rel="stylesheet" type="text/css" th:href="@{/css/staff-stats.css}">
     <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
     <link rel='stylesheet' href='https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&display=swap'>
@@ -13,54 +14,138 @@
 </head>
 
 <body>
-    <div class="sidebar">
-        <div class="logo">
-            <img th:src="@{/icons/logo.png}" alt="Logo">
-        </div>
+<div class="sidebar">
+    <div class="logo">
+        <img th:src="@{/icons/logo.png}" alt="Logo">
+    </div>
 
-        <div class="icons">
-            <th:block th:switch="${role}">
-                <div th:case="'member'" class="icon-group">
-                    <a class="profile" th:href="'/profile/member/' + ${memberId}">
-                        <img th:src="@{/icons/profile.svg}" alt="Profile">
-                    </a>
-                    <a class="calendar" th:href="'/calendar/member/' + ${memberId}">
-                        <img th:src="@{/icons/calendar.svg}" alt="Calendar">
-                    </a>
-                    <a class="statistic" id="selected" th:href="'/statistic/member/' + ${memberId}">
-                        <img th:src="@{/icons/statistic-white.svg}" alt="Statistic">
-                    </a>
-                    <a class="trainers" th:href="'/trainers'">
-                        <img th:src="@{/icons/programs.svg}" alt="Programs">
-                    </a>
-                    <a class="programs" th:href="'/programs/member/' + ${memberId}">
-                        <img th:src="@{/icons/trainers.svg}" alt="trainers">
-                    </a>
+    <div class="icons">
+        <th:block th:switch="${role}">
+            <div th:case="'member'" class="icon-group">
+                <a class="profile" th:href="@{'/profile/member/' + ${memberId}}">
+                    <img th:src="@{/icons/profile.svg}" alt="Profile">
+                </a>
+                <a class="calendar" th:href="@{'/calendar/member/' + ${memberId}}">
+                    <img th:src="@{/icons/calendar.svg}" alt="Calendar">
+                </a>
+                <a class="statistic" id="selected" th:href="@{'/statistic/member/' + ${memberId}}">
+                    <img th:src="@{/icons/statistic-white.svg}" alt="Statistic">
+                </a>
+                <a class="trainers" th:href="@{/trainers}">
+                    <img th:src="@{/icons/programs.svg}" alt="Programs">
+                </a>
+                <a class="programs" th:href="@{'/programs/member/' + ${memberId}}">
+                    <img th:src="@{/icons/trainers.svg}" alt="trainers">
+                </a>
+            </div>
+
+            <div th:case="'staff'" class="icon-group">
+                <a class="profile" th:href="@{'/profile/staff/' + ${staffId}}">
+                    <img th:src="@{/icons/profile.svg}" alt="Profile">
+                </a>
+                <a class="calendar" th:href="@{'/calendar/staff/' + ${staffId}}">
+                    <img th:src="@{/icons/calendar.svg}" alt="Calendar">
+                </a>
+                <a class="statistic" id="selected" th:href="@{'/statistic/staff/' + ${staffId}}">
+                    <img th:src="@{/icons/statistic-white.svg}" alt="Statistic">
+                </a>
+            </div>
+
+            <div th:case="'trainer'" class="icon-group">
+                <a class="profile" th:href="@{'/profile/trainer/' + ${trainerId}}">
+                    <img th:src="@{/icons/profile.svg}" alt="Profile">
+                </a>
+                <a class="calendar" th:href="@{'/calendar/trainer/' + ${trainerId}}">
+                    <img th:src="@{/icons/calendar.svg}" alt="Calendar">
+                </a>
+                <a class="statistic" id="selected" th:href="@{'/statistic/trainer/' + ${trainerId}}">
+                    <img th:src="@{/icons/statistic-white.svg}" alt="Statistic">
+                </a>
+            </div>
+        </th:block>
+    </div>
+
+    <div class="logout-container">
+        <a class="logout" th:href="@{/logout}">
+            <img th:src="@{/icons/logout.svg}" alt="Log out">
+        </a>
+    </div>
+</div>
+
+<div class="content">
+    <h1>Статистика</h1>
+
+    <!-- Блок статистики для персонала -->
+    <div th:if="${role == 'staff'}" class="staff-stats-container">
+        <div th:if="${statsServiceHealthy}" class="stats-service-data">
+            <div class="stats-header">
+                <h2>Статистика клуба</h2>
+                <span class="stats-badge">Live</span>
+            </div>
+
+            <div class="stats-cards">
+                <div class="stat-card">
+                    <div class="stat-icon">👥</div>
+                    <div class="stat-content">
+                        <span class="stat-label">Посещений сегодня</span>
+                        <span class="stat-value" th:text="${todayVisits}">0</span>
+                    </div>
                 </div>
-            </th:block>
+
+                <div th:if="${weeklyStats != null}" class="stat-card">
+                    <div class="stat-icon">📊</div>
+                    <div class="stat-content">
+                        <span class="stat-label">За неделю</span>
+                        <span class="stat-value" th:text="${weeklyStats.totalVisits != null ? weeklyStats.totalVisits : 0}">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${topMembers != null and #lists.isEmpty(topMembers) == false}" class="top-members-section">
+                <h3>Топ активных участников</h3>
+                <div class="members-grid">
+                    <div class="member-card" th:each="member, iterStat : ${topMembers}">
+                        <div class="member-rank" th:text="${iterStat.index + 1}">1</div>
+                        <div class="member-info">
+                            <span class="member-name" th:text="${member.memberName}">Имя</span>
+                            <span class="member-stats">
+                                    <span class="visits-count" th:text="${member.visitCount}">0</span> посещений
+                                </span>
+                            <span class="last-visit" th:text="'Последний визит: ' + ${member.lastVisit}">Дата</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <div class="logout-container">
-            <a class="logout" th:href="'/logout'">
-                <img th:src="@{/icons/logout.svg}" alt="Log out">
-            </a>
+        <div th:unless="${statsServiceHealthy}" class="stats-service-unavailable">
+            <div class="error-card">
+                <div class="error-icon">⚠️</div>
+                <div class="error-content">
+                    <h3>Сервис статистики временно недоступен</h3>
+                    <p th:if="${statsError != null}" th:text="${statsError}"></p>
+                    <p th:if="${statsError == null}">Пожалуйста, попробуйте позже</p>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="content">
-        <h1>Статистика</h1>
+    <!-- Статистика для member -->
+    <th:block th:if="${role == 'member'}">
         <div class="stats-grid">
             <div class="training-container">
                 <p class="container-title">Тренировки:</p>
                 <div class="statistics-list">
                     <div class="statistics-item" th:each="statistic : ${statistics}">
-                        <p th:text="${statistic.activityType.activityName}"></p>
+                        <p th:text="${statistic.trainingType != null ? statistic.trainingType.typeName : 'Тренировка'}"></p>
+                        <small th:text="${#temporals.format(statistic.sessionDate, 'dd.MM.yyyy HH:mm')}"></small>
                     </div>
-                    <div th:if="${statistics == null || statistics.empty}" class="empty-state">
+                    <div th:if="${statistics == null or statistics.isEmpty()}" class="empty-state">
                         Нет данных о тренировках
                     </div>
                 </div>
             </div>
+
             <div class="achievements-container">
                 <p class="container-title">Полученные достижения:</p>
                 <div class="achievements-list">
@@ -71,13 +156,32 @@
                             <img th:src="${achievement.achievementIconUrl}" alt="Achievement Icon">
                         </div>
                     </div>
-                    <div th:if="${achievements == null || achievements.empty}" class="empty-state">
+                    <div th:if="${achievements == null or achievements.isEmpty()}" class="empty-state">
                         Нет полученных достижений
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    </th:block>
+
+    <!-- Статистика для trainer -->
+    <th:block th:if="${role == 'trainer'}">
+        <div class="stats-grid">
+            <div class="training-container">
+                <p class="container-title">Проведенные тренировки:</p>
+                <div class="statistics-list">
+                    <div class="statistics-item" th:each="statistic : ${statistics}">
+                        <p th:text="${statistic.trainingType != null ? statistic.trainingType.typeName : 'Тренировка'}"></p>
+                        <small th:text="${#temporals.format(statistic.sessionDate, 'dd.MM.yyyy HH:mm')}"></small>
+                    </div>
+                    <div th:if="${statistics == null or statistics.isEmpty()}" class="empty-state">
+                        Нет данных о тренировках
+                    </div>
+                </div>
+            </div>
+        </div>
+    </th:block>
+</div>
 </body>
 
 </html>

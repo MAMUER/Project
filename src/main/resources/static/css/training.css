@@ -1,7 +1,7 @@
 * {
-    font-family: "Open Sans";
+    font-family: "Open Sans", sans-serif;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     color: #000000;
     box-sizing: border-box;
 }
@@ -50,7 +50,7 @@ body {
 
 .content .title {
     font-size: 32px;
-    line-height: 43.6px;
+    line-height: 44px;
     color: #0707E8;
     font-weight: 600;
     margin-bottom: 8px;
@@ -149,7 +149,7 @@ body {
 
 .trainer {
     font-size: 18px;
-    line-height: 24.5px;
+    line-height: 25px;
     color: #0707E8;
     font-weight: 600;
     margin-bottom: 20px;
@@ -205,7 +205,7 @@ body {
 
 .members-title {
     font-size: 20px;
-    line-height: 27.3px;
+    line-height: 27px;
     color: #0707E8;
     font-weight: 600;
     margin-bottom: 20px;
@@ -280,7 +280,6 @@ body {
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
-    border: none;
     transition: all 0.3s ease;
     flex: 1;
     min-width: 140px;
@@ -318,51 +317,7 @@ body {
     border-color: #06D6A0;
 }
 
-.gray-button {
-    background-color: #CCCCCC;
-    color: #666666;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-    cursor: not-allowed;
-    transform: none !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-    border-color: #CCCCCC !important;
-}
-
-.gray-button:hover {
-    background-color: #CCCCCC !important;
-    transform: none !important;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
-    border-color: #CCCCCC !important;
-}
-
 /* Стили для текстовых элементов */
-.small-text {
-    font-size: 12px;
-    line-height: 16.4px;
-}
-
-.medium-text {
-    font-size: 16px;
-    line-height: 21.8px;
-}
-
-.large-text {
-    font-size: 24px;
-    line-height: 32.7px;
-}
-
-.xlarge-text {
-    font-size: 32px;
-    line-height: 43.6px;
-}
-
-.xxlarge-text {
-    font-size: 40px;
-    line-height: 54.5px;
-}
 
 /* Адаптивность для мобильных устройств */
 @media (max-width: 900px) {
@@ -397,7 +352,7 @@ body {
     
     .content .title {
         font-size: 24px;
-        line-height: 32.7px;
+        line-height: 33px;
     }
     
     .members-list {

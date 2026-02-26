@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 
 import com.example.project.model.Trainers;
 import com.example.project.model.TrainingSchedule;
-import com.example.project.model.Accounts.TrainersAccounts;
+import com.example.project.model.accounts.TrainersAccounts;
 import com.example.project.repository.TrainersRepository;
 @Service
 @AllArgsConstructor

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org" lang="ru-RU">
 
 <head>
     <title>Редактирование оборудования</title>
@@ -52,8 +52,10 @@
                             <div class="quantity-controls">
                                 <button type="button" class="quantity-btn minus"
                                     onclick="changeQuantity(this, -1)">-</button>
-                                <input type="number" name="quantity" th:value="${equipment.quantity}" min="0" max="100"
-                                    class="quantity-input">
+                                <label>
+                                    <input type="number" name="quantity" th:value="${equipment.quantity}" min="0" max="100"
+                                        class="quantity-input">
+                                </label>
                                 <button type="button" class="quantity-btn plus"
                                     onclick="changeQuantity(this, 1)">+</button>
                             </div>

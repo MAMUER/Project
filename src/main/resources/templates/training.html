@@ -80,7 +80,7 @@
             <div class="trainer-container" th:if="${role == 'member'}">
                 <p class="trainer" th:text="'Тренер: ' + ${trainer.firstName}+' '+${trainer.secondName}"></p>
                 <div class="trainer-photo">
-                    <img th:src="${trainer.trainersAccount.trainersPhoto.imageUrl}">
+                    <img th:src="${trainer.trainersAccount.trainersPhoto.imageUrl}" alt="ERROR trainer.trainersAccount.trainersPhoto.imageUrl">
                 </div>
             </div>
 

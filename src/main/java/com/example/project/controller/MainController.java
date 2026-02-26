@@ -26,11 +26,9 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import com.example.project.client.StatsServiceClient;
 import com.example.project.dto.NewsDTO;
 import com.example.project.dto.ProgramRequest;
-import com.example.project.model.Accounts.MembersAccounts;
-import com.example.project.model.Accounts.StaffAccounts;
-import com.example.project.model.Accounts.TrainersAccounts;
 import com.example.project.model.Achievements;
 import com.example.project.model.Clubs;
 import com.example.project.model.Members;
@@ -42,6 +40,9 @@ import com.example.project.model.Trainers;
 import com.example.project.model.TrainingProgram;
 import com.example.project.model.TrainingSchedule;
 import com.example.project.model.TrainingType;
+import com.example.project.model.accounts.MembersAccounts;
+import com.example.project.model.accounts.StaffAccounts;
+import com.example.project.model.accounts.TrainersAccounts;
 import com.example.project.repository.MembersAccountsRepository;
 import com.example.project.repository.StaffAccountsRepository;
 import com.example.project.repository.TrainersAccountsRepository;
@@ -54,6 +55,7 @@ import com.example.project.service.Event;
 import com.example.project.service.MembersService;
 import com.example.project.service.NewsService;
 import com.example.project.service.PasswordValidationService;
+import com.example.project.service.ProfileService;
 import com.example.project.service.StaffScheduleService;
 import com.example.project.service.StaffService;
 import com.example.project.service.TrainersService;
@@ -97,6 +99,7 @@ public class MainController {
     private final TrainingProgramService trainingProgramService;
     private final PasswordValidationService passwordValidationService;
     private final AdaptiveProgramGenerator adaptiveProgramGenerator;
+    private final StatsServiceClient statsServiceClient;
 
     @GetMapping("/programs/member/{id}")
     @Operation(summary = "Получить программы тренировок участника", description = "Возвращает все программы тренировок для указанного участника")
@@ -105,14 +108,7 @@ public class MainController {
     public String memberPrograms(
             @Parameter(description = "ID участника", example = "123") @PathVariable Integer id,
             Model model) {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String username = ((UserDetails) principal).getUsername();
-        Integer currentUserId = userDetailsService.getUserId(username);
-        String currentUserRole = userDetailsService.getUserRole(username);
-
-        if (!currentUserId.equals(id) || !"member".equals(currentUserRole)) {
-            return "redirect:/access-denied";
-        }
+        if (funcBool(id)) return "redirect:/access-denied";
 
         Members member = membersService.getMember(id);
         List<TrainingProgram> programs = trainingProgramService.getMemberPrograms(id);
@@ -147,6 +143,18 @@ public class MainController {
         model.addAttribute("sortedExercisesByDay", sortedExercisesByDay);
 
         return "programs";
+    }
+
+    private boolean funcBool(@PathVariable @Parameter(description = "ID участника", example = "123") Integer id) {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username = ((UserDetails) principal).getUsername();
+        Integer currentUserId = userDetailsService.getUserId(username);
+        String currentUserRole = userDetailsService.getUserRole(username);
+
+        if (!currentUserId.equals(id) || !"member".equals(currentUserRole)) {
+            return true;
+        }
+        return false;
     }
 
     @GetMapping("/programs/generate/{id}")
@@ -449,14 +457,7 @@ public class MainController {
         model.addAttribute("role", role);
         model.addAttribute("membersService", membersService);
 
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String username = ((UserDetails) principal).getUsername();
-        Integer currentUserId = userDetailsService.getUserId(username);
-        String currentUserRole = userDetailsService.getUserRole(username);
-
-        if (!currentUserId.equals(id) || !currentUserRole.equals(role)) {
-            return "redirect:/access-denied";
-        }
+        if (methHelp(id, role)) return "redirect:/access-denied";
 
         switch (role) {
             case "member" -> {
@@ -549,19 +550,98 @@ public class MainController {
         return "profile";
     }
 
+    private boolean methHelp(@PathVariable @Parameter(description = "ID пользователя", example = "123") Integer id, @PathVariable @Parameter(description = "Роль пользователя", example = "member", schema = @Schema(allowableValues = {
+            "member", "trainer", "staff"})) String role) {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username = ((UserDetails) principal).getUsername();
+        Integer currentUserId = userDetailsService.getUserId(username);
+        String currentUserRole = userDetailsService.getUserRole(username);
+
+        if (!currentUserId.equals(id) || !currentUserRole.equals(role)) {
+            return true;
+        }
+        return false;
+    }
+
+    private final ProfileService profileService;
+
+// Удалите старый метод profile() и замените на:
     @GetMapping("/profile/member/{id}")
+    @Transactional
     public String profileMember(@PathVariable Integer id, Model model) {
-        return profile(id, "member", model);
+        if (funcBool(id)) return "redirect:/access-denied";
+
+        ProfileService.ProfileData data = profileService.getMemberProfile(id);
+        if (data == null) {
+            return "redirect:/not-found";
+        }
+
+        model.addAttribute("role", "member");
+        model.addAttribute("membersService", membersService);
+        model.addAttribute("memberId", data.getMemberId());
+        model.addAttribute("memberClub", data.getMemberClub());
+        model.addAttribute("member", data.getMember());
+        model.addAttribute("feedbacks", data.getFeedbacks());
+        model.addAttribute("achievements", data.getAchievements());
+        model.addAttribute("workouts", data.getWorkouts());
+        model.addAttribute("workoutsCount", data.getWorkoutsCount());
+        model.addAttribute("photoURL", data.getPhotoURL());
+        model.addAttribute("allNews", data.getAllNews());
+
+        return "profile";
     }
 
     @GetMapping("/profile/trainer/{id}")
+    @Transactional
     public String profileTrainer(@PathVariable Integer id, Model model) {
-        return profile(id, "trainer", model);
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username = ((UserDetails) principal).getUsername();
+        Integer currentUserId = userDetailsService.getUserId(username);
+        String currentUserRole = userDetailsService.getUserRole(username);
+
+        if (!currentUserId.equals(id) || !"trainer".equals(currentUserRole)) {
+            return "redirect:/access-denied";
+        }
+
+        ProfileService.ProfileData data = profileService.getTrainerProfile(id);
+        if (data == null) {
+            return "redirect:/not-found";
+        }
+
+        model.addAttribute("role", "trainer");
+        model.addAttribute("trainerId", data.getTrainerId());
+        model.addAttribute("trainer", data.getTrainer());
+        model.addAttribute("workouts", data.getWorkouts());
+        model.addAttribute("workoutsCount", data.getWorkoutsCount());
+        model.addAttribute("photoURL", data.getPhotoURL());
+
+        return "profile";
     }
 
     @GetMapping("/profile/staff/{id}")
+    @Transactional
     public String profileStaff(@PathVariable Integer id, Model model) {
-        return profile(id, "staff", model);
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        String username = ((UserDetails) principal).getUsername();
+        Integer currentUserId = userDetailsService.getUserId(username);
+        String currentUserRole = userDetailsService.getUserRole(username);
+
+        if (!currentUserId.equals(id) || !"staff".equals(currentUserRole)) {
+            return "redirect:/access-denied";
+        }
+
+        ProfileService.ProfileData data = profileService.getStaffProfile(id);
+        if (data == null) {
+            return "redirect:/not-found";
+        }
+
+        model.addAttribute("role", "staff");
+        model.addAttribute("staffId", data.getStaffId());
+        model.addAttribute("staff", data.getStaff());
+        model.addAttribute("photoURL", data.getPhotoURL());
+        model.addAttribute("staffSchedule", data.getStaffSchedule());
+
+        return "profile";
     }
 
     @GetMapping("/profile/member/{id}/news")
@@ -592,14 +672,7 @@ public class MainController {
         model.addAttribute("TrainersSet", trainersService.getAllTrainers());
         model.addAttribute("TrainingTypeSet", trainingScheduleService.getTrainingTypes());
 
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String username = ((UserDetails) principal).getUsername();
-        Integer currentUserId = userDetailsService.getUserId(username);
-        String currentUserRole = userDetailsService.getUserRole(username);
-
-        if (!currentUserId.equals(id) || !currentUserRole.equals(role)) {
-            return "redirect:/access-denied";
-        }
+        if (methHelp(id, role)) return "redirect:/access-denied";
 
         switch (role) {
             case "member" -> {
@@ -751,15 +824,7 @@ public class MainController {
             @Parameter(description = "Роль пользователя", example = "member", schema = @Schema(allowableValues = {
         "member", "trainer", "staff"})) @PathVariable String role,
             Model model) {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        String username = ((UserDetails) principal).getUsername();
-
-        // Проверка доступа
-        Integer currentUserId = userDetailsService.getUserId(username);
-        String currentUserRole = userDetailsService.getUserRole(username);
-        if (!currentUserId.equals(id) || !currentUserRole.equals(role)) {
-            return "redirect:/access-denied";
-        }
+        if (methHelp(id, role)) return "redirect:/access-denied";
 
         switch (role) {
             case "member" -> {
@@ -768,16 +833,49 @@ public class MainController {
                 model.addAttribute("achievements", achievements);
                 model.addAttribute("member", member);
                 model.addAttribute("memberId", id);
+
+                // Добавляем статистику тренировок
+                Set<TrainingSchedule> memberTrainings = trainingScheduleService.getTrainingsByMemberId(id);
+                model.addAttribute("statistics", memberTrainings);
             }
             case "trainer" -> {
                 Trainers trainer = trainersService.getTrainer(id);
                 model.addAttribute("trainer", trainer);
                 model.addAttribute("trainerId", id);
+
+                // Для тренеров показываем статистику их тренировок
+                List<TrainingSchedule> trainerWorkouts = trainersService.getSetOfTrainingSchedule(id);
+                model.addAttribute("statistics", trainerWorkouts);
             }
             case "staff" -> {
                 Staff staff = staffService.getStaff(id);
                 model.addAttribute("staff", staff);
                 model.addAttribute("staffId", id);
+
+                // Для персонала добавляем данные из микросервиса статистики
+                try {
+                    // Получаем данные из микросервиса статистики
+                    Integer todayVisits = statsServiceClient.getTodayVisits(1); // ID клуба по умолчанию
+                    model.addAttribute("todayVisits", todayVisits);
+
+                    boolean statsServiceHealthy = statsServiceClient.isServiceHealthy();
+                    model.addAttribute("statsServiceHealthy", statsServiceHealthy);
+
+                    if (statsServiceHealthy) {
+                        List<Map<String, Object>> topMembers = statsServiceClient.getTopActiveMembers();
+                        model.addAttribute("topMembers", topMembers);
+
+                        Map<String, Object> weeklyStats = statsServiceClient.getVisitsStats(1, "week");
+                        model.addAttribute("weeklyStats", weeklyStats);
+                    }
+
+                    log.info("Stats service data loaded for staff ID: {}", id);
+
+                } catch (Exception e) {
+                    log.error("Error loading stats service data: {}", e.getMessage());
+                    model.addAttribute("statsServiceHealthy", false);
+                    model.addAttribute("statsError", "Не удалось загрузить данные статистики");
+                }
             }
             default -> {
             }

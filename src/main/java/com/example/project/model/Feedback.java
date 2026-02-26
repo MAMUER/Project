@@ -4,7 +4,7 @@ import lombok.*;
 
 import java.time.LocalDate;
 
-import com.example.project.model.Accounts.MembersAccounts;
+import com.example.project.model.accounts.MembersAccounts;
 
 import jakarta.persistence.*;
 

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 
 import com.example.project.model.Staff;
 import com.example.project.model.StaffSchedule;
-import com.example.project.model.Accounts.StaffAccounts;
+import com.example.project.model.accounts.StaffAccounts;
 import com.example.project.repository.StaffRepository;
 
 @Service

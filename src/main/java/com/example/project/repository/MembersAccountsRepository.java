@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
-import com.example.project.model.Accounts.MembersAccounts;
+import com.example.project.model.accounts.MembersAccounts;
 
 @Repository
 public interface MembersAccountsRepository extends JpaRepository<MembersAccounts, String> {

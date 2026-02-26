@@ -5,7 +5,7 @@ import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
-import com.example.project.model.Accounts.MembersAccounts;
+import com.example.project.model.accounts.MembersAccounts;
 import com.example.project.repository.MembersAccountsRepository;
 
 import lombok.AllArgsConstructor;

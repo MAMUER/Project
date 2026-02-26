@@ -19,9 +19,6 @@
 }
 
 /* Стили для управления оборудованием */
-.equipment-management-section {
-    margin-bottom: 2rem;
-}
 
 .quantity-form {
     display: flex;
@@ -169,22 +166,22 @@
     word-break: break-word;
     overflow-wrap: break-word;
     hyphens: auto;
-    
+
     /* Стандартное свойство line-clamp для совместимости */
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    
+
     /* Стандартное свойство для современных браузеров */
     display: -moz-box;
     -moz-line-clamp: 2;
     -moz-box-orient: vertical;
-    
+
     /* Экспериментальное стандартное свойство */
     line-clamp: 2;
     box-orient: vertical;
-    
+
     /* Резервное ограничение по высоте */
     max-height: 2.4em;
 }
@@ -254,17 +251,17 @@
 .empty-state h3 {
     margin: 0 0 8px 0;
     color: #475569;
-    
+
     /* Стандартное свойство line-clamp для заголовков */
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    
+
     display: -moz-box;
     -moz-line-clamp: 2;
     -moz-box-orient: vertical;
-    
+
     line-clamp: 2;
     box-orient: vertical;
 }
@@ -279,35 +276,35 @@
     .equipment-grid {
         grid-template-columns: 1fr;
     }
-    
+
     .equipment-card {
         flex-direction: column;
         align-items: stretch;
         padding: 16px;
     }
-    
+
     .equipment-actions {
         align-items: stretch;
         min-width: auto;
         flex-direction: row;
         justify-content: space-between;
     }
-    
+
     .quantity-form {
         min-width: auto;
         flex-direction: row;
         align-items: center;
     }
-    
+
     .form-row {
         flex-direction: column;
         gap: 15px;
     }
-    
+
     .form-group {
         min-width: auto;
     }
-    
+
     /* На мобильных разрешаем больше переносов */
     .equipment-info h3 {
         -webkit-line-clamp: 3;
@@ -315,7 +312,7 @@
         line-clamp: 3;
         max-height: 3.6em;
     }
-    
+
     .equipment-quantity {
         white-space: normal;
     }
@@ -401,17 +398,17 @@
     margin: 0 0 8px 0;
     line-height: 1.2;
     word-break: break-word;
-    
+
     /* Стандартное свойство line-clamp для карточек */
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    
+
     display: -moz-box;
     -moz-line-clamp: 2;
     -moz-box-orient: vertical;
-    
+
     line-clamp: 2;
     box-orient: vertical;
 }
@@ -437,17 +434,20 @@
     line-height: 1.4;
 }
 
+/* Единый блок стилей для debug-section */
 .debug-section {
     margin-top: 30px;
     padding: 20px;
-    background: #f8f9fa;
+    background: #f8f9fa !important;
     border-radius: 12px;
+    border: 1px solid #e2e8f0;
 }
 
 .debug-section h3 {
     color: #475569;
-    margin-bottom: 12px;
+    margin: 0 0 12px 0;
     line-height: 1.2;
+    font-size: 18px;
 }
 
 .debug-section pre {
@@ -456,10 +456,10 @@
     border-radius: 8px;
     border: 1px solid #e2e8f0;
     font-family: 'Courier New', monospace;
-    font-size: 12px;
+    font-size: 14px;
     color: #334155;
     overflow-x: auto;
-    margin: 8px 0;
+    margin: 0;
 }
 
 /* Стили для страницы оборудования */
@@ -502,29 +502,6 @@
 .equipment-icon ion-icon {
     font-size: 24px;
     color: #0795E8;
-}
-
-.debug-section {
-    background: #f8f9fa !important;
-    border: 1px solid #e2e8f0;
-}
-
-.debug-section h3 {
-    font-size: 18px;
-    color: #475569;
-    margin: 0 0 12px 0;
-}
-
-.debug-section pre {
-    background: white;
-    padding: 16px;
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-    font-family: 'Courier New', monospace;
-    font-size: 14px;
-    color: #334155;
-    overflow-x: auto;
-    margin: 0;
 }
 
 .admin-container {
@@ -595,17 +572,17 @@
     margin: 0 0 8px 0;
     line-height: 1.2;
     word-break: break-word;
-    
+
     /* Стандартное свойство line-clamp для клубов */
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
-    
+
     display: -moz-box;
     -moz-line-clamp: 2;
     -moz-box-orient: vertical;
-    
+
     line-clamp: 2;
     box-orient: vertical;
 }
@@ -669,15 +646,15 @@
         line-clamp: 2;
         max-height: 2.4em;
     }
-    
+
     .equipment-quantity {
         font-size: 13px;
     }
-    
+
     .admin-header h1 {
         font-size: 24px;
     }
-    
+
     .club-header h3 {
         font-size: 18px;
     }
@@ -695,7 +672,7 @@
         overflow: hidden;
         position: relative;
     }
-    
+
     .equipment-info h3::after,
     .club-header h3::after,
     .muscle-card h4::after,
@@ -707,6 +684,7 @@
         right: 0;
         width: 20%;
         height: 1.2em;
-        background: white 50%;
+        background: linear-gradient(to right, transparent, white 80%);
+        pointer-events: none;
     }
 }

@@ -1,7 +1,7 @@
 * {
-    font-family: "Open Sans";
+    font-family: "Open Sans", sans-serif;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     box-sizing: border-box;
 }
 
@@ -13,13 +13,11 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    background: #E8EEFB;
     min-height: 100vh;
     margin: 0;
     padding: 20px;
-    background-image: 
-        radial-gradient(circle at 20% 80%, rgba(7, 149, 232, 0.05) 0%, transparent 50%),
-        radial-gradient(circle at 80% 20%, rgba(7, 7, 232, 0.05) 0%, transparent 50%);
+    background: #E8EEFB radial-gradient(circle at 20% 80%, rgba(7, 149, 232, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(7, 7, 232, 0.05) 0%, transparent 50%);
 }
 
 .error-container {
@@ -34,6 +32,7 @@ body {
     transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
+    animation: fadeInUp 0.6s ease-out;
 }
 
 .error-container::before {
@@ -76,17 +75,6 @@ body {
     }
 }
 
-.error-code {
-    font-size: clamp(20px, 4vw, 24px);
-    color: #666666;
-    font-weight: 600;
-    margin-bottom: 0.5em;
-    background: linear-gradient(135deg, #666666, #999999);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-}
-
 .error-container h1 {
     color: #0707E8;
     font-size: clamp(28px, 6vw, 40px);
@@ -108,15 +96,6 @@ body {
     max-width: 400px;
     margin-left: auto;
     margin-right: auto;
-}
-
-.error-details {
-    background: rgba(7, 149, 232, 0.05);
-    padding: 16px 20px;
-    border-radius: 12px;
-    margin: 1.5em auto;
-    max-width: 400px;
-    border-left: 4px solid #0795E8;
 }
 
 .error-details p {
@@ -184,19 +163,6 @@ body {
     transform: translateY(-1px);
 }
 
-.error-actions .error-btn.secondary {
-    background: transparent;
-    color: #0795E8;
-    border: 2px solid #0795E8;
-    box-shadow: 0 2px 8px rgba(7, 149, 232, 0.15);
-}
-
-.error-actions .error-btn.secondary:hover {
-    background: #0795E8;
-    color: #FFFFFF;
-    border-color: #0795E8;
-}
-
 .error-actions .error-btn ion-icon {
     font-size: 18px;
 }
@@ -213,32 +179,28 @@ body {
     }
 }
 
-.error-container {
-    animation: fadeInUp 0.6s ease-out;
-}
-
 /* Адаптивность для мобильных */
 @media (max-width: 768px) {
     body {
         padding: 16px;
     }
-    
+
     .error-container {
         padding: 28px;
     }
-    
+
     .error-actions {
         flex-direction: column;
         align-items: center;
         gap: 1em;
     }
-    
+
     .error-actions .error-btn {
         width: 100%;
         max-width: 280px;
         min-width: auto;
     }
-    
+
     .error-icon {
         margin-bottom: 1.5em;
     }
@@ -248,23 +210,18 @@ body {
     .error-container {
         padding: 24px;
     }
-    
+
     .error-container h1 {
         font-size: 24px;
     }
-    
+
     .error-container p {
         font-size: 15px;
     }
-    
+
     .error-actions .error-btn {
         padding: 14px 28px;
         font-size: 15px;
-    }
-    
-    .error-details {
-        padding: 14px 16px;
-        margin: 1em auto;
     }
 }
 
@@ -272,7 +229,7 @@ body {
     .error-container {
         padding: 20px;
     }
-    
+
     .error-container h1 {
         font-size: 22px;
     }
@@ -284,11 +241,11 @@ body {
         max-width: 640px;
         padding: 60px;
     }
-    
+
     .error-container h1 {
         font-size: 44px;
     }
-    
+
     .error-container p {
         font-size: 20px;
     }
@@ -300,20 +257,15 @@ body {
         background: #1a1a1a;
         border-color: #333333;
     }
-    
+
     .error-container h1 {
         background: linear-gradient(135deg, #07DCE8, #0795E8);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
     }
-    
+
     .error-container p {
         color: #e0e0e0;
-    }
-    
-    .error-details {
-        background: rgba(7, 149, 232, 0.1);
-        border-left-color: #0795E8;
     }
 }

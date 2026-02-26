@@ -1,7 +1,7 @@
 * {
-    font-family: "Open Sans";
+    font-family: "Open Sans", sans-serif;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     color: #000000;
     box-sizing: border-box;
 }
@@ -61,8 +61,7 @@ body {
 /* ОСНОВНОЙ КОНТЕНТ - КЛЮЧЕВЫЕ ИСПРАВЛЕНИЯ */
 .content {
     width: 100%;
-    padding: 30px;
-    padding-left: 140px;
+    padding: 30px 30px 30px 140px;
     min-height: 100vh;
     box-sizing: border-box;
     margin: 0;
@@ -141,22 +140,7 @@ body {
     height: 80vh;
 }
 
-/* Стили для FullCalendar чтобы он масштабировался */
-.fc {
-    height: 100% !important;
-    max-width: 100% !important;
-    font-family: "Open Sans" !important;
-}
-
-.fc-view {
-    height: 100% !important;
-    max-width: 100% !important;
-    border-radius: 8px;
-}
-
-.fc-scroller {
-    overflow-y: auto !important;
-}
+/* Стили для FullCalendar чтобы он масштабировал */
 
 /* Улучшенные стили для FullCalendar */
 :root {
@@ -171,104 +155,6 @@ body {
     --fc-page-bg-color: #E8EEFB;
     --fc-event-bg-color: #0795E8;
     --fc-event-border-color: #074EE8;
-}
-
-.fc .fc-toolbar {
-    flex-wrap: wrap;
-    gap: 12px;
-    max-width: 100%;
-    margin-bottom: 20px !important;
-    padding: 0 8px;
-}
-
-.fc .fc-toolbar-title {
-    font-size: 24px;
-    line-height: 32.7px;
-    color: #0707E8;
-    font-weight: 600;
-    -webkit-text-size-adjust: 100%;
-    text-size-adjust: 100%;
-}
-
-.fc .fc-button {
-    padding: 10px 16px;
-    font-size: 14px;
-    font-weight: 600;
-    border-radius: 12px !important;
-    border: 2px solid transparent !important;
-    transition: all 0.3s ease !important;
-    box-shadow: 0 2px 8px rgba(7, 149, 232, 0.2) !important;
-}
-
-.fc .fc-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.3) !important;
-}
-
-.fc .fc-button:active {
-    transform: translateY(0);
-}
-
-.fc-day-today {
-    background: rgba(7, 220, 232, 0.15) !important;
-    border: none !important;
-}
-
-.fc-day-today .fc-daygrid-day-number {
-    color: #0707E8 !important;
-    font-weight: 700 !important;
-}
-
-.fc-event {
-    padding: 6px 8px;
-    font-size: 13px;
-    font-weight: 500;
-    border-radius: 8px;
-    border: 1px solid;
-    border-left: 4px solid;
-    transition: all 0.3s ease;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(7, 149, 232, 0.15);
-}
-
-.fc-event:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(7, 149, 232, 0.25);
-}
-
-.fc-event-training {
-    border-color: #074EE8;
-}
-
-.fc-event-personal {
-    border-color: #04b486;
-}
-
-.fc-event-group {
-    border-color: #3a05a8;
-}
-
-#calendar.member-calendar .fc-event:hover,
-#calendar.trainer-calendar .fc-event:hover {
-    cursor: pointer;
-    filter: brightness(1.1);
-}
-
-.fc-list-day-cushion {
-    background: #0795E8;
-    color: #FFFFFF !important;
-    font-weight: 600;
-    padding: 12px 16px !important;
-}
-
-.fc-list-event {
-    transition: all 0.3s ease;
-    border-left: 4px solid #0795E8;
-}
-
-.fc-list-event:hover {
-    background-color: #E8EEFB !important;
-    transform: translateX(4px);
 }
 
 /* СТИЛИ ДЛЯ ФИЛЬТРОВ И ФОРМ - ПОЛНОСТЬЮ ИСПРАВЛЕНО */
@@ -297,7 +183,7 @@ body {
 
 .filter h2, .create-training h2 {
     font-size: 24px;
-    line-height: 32.7px;
+    line-height: 33px;
     color: #0707E8;
     margin: 0 0 20px 0;
     font-weight: 600;
@@ -330,40 +216,10 @@ body {
 }
 
 /* Улучшенные стили для полей ввода */
-.date-range,
-.session-time,
-.trainer-select, 
-.type-select,
-.training-date,
-.show-trainings {
-    display: flex;
-    flex-direction: column;
-    background-color: #FFFFFF;
-    padding: 20px;
-    margin: 12px 0;
-    width: 100%;
-    border-radius: 16px;
-    box-shadow: 0 2px 8px rgba(7, 7, 232, 0.08);
-    border: 2px solid #E8EEFB;
-    box-sizing: border-box;
-    transition: all 0.3s ease;
-}
-
-.date-range:focus-within,
-.session-time:focus-within,
-.trainer-select:focus-within, 
-.type-select:focus-within,
-.training-date:focus-within,
-.show-trainings:focus-within {
-    border-color: #0795E8;
-    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.15);
-}
 
 /* Стили для кнопки создания тренировки */
 .create-training button {
-    margin-top: 15px;
     background: #0795E8;
-    border: none;
     color: #FFFFFF;
     padding: 16px 32px;
     text-align: center;
@@ -466,29 +322,14 @@ body {
         position: static;
         padding: 24px;
     }
-    
-    .fc .fc-toolbar-title {
-        font-size: 22px;
-    }
-    
-    .fc .fc-toolbar {
-        gap: 12px;
-        padding: 10px;
-    }
-    
-    .fc .fc-button {
-        padding: 8px 16px;
-        font-size: 14px;
-    }
+
 }
 
 /* Мобильные устройства */
 @media (max-width: 768px) {
     .content {
         width: 100%;
-        padding: 15px;
-        padding-left: 80px;
-        padding-right: 15px;
+        padding: 15px 15px 15px 80px;
         box-sizing: border-box;
     }
     
@@ -528,41 +369,14 @@ body {
     }
     
     /* Улучшаем отображение FullCalendar на планшетах */
-    .fc .fc-toolbar {
-        flex-direction: row;
-        flex-wrap: wrap;
-        gap: 10px;
-        padding: 8px;
-    }
-    
-    .fc .fc-toolbar-title {
-        font-size: 20px;
-        line-height: 26px;
-    }
-    
-    .fc .fc-button {
-        padding: 7px 14px;
-        font-size: 13px;
-    }
-    
-    .fc-event {
-        font-size: 11px;
-        padding: 3px 6px;
-    }
-    
-    .fc-list-event {
-        font-size: 14px;
-        padding: 10px;
-    }
+
 }
 
 /* КРИТИЧЕСКИЕ ИСПРАВЛЕНИЯ ДЛЯ ОЧЕНЬ МАЛЕНЬКИХ ЭКРАНОВ */
 @media (max-width: 480px) {
     .content {
         width: 100vw;
-        padding: 10px;
-        padding-left: 70px;
-        padding-right: 10px;
+        padding: 10px 10px 10px 70px;
         margin: 0;
         box-sizing: border-box;
     }
@@ -588,46 +402,11 @@ body {
         min-height: 300px;
         margin: 0;
         padding: 0;
-        margin-left: 0;
         position: relative;
         left: 0;
         box-sizing: border-box;
     }
-    
-    .fc .fc-toolbar {
-        flex-direction: column;
-        gap: 8px;
-        padding: 8px;
-        width: 100%;
-    }
-    
-    .fc .fc-toolbar-title {
-        font-size: 16px !important;
-        line-height: 20px;
-        text-align: center;
-        width: 100%;
-    }
-    
-    .fc .fc-toolbar-chunk {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 5px;
-        width: 100%;
-    }
-    
-    .fc .fc-button {
-        padding: 6px 10px !important;
-        font-size: 12px !important;
-        margin: 2px;
-    }
-    
-    .fc-event {
-        font-size: 11px !important;
-        padding: 3px 5px !important;
-        margin: 1px;
-    }
-    
+
     .filter, .create-training {
         width: calc(100vw - 80px);
         padding: 16px;
@@ -665,16 +444,7 @@ body {
         height: 45vh !important;
         min-height: 280px;
     }
-    
-    .fc .fc-toolbar-title {
-        font-size: 15px !important;
-    }
-    
-    .fc .fc-button {
-        padding: 5px 8px !important;
-        font-size: 11px !important;
-    }
-    
+
     .filter, .create-training {
         width: calc(100vw - 73px);
         padding: 14px;
@@ -696,14 +466,6 @@ body {
 }
 
 /* Убираем любые возможные отступы слева у календаря */
-.fc,
-.fc-view,
-.fc-scroller,
-.fc-daygrid-body,
-.fc-scrollgrid {
-    margin-left: 0 !important;
-    padding-left: 0 !important;
-}
 
 /* Запрещаем горизонтальную прокрутку */
 html, body {

@@ -1,7 +1,7 @@
 * {
-    font-family: "Open Sans";
+    font-family: "Open Sans", sans-serif;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     color: #000000;
 }
 
@@ -39,7 +39,7 @@ body {
 
 .content h1 {
     font-size: 32px;
-    line-height: 43.6px;
+    line-height: 44px;
     color: #0707E8;
     font-weight: 600;
     margin-bottom: 30px;
@@ -106,7 +106,7 @@ body {
 
 .trainer-name {
     font-size: 18px;
-    line-height: 24.5px;
+    line-height: 25px;
     color: #0707E8;
     font-weight: 600;
     margin: 0;
@@ -194,12 +194,6 @@ input[type="datetime-local"] {
     opacity: 0;
 }
 
-.trainer-sidebar.active {
-    right: 0;
-    visibility: visible;
-    opacity: 1;
-}
-
 #overlay {
     position: fixed;
     display: none;
@@ -214,7 +208,7 @@ input[type="datetime-local"] {
 
 .trainer-sidebar h2 {
     font-size: 20px;
-    line-height: 27.3px;
+    line-height: 27px;
     color: #0707E8;
     font-weight: 600;
     margin-bottom: 20px;
@@ -244,52 +238,7 @@ input[type="datetime-local"] {
     transition: all 0.3s ease;
 }
 
-.scheduleList li.free-day {
-    background-color: rgba(6, 214, 160, 0.1);
-    border: 1px solid #06D6A0;
-    color: #057a5c;
-    text-align: center;
-    font-style: italic;
-    cursor: default;
-}
-
-.scheduleList li.free-day:hover {
-    background-color: rgba(6, 214, 160, 0.1);
-    color: #057a5c;
-    transform: none;
-}
-
-.scheduleList li:not(.free-day):hover {
-    background-color: #0795E8;
-    color: #FFFFFF;
-    transform: translateX(4px);
-}
-
 /* Стили для текстовых элементов */
-.small-text {
-    font-size: 12px;
-    line-height: 16.4px;
-}
-
-.medium-text {
-    font-size: 16px;
-    line-height: 21.8px;
-}
-
-.large-text {
-    font-size: 24px;
-    line-height: 32.7px;
-}
-
-.xlarge-text {
-    font-size: 32px;
-    line-height: 43.6px;
-}
-
-.xxlarge-text {
-    font-size: 40px;
-    line-height: 54.5px;
-}
 
 /* Адаптивность для мобильных устройств */
 @media (max-width: 1200px) {
@@ -321,7 +270,7 @@ input[type="datetime-local"] {
     
     .content h1 {
         font-size: 24px;
-        line-height: 32.7px;
+        line-height: 33px;
     }
     
     .all-trainers {

@@ -1,7 +1,7 @@
 * {
-    font-family: "Open Sans";
+    font-family: "Open Sans", sans-serif;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     color: #000000;
     box-sizing: border-box;
 }
@@ -51,7 +51,7 @@ body {
 
 .content h1 {
     font-size: 32px;
-    line-height: 43.6px;
+    line-height: 44px;
     color: #0707E8;
     font-weight: 600;
     margin-bottom: 30px;
@@ -96,7 +96,7 @@ body {
 
 .container-title {
     font-size: 18px;
-    line-height: 24.5px;
+    line-height: 25px;
     color: #0707E8;
     font-weight: 600;
     margin-bottom: 20px;
@@ -144,10 +144,22 @@ body {
     color: #FFFFFF;
 }
 
+.statistics-item:hover small {
+    color: #FFFFFF;
+}
+
 .statistics-item p {
-    margin: 0;
+    margin: 0 0 5px 0;
     font-weight: 500;
     color: #000000;
+    transition: color 0.3s ease;
+    position: relative;
+    z-index: 1;
+}
+
+.statistics-item small {
+    font-size: 12px;
+    color: #666;
     transition: color 0.3s ease;
     position: relative;
     z-index: 1;
@@ -270,47 +282,8 @@ body {
 }
 
 /* Стили для прогресс-баров (если добавите в будущем) */
-.progress-bar {
-    width: 100%;
-    height: 8px;
-    background-color: #E8EEFB;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: 8px;
-}
-
-.progress-fill {
-    height: 100%;
-    background: linear-gradient(to right, #0795E8, #074EE8);
-    border-radius: 4px;
-    transition: width 0.5s ease;
-}
 
 /* Стили для текстовых элементов */
-.small-text {
-    font-size: 12px;
-    line-height: 16.4px;
-}
-
-.medium-text {
-    font-size: 16px;
-    line-height: 21.8px;
-}
-
-.large-text {
-    font-size: 24px;
-    line-height: 32.7px;
-}
-
-.xlarge-text {
-    font-size: 32px;
-    line-height: 43.6px;
-}
-
-.xxlarge-text {
-    font-size: 40px;
-    line-height: 54.5px;
-}
 
 /* Адаптивность для мобильных устройств */
 @media (max-width: 1024px) {
@@ -363,7 +336,7 @@ body {
     
     .content h1 {
         font-size: 24px;
-        line-height: 32.7px;
+        line-height: 33px;
     }
     
     .training-container,

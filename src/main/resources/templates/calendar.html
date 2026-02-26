@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru-RU>
 
 <head>
     <meta charset='utf-8' />
@@ -89,8 +89,10 @@
                                 <div class="trainer-select">
                                     <p>Тренер</p>
                                     <div th:each="trainer : ${TrainersSet}" class="trainer-option">
-                                        <input type="checkbox" th:id="'trainer-select-' + ${trainer.idTrainer}"
-                                            th:value="${trainer.idTrainer}" name="id_trainer" />
+                                        <label>
+                                            <input type="checkbox" th:id="'trainer-select-' + ${trainer.idTrainer}"
+                                                th:value="${trainer.idTrainer}" name="id_trainer" />
+                                        </label>
                                         <label th:for="'trainer-select-' + ${trainer.idTrainer}"
                                             th:text="${trainer.firstName} + ' ' + ${trainer.secondName}"></label>
                                     </div>
@@ -99,8 +101,10 @@
                                 <div class="type-select">
                                     <p>Вид тренировки</p>
                                     <div th:each="type : ${TrainingTypeSet}" class="type-option">
-                                        <input type="checkbox" th:id="'type-select-' + ${type.idTrainingType}"
-                                            th:value="${type.idTrainingType}" name="id_training_type" />
+                                        <label>
+                                            <input type="checkbox" th:id="'type-select-' + ${type.idTrainingType}"
+                                                th:value="${type.idTrainingType}" name="id_training_type" />
+                                        </label>
                                         <label th:for="'type-select-' + ${type.idTrainingType}"
                                             th:text="${type.trainingTypeName}"></label>
                                     </div>
@@ -110,13 +114,17 @@
                                     <p>Показать тренировки</p>
                                     <div class="date-range-block">
                                         <span class="date-range-label">С дата</span>
-                                        <input min="1900-01-01" max="9999-12-31" type="date" th:id="'date-select-start'"
-                                            placeholder="············" name="session_date_start">
+                                        <label>
+                                            <input min="1900-01-01" max="9999-12-31" type="date" th:id="'date-select-start'"
+                                                placeholder="············" name="session_date_start">
+                                        </label>
                                     </div>
                                     <div class="date-range-block">
                                         <span class="date-range-label">По дата</span>
-                                        <input min="1900-01-01" max="9999-12-31" type="date" th:id="'date-select-end'"
-                                            placeholder="············" name="session_date_end">
+                                        <label>
+                                            <input min="1900-01-01" max="9999-12-31" type="date" th:id="'date-select-end'"
+                                                placeholder="············" name="session_date_end">
+                                        </label>
                                     </div>
                                 </div>
 
@@ -125,13 +133,17 @@
                                     <div class="time-range">
                                         <div class="time-block">
                                             <span class="time-label">От</span>
-                                            <input type="number" min="30" max="120" maxlength="3" step="1"
-                                                th:id="'time-select-start'" placeholder="··" name="session_time_start">
+                                            <label>
+                                                <input type="number" min="30" max="120" maxlength="3" step="1"
+                                                    th:id="'time-select-start'" placeholder="··" name="session_time_start">
+                                            </label>
                                         </div>
                                         <div class="time-block">
                                             <span class="time-label">До</span>
-                                            <input type="number" min="30" max="120" maxlength="3" step="1"
-                                                th:id="'time-select-end'" placeholder="··" name="session_time_end">
+                                            <label>
+                                                <input type="number" min="30" max="120" maxlength="3" step="1"
+                                                    th:id="'time-select-end'" placeholder="··" name="session_time_end">
+                                            </label>
                                         </div>
                                     </div>
                                 </div>
@@ -158,9 +170,11 @@
                                     <p>Вид тренировки</p>
                                     <div th:each="type : ${TrainingTypeSet}">
                                         <div th:if="${type.idTrainingType != 5}" class="type-option">
-                                            <input type="radio" th:id="'type-select-' + ${type.idTrainingType}"
-                                                th:value="${type.idTrainingType}" th:field="*{idTrainingType}"
-                                                class="input-type">
+                                            <label>
+                                                <input type="radio" th:id="'type-select-' + ${type.idTrainingType}"
+                                                    th:value="${type.idTrainingType}" th:field="*{idTrainingType}"
+                                                    class="input-type">
+                                            </label>
                                             <label th:for="'type-select-' + ${type.idTrainingType}"
                                                 th:text="${type.trainingTypeName}"></label>
                                         </div>
@@ -168,14 +182,14 @@
                                 </div>
                                 <div class="training-date">
                                     <p>Дата тренировки</p>
-                                    <input max="9999-12-31T23:59" type="datetime-local" th:id="'date-select'"
-                                        placeholder="············" th:field="*{session_date}" id="input-date">
+                                    <label for="input-date"></label><input max="9999-12-31T23:59" type="datetime-local" th:id="'date-select'"
+                                                                           placeholder="············" th:field="*{session_date}" id="input-date">
                                 </div>
                                 <div class="session-time">
                                     <p>Продолжительность тренировки</p>
                                     <div class="duration-input">
-                                        <input type="number" step="1" th:id="'time-select'" placeholder="··"
-                                            th:field="*{sessionTime}" id="input-duration">
+                                        <label for="input-duration"></label><input type="number" step="1" th:id="'time-select'" placeholder="··"
+                                                                                   th:field="*{sessionTime}" id="input-duration">
                                         <span class="duration-label">мин</span>
                                     </div>
                                 </div>

@@ -79,8 +79,10 @@
         <div class="trainer-sidebar" th:id="'sidebar-' + ${iter.index}">
             <h2>Выберите время тренировки</h2>
             <div class="registration">
-                <input type="datetime-local" class="date" name="sessionDateInput"
-                    th:id="'date-input-' + ${iter.index}" />
+                <label>
+                    <input type="datetime-local" class="date" name="sessionDateInput"
+                        th:id="'date-input-' + ${iter.index}" />
+                </label>
             </div>
 
             <div class="schedule">

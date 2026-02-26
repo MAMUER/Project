@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org">
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="https://www.thymeleaf.org" lang="ru-RU">
 <head>
     <title>Оборудование клуба</title>
     <link rel="stylesheet" th:href="@{/css/admin.css}">
@@ -11,36 +11,41 @@
 </head>
 
 <body>
-    <div class="admin-container">
-        <header class="admin-header">
-            <h1>Оборудование клуба: <span th:text="${clubName}">Название клуба</span></h1>
-            <a th:href="@{/admin/clubs}" class="back-button">← Назад к клубам</a>
-        </header>
+<div class="admin-container">
+    <header class="admin-header">
+        <h1>Оборудование клуба: <span th:text="${clubName}">Название клуба</span></h1>
+        <a th:href="@{/admin/clubs}" class="back-button">← Назад к клубам</a>
+    </header>
 
-        <div class="equipment-section">
-            <div class="section-header">
-                <h2>Сводка по оборудованию</h2>
-                <p th:if="${equipmentSummary.empty}">В клубе нет оборудования</p>
-            </div>
+    <div class="equipment-section">
+        <div class="section-header">
+            <h2>Сводка по оборудованию</h2>
+            <p th:if="${equipmentSummary == null or #lists.isEmpty(equipmentSummary)}">В клубе нет оборудования</p>
+        </div>
 
-            <div class="equipment-grid" th:if="${not equipmentSummary.empty}">
-                <div class="equipment-card" th:each="item : ${equipmentSummary}">
-                    <div class="equipment-icon">
-                        <ion-icon name="barbell-outline"></ion-icon>
-                    </div>
-                    <div class="equipment-info">
-                        <h3 th:text="${item.key}">Тип оборудования</h3>
-                        <p class="equipment-quantity" th:text="'Количество: ' + ${item.value}">Количество: 0</p>
-                    </div>
+        <div class="equipment-grid" th:if="${equipmentSummary != null and not #lists.isEmpty(equipmentSummary)}">
+            <div class="equipment-card" th:each="item : ${equipmentSummary}">
+                <div class="equipment-icon">
+                    <ion-icon name="barbell-outline"></ion-icon>
+                </div>
+                <div class="equipment-info">
+                    <!-- Используем item сам по себе, если это строка -->
+                    <h3 th:text="${item}">Тип оборудования</h3>
+                    <!-- Если item - это объект с полями, используйте правильные имена полей -->
+                    <!-- <p class="equipment-quantity" th:text="'Количество: ' + ${item.quantity}">Количество: 0</p> -->
                 </div>
             </div>
+        </div>
 
-            <!-- JSON данные для отладки -->
-            <div class="debug-section" style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 12px;">
-                <h3>📋 Данные оборудования (JSON):</h3>
-                <pre th:text="${equipmentSummary}">{"equipment": "data"}</pre>
-            </div>
+        <!-- JSON данные для отладки -->
+        <div class="debug-section" style="margin-top: 30px; padding: 20px; background: #f8f9fa; border-radius: 12px;">
+            <h3>📋 Тип данных equipmentSummary:</h3>
+            <pre th:text="${#strings.toString(equipmentSummary.getClass().getSimpleName())}">Тип данных</pre>
+
+            <h3>📋 Содержимое equipmentSummary:</h3>
+            <pre th:text="${#strings.toString(equipmentSummary)}">{"equipment": "data"}</pre>
         </div>
     </div>
+</div>
 </body>
 </html>

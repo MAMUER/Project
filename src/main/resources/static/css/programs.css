@@ -43,7 +43,7 @@ body {
 
 .page-title {
     font-size: 32px;
-    line-height: 43.6px;
+    line-height: 44px;
     font-weight: 600;
     color: #0707E8;
     margin: 0;
@@ -65,7 +65,7 @@ body {
     text-decoration: none;
     font-weight: 600;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     transition: all 0.3s ease;
     border: 2px solid transparent;
     box-shadow: 0 2px 8px rgba(7, 7, 232, 0.1);
@@ -109,7 +109,7 @@ body {
     border-radius: 12px;
     font-weight: 600;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     margin-bottom: 16px;
     border: 2px solid transparent;
 }
@@ -138,7 +138,7 @@ body {
 
 .section-header h2 {
     font-size: 24px;
-    line-height: 32.7px;
+    line-height: 33px;
     font-weight: 600;
     color: #0707E8;
     margin: 0;
@@ -157,7 +157,7 @@ body {
 .programs-count {
     color: #666666;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
 }
 
 /* Карточки программ */
@@ -220,7 +220,7 @@ body {
 
 .program-header h3 {
     font-size: 20px;
-    line-height: 27.3px;
+    line-height: 27px;
     font-weight: 600;
     color: #0707E8;
     margin: 0;
@@ -240,7 +240,7 @@ body {
     gap: 10px;
     color: #666666;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
 }
 
 .meta-item ion-icon {
@@ -272,7 +272,7 @@ body {
 
 .day-card h4 {
     font-size: 18px;
-    line-height: 24.5px;
+    line-height: 25px;
     font-weight: 600;
     color: #0707E8;
     margin: 0 0 12px 0;
@@ -318,22 +318,15 @@ body {
     gap: 4px;
 }
 
-.exercise-name {
-    font-size: 16px;
-    line-height: 21.8px;
-    font-weight: 600;
-    color: #000000;
-}
-
 .exercise-sets {
     font-size: 14px;
-    line-height: 19.1px;
+    line-height: 19px;
     color: #666666;
 }
 
 .exercise-details {
     font-size: 14px;
-    line-height: 19.1px;
+    line-height: 19px;
     color: #0795E8;
     font-weight: 600;
 }
@@ -354,13 +347,13 @@ body {
 
 .info-label {
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     color: #666666;
 }
 
 .info-value {
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     font-weight: 600;
     color: #000000;
 }
@@ -382,14 +375,14 @@ body {
 
 .stat-number {
     font-size: 24px;
-    line-height: 32.7px;
+    line-height: 33px;
     font-weight: 700;
     color: #0795E8;
 }
 
 .stat-label {
     font-size: 14px;
-    line-height: 19.1px;
+    line-height: 19px;
     color: #666666;
     margin-top: 4px;
     text-align: center;
@@ -413,7 +406,7 @@ body {
     padding: 12px 24px;
     border-radius: 24px;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -432,7 +425,7 @@ body {
     gap: 8px;
     color: #06D6A0;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     font-weight: 600;
 }
 
@@ -459,7 +452,7 @@ body {
 
 .empty-state h3 {
     font-size: 24px;
-    line-height: 32.7px;
+    line-height: 33px;
     color: #0707E8;
     margin: 0 0 16px 0;
     font-weight: 600;
@@ -468,35 +461,9 @@ body {
 .empty-state p {
     color: #666666;
     font-size: 16px;
-    line-height: 21.8px;
-    margin: 0 0 32px 0;
+    line-height: 22px;
     max-width: 400px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-.cta-button {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    background: linear-gradient(135deg, #0795E8, #074EE8);
-    color: #FFFFFF;
-    padding: 16px 32px;
-    border-radius: 24px;
-    text-decoration: none;
-    font-weight: 600;
-    font-size: 16px;
-    line-height: 21.8px;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.2);
-    border: 2px solid transparent;
-}
-
-.cta-button:hover {
-    background: linear-gradient(135deg, #074EE8, #0707E8);
-    transform: translateY(-2px);
-    box-shadow: 0 6px 16px rgba(7, 78, 232, 0.3);
-    border-color: #0707E8;
+    margin: 0 auto 32px;
 }
 
 /* Секция питания */
@@ -563,10 +530,6 @@ body {
     border-top: 1px solid rgba(255, 255, 255, 0.2);
     font-size: 12px;
     opacity: 0.8;
-}
-
-.nutrition-id {
-    font-weight: 600;
 }
 
 .member-info {
@@ -649,7 +612,7 @@ body {
 
     .page-title {
         font-size: 28px;
-        line-height: 38.2px;
+        line-height: 38px;
     }
 
     .header {
@@ -668,7 +631,7 @@ body {
 
     .page-title {
         font-size: 24px;
-        line-height: 32.7px;
+        line-height: 33px;
     }
 
     .program-card {

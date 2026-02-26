@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.project.dto.ClubDTO;
 import com.example.project.model.*;
-import com.example.project.model.Accounts.MembersAccounts;
+import com.example.project.model.accounts.MembersAccounts;
 import com.example.project.repository.MembersRepository;
 import com.example.project.repository.TrainingScheduleRepository;
 import jakarta.persistence.EntityManager;

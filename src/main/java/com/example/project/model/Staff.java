@@ -35,7 +35,7 @@ public class Staff {
     private String staffAbout;
 
     @OneToOne(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true)
-    private com.example.project.model.Accounts.StaffAccounts staffAccount;
+    private com.example.project.model.accounts.StaffAccounts staffAccount;
 
     @OneToMany(mappedBy = "staff", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<StaffSchedule> staffSchedules = new ArrayList<>();

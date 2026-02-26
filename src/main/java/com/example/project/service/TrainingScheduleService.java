@@ -133,13 +133,7 @@ public class TrainingScheduleService {
 
                     String color = memberTrainingIds.contains(training.getIdSession()) ? "#3e4684" : "#b2b4d4";
 
-                    LocalDateTime endTime = training.getSessionDate().plusMinutes(training.getSessionTime());
-                    String trainingType = training.getTrainingType().getTrainingTypeName();
-                    String trainingDateStart = training.getSessionDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-                    String trainingDateEnd = endTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-                    int sessionId = training.getIdSession();
-
-                    eventsSet.add(new Event(trainingType, trainingDateStart, trainingDateEnd, sessionId, color));
+                    helpMethod(eventsSet, training, color);
                 }
             }
 
@@ -147,13 +141,7 @@ public class TrainingScheduleService {
                 for (TrainingSchedule training : trainingScheduleSet) {
                     String color = "#3e4684";
 
-                    LocalDateTime endTime = training.getSessionDate().plusMinutes(training.getSessionTime());
-                    String trainingType = training.getTrainingType().getTrainingTypeName();
-                    String trainingDateStart = training.getSessionDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-                    String trainingDateEnd = endTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
-                    int sessionId = training.getIdSession();
-
-                    eventsSet.add(new Event(trainingType, trainingDateStart, trainingDateEnd, sessionId, color));
+                    helpMethod(eventsSet, training, color);
                 }
             }
 
@@ -162,6 +150,16 @@ public class TrainingScheduleService {
         }
 
         return eventsSet;
+    }
+
+    private void helpMethod(Set<Event> eventsSet, TrainingSchedule training, String color) {
+        LocalDateTime endTime = training.getSessionDate().plusMinutes(training.getSessionTime());
+        String trainingType = training.getTrainingType().getTrainingTypeName();
+        String trainingDateStart = training.getSessionDate().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        String trainingDateEnd = endTime.format(DateTimeFormatter.ISO_LOCAL_DATE_TIME);
+        int sessionId = training.getIdSession();
+
+        eventsSet.add(new Event(trainingType, trainingDateStart, trainingDateEnd, sessionId, color));
     }
 
     /**

@@ -1,7 +1,7 @@
 * {
-    font-family: "Open Sans";
+    font-family: "Open Sans", sans-serif;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     color: #000000;
     box-sizing: border-box;
 }
@@ -50,14 +50,6 @@ body {
     margin: 3px 0;
 }
 
-.password-requirements .valid {
-    color: #28a745;
-}
-
-.password-requirements .invalid {
-    color: #dc3545;
-}
-
 .password-match, .age-validation {
     margin-top: 5px;
     font-size: 12px;
@@ -70,12 +62,6 @@ body {
 
 .password-match.error, .age-validation.error {
     color: #dc3545;
-}
-
-.age-info {
-    font-size: 11px;
-    color: #6c757d;
-    margin-top: 5px;
 }
 
 .register-btn:disabled {
@@ -127,7 +113,7 @@ body {
     margin-bottom: 8px;
     margin-top: 0;
     font-size: 28px;
-    line-height: 38.2px;
+    line-height: 38px;
     font-weight: 600;
     white-space: nowrap;
     overflow: hidden;
@@ -267,7 +253,6 @@ body {
     padding: 18px;
     background: linear-gradient(135deg, #0795E8, #074EE8);
     color: #FFFFFF;
-    border: none;
     border-radius: 24px;
     font-weight: 600;
     cursor: pointer;
@@ -282,7 +267,6 @@ body {
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     white-space: nowrap;
-    overflow: hidden;
     text-overflow: ellipsis;
     display: flex;
     align-items: center;
@@ -495,7 +479,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     
     .registration-page h2 {
         font-size: 24px;
-        line-height: 32.7px;
+        line-height: 33px;
     }
     
     .radio-group {
@@ -603,28 +587,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     gap: 6px;
 }
 
-.password-requirements .valid {
-    color: #06D6A0;
-    font-weight: 500;
-}
-
-.password-requirements .valid::before {
-    content: "✓";
-    color: #06D6A0;
-    font-weight: bold;
-}
-
-.password-requirements .invalid {
-    color: #FF6B6B;
-    font-weight: 500;
-}
-
-.password-requirements .invalid::before {
-    content: "✗";
-    color: #FF6B6B;
-    font-weight: bold;
-}
-
 .password-match, .age-validation {
     margin-top: 6px;
     font-size: 12px;
@@ -654,13 +616,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     content: "✗";
 }
 
-.age-info {
-    font-size: 11px;
-    color: #6c757d;
-    margin-top: 5px;
-    line-height: 1.4;
-}
-
 .register-btn:disabled {
     background: #CCCCCC !important;
     cursor: not-allowed !important;
@@ -670,35 +625,6 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 /* Стили для реальтной валидации в реальном времени */
-.validation-feedback {
-    margin-top: 6px;
-    font-size: 12px;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    transition: all 0.3s ease;
-}
-
-.validation-feedback.success {
-    color: #06D6A0;
-}
-
-.validation-feedback.error {
-    color: #FF6B6B;
-}
-
-.validation-feedback::before {
-    font-weight: bold;
-}
-
-.validation-feedback.success::before {
-    content: "✓";
-}
-
-.validation-feedback.error::before {
-    content: "✗";
-}
 
 /* Анимация для появления сообщений об ошибках */
 @keyframes slideIn {
@@ -712,51 +638,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     }
 }
 
-.validation-feedback {
-    animation: slideIn 0.3s ease-out;
-}
-
 /* Стили для индикатора сложности пароля */
-.password-strength {
-    margin-top: 8px;
-    height: 4px;
-    border-radius: 2px;
-    background: #e2e8f0;
-    overflow: hidden;
-}
-
-.password-strength-bar {
-    height: 100%;
-    border-radius: 2px;
-    transition: all 0.3s ease;
-}
-
-.password-strength.weak .password-strength-bar {
-    background: #FF6B6B;
-    width: 25%;
-}
-
-.password-strength.medium .password-strength-bar {
-    background: #FFD166;
-    width: 50%;
-}
-
-.password-strength.strong .password-strength-bar {
-    background: #06D6A0;
-    width: 75%;
-}
-
-.password-strength.very-strong .password-strength-bar {
-    background: #118AB2;
-    width: 100%;
-}
-
-.password-strength-text {
-    font-size: 11px;
-    color: #64748b;
-    margin-top: 4px;
-    text-align: right;
-}
 
 /* Стили для кнопки показа/скрытия пароля */
 .toggle-password {

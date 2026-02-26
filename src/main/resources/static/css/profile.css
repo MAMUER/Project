@@ -1,7 +1,7 @@
 * {
-    font-family: "Open Sans";
+    font-family: "Open Sans", sans-serif;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     color: #000000;
     box-sizing: border-box;
 }
@@ -182,8 +182,7 @@ body {
 /* Контент стили */
 .content {
     flex-grow: 1;
-    padding: 40px;
-    padding-top: 30px;
+    padding: 30px 40px 40px;
     width: calc(100% - 100px);
     margin-left: 100px;
     overflow-y: auto;
@@ -194,7 +193,7 @@ body {
 
 .content h1 {
     font-size: 32px;
-    line-height: 43.6px;
+    line-height: 44px;
     color: #0707E8;
     font-weight: 600;
     margin-bottom: 30px;
@@ -214,33 +213,6 @@ body {
 }
 
 /* Стили для админ-панели в профиле STAFF */
-.admin-panel-container {
-    margin-bottom: 30px;
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-}
-
-.admin-panel-button {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 16px 20px;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: white;
-    text-decoration: none;
-    border-radius: 12px;
-    font-weight: 600;
-    transition: all 0.3s ease;
-    box-shadow: 0 4px 12px rgba(7, 149, 232, 0.3);
-    border: 2px solid transparent;
-}
-
-.admin-panel-button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(7, 149, 232, 0.4);
-    border-color: #0795E8;
-}
 
 .admin-panel-button ion-icon {
     font-size: 20px;
@@ -252,25 +224,9 @@ body {
     font-weight: 600;
 }
 
-.admin-title {
-    font-size: 18px;
-    font-weight: 700;
-    color: #1e293b;
-    margin: 0 0 15px 0;
-    text-align: center;
-}
-
 /* Адаптивность для админ-панели */
 @media (max-width: 768px) {
-    .admin-panel-container {
-        margin-bottom: 20px;
-        gap: 12px;
-    }
-    
-    .admin-panel-button {
-        padding: 14px 16px;
-    }
-    
+
     .admin-panel-button span {
         font-size: 13px;
     }
@@ -328,7 +284,7 @@ body {
     box-sizing: border-box;
     box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     transition: all 0.3s ease;
 }
 
@@ -352,7 +308,7 @@ body {
     border-radius: 16px;
     border: 2px solid #E8EEFB;
     font-size: 16px;
-    line-height: 21.8px;
+    line-height: 22px;
     box-shadow: 0 4px 12px rgba(7, 7, 232, 0.1);
     width: 100%;
     transition: all 0.3s ease;
@@ -369,7 +325,7 @@ body {
     font-weight: 600;
     color: #0707E8;
     text-align: center;
-    line-height: 35.4px;
+    line-height: 35px;
     border-color: #0795E8 !important;
 }
 
@@ -555,7 +511,7 @@ body {
     font-weight: 600;
     color: #0707E8;
     margin-bottom: 12px;
-    line-height: 24.5px;
+    line-height: 25px;
 }
 
 .headline-text {
@@ -573,8 +529,7 @@ body {
     }
     
     .content {
-        padding: 30px 25px;
-        padding-top: 25px;
+        padding: 25px 25px 30px;
         margin-left: 80px;
         width: calc(100% - 80px);
     }
@@ -650,7 +605,7 @@ body {
     
     .content h1 {
         font-size: 24px;
-        line-height: 32.7px;
+        line-height: 33px;
     }
     
     .first-column p,
@@ -687,8 +642,7 @@ body {
 /* Для очень больших экранов */
 @media (min-width: 1440px) {
     .content {
-        padding: 60px;
-        padding-top: 40px;
+        padding: 40px 60px 60px;
     }
     
     .profile-info {
