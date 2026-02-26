@@ -1,6 +1,7 @@
 package com.example.project.service;
 
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,7 @@ public class MembersService {
     private final MembersRepository membersRepository;
     private final TrainingScheduleRepository trainingScheduleRepository;
 
+    @Getter
     @PersistenceContext
     private final EntityManager entityManager;
 
@@ -304,9 +306,5 @@ public class MembersService {
                     e.getMessage());
             return null;
         }
-    }
-
-    public EntityManager getEntityManager() {
-        return entityManager;
     }
 }
