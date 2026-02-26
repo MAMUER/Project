@@ -15,6 +15,14 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+
+# Проверка форматирования (fmt)
+RUN test -z "$(go fmt ./...)" || (echo "Files are not properly formatted. Run 'go fmt' and commit changes." && exit 1)
+
+# Проверка линтера (vet)
+RUN go vet ./...
+
+# Сборка приложения
 RUN go build -o stats-service ./cmd/main.go
 
 FROM alpine:latest
