@@ -1,39 +1,37 @@
 FROM golang:1.21-alpine AS builder
 
-# Настройка зеркал для Alpine и Go
+# Настройка зеркал
 RUN echo "http://mirror.yandex.ru/mirrors/alpine/v3.23/main" > /etc/apk/repositories && \
     echo "http://mirror.yandex.ru/mirrors/alpine/v3.23/community" >> /etc/apk/repositories && \
     apk update && \
     apk add --no-cache git
 
-# Настройка GOPROXY для Go modules
+# Настройка GOPROXY
 ENV GOPROXY=https://goproxy.io,direct
 ENV GO111MODULE=on
-ENV GOPRIVATE=*.company.com
 
 WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
+
 COPY . .
+RUN go fmt ./... && \
+    go vet ./... && \
+    # Сборка с оптимизациями
+    CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o stats-service ./cmd/main.go
 
-# Проверка форматирования (fmt)
-RUN test -z "$(go fmt ./...)" || (echo "Files are not properly formatted. Run 'go fmt' and commit changes." && exit 1)
-
-# Проверка линтера (vet)
-RUN go vet ./...
-
-# Сборка приложения
-RUN go build -o stats-service ./cmd/main.go
-
+# Финальный образ
 FROM alpine:latest
 
-# Используем зеркало Яндекса
+# Только необходимые пакеты
 RUN echo "http://mirror.yandex.ru/mirrors/alpine/v3.23/main" > /etc/apk/repositories && \
     echo "http://mirror.yandex.ru/mirrors/alpine/v3.23/community" >> /etc/apk/repositories && \
     apk update && \
-    apk --no-cache add ca-certificates
+    apk --no-cache add ca-certificates && \
+    rm -rf /var/cache/apk/*
 
 WORKDIR /root/
 COPY --from=builder /app/stats-service .
+
 EXPOSE 8081
 CMD ["./stats-service"]

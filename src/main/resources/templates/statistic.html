@@ -85,7 +85,6 @@
 
             <div class="stats-cards">
                 <div class="stat-card">
-                    <div class="stat-icon">👥</div>
                     <div class="stat-content">
                         <span class="stat-label">Посещений сегодня</span>
                         <span class="stat-value" th:text="${todayVisits}">0</span>
@@ -93,7 +92,6 @@
                 </div>
 
                 <div th:if="${weeklyStats != null}" class="stat-card">
-                    <div class="stat-icon">📊</div>
                     <div class="stat-content">
                         <span class="stat-label">За неделю</span>
                         <span class="stat-value" th:text="${weeklyStats.weekVisits != null ? weeklyStats.weekVisits : 0}">0</span>
@@ -120,7 +118,6 @@
 
         <div th:unless="${statsServiceHealthy}" class="stats-service-unavailable">
             <div class="error-card">
-                <div class="error-icon">⚠️</div>
                 <div class="error-content">
                     <h3>Сервис статистики временно недоступен</h3>
                     <p th:if="${statsError != null}" th:text="${statsError}"></p>

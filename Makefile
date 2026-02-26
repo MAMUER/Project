@@ -9,9 +9,32 @@ help: ## Show this help message
 	@echo 'Available targets:'
 	@awk 'BEGIN {FS = ":.*##"; printf "\n"} /^[a-zA-Z_-]+:.*##/ { printf "  $(GREEN)%-15s$(NC) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-build: ## Build the application and Docker images
+clean-cache: ## Clean Docker build cache
+	@echo "Cleaning Docker build cache..."
+	docker builder prune -f
+	@echo "Done!"
+
+clean-all: ## Clean everything (containers, volumes, images, cache)
+	@echo "Full cleanup..."
+	docker compose down -v
+	docker system prune -a -f --volumes
+	@echo "Done!"
+
+# Автоматическая очистка после сборки
+build: ## Build and auto-clean cache
 	@echo "Building application..."
 	docker compose build --no-cache
+	@echo "Cleaning build cache..."
+	docker builder prune -f
+	@echo "Build complete!"
+
+# Для продакшена - безопасная очистка
+prod-build: ## Production build with safe cleanup
+	@echo "Production build..."
+	docker compose build --no-cache
+	@echo "Cleaning old cache (keeping last 24h)..."
+	docker builder prune -f --filter "until=24h"
+	@echo "Done!"
 
 up: ## Start all containers in detached mode
 	@echo "Starting containers..."

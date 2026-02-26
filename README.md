@@ -216,17 +216,96 @@ com.example.project/
 
 **Способ вызова программы с соответствующего носителя данных:**
 ```bash
-# Клонирование репозитория
-git clone <repository-url>
+ИНСТРУКЦИЯ ПО ЗАПУСКУ НА СЕРВЕРЕ
+ШАГ 1: Клонируем проект
+bash
+git clone <URL_вашего_репозитория> ~/Project
+cd ~/Project
+ШАГ 2: Устанавливаем Docker (если не установлен)
+bash
+# Для Ubuntu/Debian
+sudo apt update
+sudo apt install docker.io docker-compose -y
+sudo usermod -aG docker $USER
+newgrp docker
+ШАГ 3: Делаем скрипты исполняемыми
+bash
+chmod +x pre-deploy-check.sh server-maintenance.sh
+ШАГ 4: Настраиваем окружение
+bash
+# Создаем .env файл
+cat > .env << 'EOF'
+DB_NAME=fitness_club_db
+DB_USERNAME=postgres
+DB_PASSWORD=your_secure_password
+REMEMBER_ME_KEY=your_random_key_here_$(openssl rand -hex 32)
+SERVER_PORT=8080
+EOF
 
-# Переход в директорию проекта
-cd project
+# Создаем папку для логов
+mkdir -p logs
+ШАГ 5: Настраиваем CRON (автоматически!)
+Запустите эту команду ОДИН РАЗ:
 
-# Сборка проекта
-mvn clean package
+bash
+# Сохраняем текущие задания cron
+crontab -l > /tmp/current_cron 2>/dev/null || touch /tmp/current_cron
 
-# Запуск приложения
-mvn spring-boot:run
+# Добавляем наши задания
+cat >> /tmp/current_cron << 'EOF'
+# Еженедельная очистка (воскресенье в 3:00)
+0 3 * * 0 cd /home/$(whoami)/Project && ./server-maintenance.sh >> /home/$(whoami)/maintenance.log 2>&1
+
+# Ежедневная проверка места (в 2:00)
+0 2 * * * echo "=== Disk check $(date) ===" >> /home/$(whoami)/disk.log && df -h / >> /home/$(whoami)/disk.log
+
+# Автоочистка при месте <5GB (каждые 6 часов)
+0 */6 * * * cd /home/$(whoami)/Project && ./pre-deploy-check.sh >> /home/$(whoami)/check.log 2>&1
+EOF
+
+# Устанавливаем новый crontab
+crontab /tmp/current_cron
+rm /tmp/current_cron
+
+# Проверяем, что добавилось
+crontab -l
+ШАГ 6: Запускаем проект
+bash
+# Проверяем свободное место
+./pre-deploy-check.sh
+
+# Собираем и запускаем
+make prod-build  # или make build
+docker compose up -d
+
+# Проверяем статус
+docker compose ps
+ШАГ 7: Проверяем работу
+bash
+# Проверяем логи
+docker compose logs app --tail=50
+
+# Проверяем, что maintenance сервис работает
+docker compose ps maintenance
+docker compose logs maintenance
+
+# Открываем в браузере
+echo "Сайт доступен по адресу: http://$(curl -s ifconfig.me):8080"
+ШАГ 8: Дополнительные команды
+bash
+# Посмотреть занятое место
+docker system df
+
+# Очистить вручную при необходимости
+make clean-cache
+
+# Перезапустить проект
+make restart
+
+# Обновить проект после изменений в git
+git pull
+make prod-build
+docker compose up -d
 ```
 ### Входные точки в программу:
 
