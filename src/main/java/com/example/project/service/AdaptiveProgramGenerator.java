@@ -38,7 +38,7 @@ public class AdaptiveProgramGenerator {
     private final NutritionPlanService nutritionPlanService;
 
     @Transactional
-    public TrainingProgram generateAdaptiveProgram(Integer memberId, ProgramRequest request) {
+    public void generateAdaptiveProgram(Integer memberId, ProgramRequest request) {
         try {
             Members member = membersService.getMember(memberId);
             if (member == null) {
@@ -73,7 +73,6 @@ public class AdaptiveProgramGenerator {
             log.info("Адаптивная программа создана: ID={}, возрастная группа={}, клуб={}",
                     savedProgram.getIdProgram(), ageGroup, clubName);
 
-            return savedProgram;
         } catch (IllegalArgumentException e) {
             log.error("Ошибка при создании адаптивной программы для пользователя {}: {}",
                     memberId, e.getMessage(), e);
@@ -121,8 +120,7 @@ public class AdaptiveProgramGenerator {
     private String generateAdaptiveProgramName(ProgramRequest request, String clubName, String ageGroup) {
         String goalName = getGoalDisplayName(request.getGoal());
         String levelName = getLevelDisplayName(request.getLevel());
-        String ageRange = ageGroup;
-        return String.format("Программа %s (%s) - %s [Возраст: %s]", goalName, levelName, clubName, ageRange);
+        return String.format("Программа %s (%s) - %s [Возраст: %s]", goalName, levelName, clubName, ageGroup);
     }
 
     private Set<ProgramDay> generateAdaptiveProgramDays(TrainingProgram program, ProgramRequest request,
@@ -170,8 +168,6 @@ public class AdaptiveProgramGenerator {
     private int getMaxDaysPerWeek(String level, String ageGroup) {
         int baseDays;
         baseDays = switch (level.toLowerCase()) {
-            case "начальный" ->
-                4;
             case "средний" ->
                 5;
             case "продвинутый" ->
@@ -183,9 +179,9 @@ public class AdaptiveProgramGenerator {
         // Корректировка по возрасту
         return switch (ageGroup) {
             case "50-59" ->
-                Math.min(baseDays, 4);
+                4;
             case "60+" ->
-                Math.min(baseDays, 3);
+                3;
             default ->
                 baseDays;
         };
@@ -221,19 +217,6 @@ public class AdaptiveProgramGenerator {
                     {"Спина", "Кардио"},
                     {"Ноги", "Кардио"}
                 };
-            case "средний" ->
-                new String[][]{
-                    {"Грудные", "Трицепсы", "Кардио"},
-                    {"Спина", "Бицепсы", "Кардио"},
-                    {"Ноги", "Плечи", "Кардио"}
-                };
-            case "продвинутый" ->
-                new String[][]{
-                    {"Грудные", "Трицепсы", "Плечи", "Кардио"},
-                    {"Спина", "Бицепсы", "Кардио"},
-                    {"Ноги", "Кардио"},
-                    {"Плечи", "Руки", "Кардио"}
-                };
             default ->
                 new String[][]{
                     {"Грудные", "Трицепсы", "Кардио"},
@@ -249,7 +232,7 @@ public class AdaptiveProgramGenerator {
         // Для возрастных групп уменьшаем количество силовых групп
         if ("50-59".equals(ageGroup)) {
             // Убираем одну силовую группу, оставляем основные
-            return filterMuscleGroups(originalDay, 1);
+            return filterMuscleGroups(originalDay);
         } else if ("60+".equals(ageGroup)) {
             // Оставляем только одну силовую группу + кардио
             return filterMuscleGroups(originalDay, 1, true);
@@ -258,8 +241,8 @@ public class AdaptiveProgramGenerator {
         return originalDay;
     }
 
-    private String[] filterMuscleGroups(String[] original, int maxStrengthGroups) {
-        return filterMuscleGroups(original, maxStrengthGroups, false);
+    private String[] filterMuscleGroups(String[] original) {
+        return filterMuscleGroups(original, 1, false);
     }
 
     private String[] filterMuscleGroups(String[] original, int maxStrengthGroups, boolean prioritizeCardio) {
@@ -282,13 +265,13 @@ public class AdaptiveProgramGenerator {
             if (strengthGroups.contains("Ноги")) {
                 result.add("Ноги");
             } else if (!strengthGroups.isEmpty()) {
-                result.add(strengthGroups.get(0));
+                result.add(strengthGroups.getFirst());
             }
         } else {
             // Добавляем не больше maxStrengthGroups силовых групп
             result.addAll(strengthGroups.stream()
                     .limit(maxStrengthGroups)
-                    .collect(Collectors.toList()));
+                    .toList());
         }
 
         // Всегда добавляем кардио для возрастных групп
@@ -467,8 +450,6 @@ public class AdaptiveProgramGenerator {
     private int getDifficultyLevel(String level, String ageGroup) {
         int baseDifficulty;
         baseDifficulty = switch (level.toLowerCase()) {
-            case "начальный" ->
-                1;
             case "средний" ->
                 2;
             case "продвинутый" ->
@@ -479,9 +460,7 @@ public class AdaptiveProgramGenerator {
 
         // Корректировка сложности по возрасту
         return switch (ageGroup) {
-            case "40-49" ->
-                Math.min(baseDifficulty, 2);
-            case "50-59" ->
+            case "40-49", "50-59" ->
                 Math.min(baseDifficulty, 2);
             case "60+" ->
                 1;
@@ -499,10 +478,6 @@ public class AdaptiveProgramGenerator {
 
         // Настройки в зависимости от возраста и сложности
         switch (ageGroup) {
-            case "18-29" ->
-                setExerciseParametersYoung(programExercise, difficulty);
-            case "30-39" ->
-                setExerciseParametersYoung(programExercise, difficulty);
             case "40-49" ->
                 setExerciseParametersMiddleAge(programExercise, difficulty);
             case "50-59" ->
@@ -606,8 +581,6 @@ public class AdaptiveProgramGenerator {
                 30;
             case "30-39" ->
                 25;
-            case "40-49" ->
-                20;
             case "50-59" ->
                 15;
             case "60+" ->
@@ -663,13 +636,13 @@ public class AdaptiveProgramGenerator {
                     }
                 }
             }
-            return suitablePlans.get(0);
+            return suitablePlans.getFirst();
         }
 
         // Если не нашли по сложности, ищем только по цели
         List<NutritionPlan> goalPlans = nutritionPlanService.findByGoal(goal);
         if (!goalPlans.isEmpty()) {
-            return goalPlans.get(0);
+            return goalPlans.getFirst();
         }
 
         return null;
@@ -678,8 +651,6 @@ public class AdaptiveProgramGenerator {
     private String getNutritionDifficulty(String level, String ageGroup) {
         // Базовая сложность от уровня подготовки
         String baseDifficulty = switch (level.toLowerCase()) {
-            case "начальный" ->
-                "легкий";
             case "средний" ->
                 "средний";
             case "продвинутый" ->

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru-RU>
+<html lang="ru-RU">
 
 <head>
     <meta charset='utf-8' />
@@ -226,14 +226,14 @@
 
     <script th:if="${role == 'trainer'}" th:inline="javascript">
         async function checkData(form) {
-            var idTrainer = /*[[${idTrainer}]]*/[];
-            var url = '/trainings?idTrainer=' + idTrainer;
+            const idTrainer = /*[[${idTrainer}]]*/[];
+            const url = '/trainings?idTrainer=' + idTrainer;
 
             let newEventStart = new Date(document.getElementById('date-select').value);
             let durationMinutes = parseInt(document.getElementById('time-select').value);
             let newEventEnd = new Date(newEventStart.getTime() + durationMinutes * 60000);
 
-            if (!(newEventStart === null || newEventStart === '' || newEventEnd === null || newEventEnd === '')) {
+            if (!(newEventStart === '' || newEventEnd === null || newEventEnd === '')) {
 
                 let isOverlapping;
 
@@ -269,7 +269,7 @@
                     if (inputs[i].checked) {
                         radioChecked = true;
                     }
-                } else if (inputs[i].value == '' || inputs[i].value == null) {
+                } else if (inputs[i].value === '' || inputs[i].value == null) {
                     alert("Пожалуйста, введите все параметры тренировки");
                     return false;
                 }
@@ -281,10 +281,10 @@
         }
 
         document.addEventListener('DOMContentLoaded', function () {
-            var form = document.getElementById('create-trainingForm');
+            const form = document.getElementById('create-trainingForm');
             form.addEventListener('submit', async function (event) {
                 event.preventDefault();
-                var a = await checkData(form);
+                const a = await checkData(form);
                 if (a != false) {
                     form.submit();
                 }
@@ -294,7 +294,7 @@
 
     <script>
         $('input[type="number"][maxlength]').on('change', function () {
-            var value = parseInt(this.value, 10);
+            const value = parseInt(this.value, 10);
             if (value < 30) {
                 this.value = 30;
             } else if (value > 120) {
@@ -305,8 +305,8 @@
 
     <script th:if="${role == 'member'}">
         document.addEventListener('DOMContentLoaded', function () {
-            var calendarEl = document.getElementById('calendar');
-            var calendar = new FullCalendar.Calendar(calendarEl, {
+            const calendarEl = document.getElementById('calendar');
+            const calendar = new FullCalendar.Calendar(calendarEl, {
                 locale: 'ru',
                 firstDay: 1,
                 initialView: 'listWeek',
@@ -323,8 +323,8 @@
                     day: 'По дням'
                 },
                 events: function (fetchInfo, successCallback, failureCallback) {
-                    var form = document.getElementById('filterForm');
-                    var formData = new FormData(form);
+                    const form = document.getElementById('filterForm');
+                    const formData = new FormData(form);
 
                     const params = new URLSearchParams();
 
@@ -348,7 +348,7 @@
                     console.log('Full URL params:', params.toString());
                     console.log('========================');
 
-                    var url = '/trainings?' + params.toString();
+                    const url = '/trainings?' + params.toString();
                     console.log('Final URL:', url);
 
                     fetch(url)

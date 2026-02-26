@@ -151,10 +151,7 @@ public class MainController {
         Integer currentUserId = userDetailsService.getUserId(username);
         String currentUserRole = userDetailsService.getUserRole(username);
 
-        if (!currentUserId.equals(id) || !"member".equals(currentUserRole)) {
-            return true;
-        }
-        return false;
+        return !currentUserId.equals(id) || !"member".equals(currentUserRole);
     }
 
     @GetMapping("/programs/generate/{id}")
@@ -322,10 +319,6 @@ public class MainController {
         String preferredTime = request.getPreferredTime();
 
         return switch (preferredTime) {
-            case "УТРО" ->
-                true;
-            case "ДЕНЬ" ->
-                true;
             case "ВЕЧЕР" ->
                 club.getSchedule() != null
                 && (club.getSchedule().contains("22:00")
@@ -430,12 +423,11 @@ public class MainController {
 
             if (registrationSuccess) {
                 model.addAttribute("success", "Регистрация прошла успешно! Теперь вы можете войти в систему.");
-                return "registration";
             } else {
                 model.addAttribute("error", "Ошибка при регистрации. Попробуйте позже.");
                 model.addAttribute("clubs", clubsService.getAllClubs());
-                return "registration";
             }
+            return "registration";
 
         } catch (Exception e) {
             model.addAttribute("error", "Ошибка при обработке данных: " + e.getMessage());
@@ -557,10 +549,7 @@ public class MainController {
         Integer currentUserId = userDetailsService.getUserId(username);
         String currentUserRole = userDetailsService.getUserRole(username);
 
-        if (!currentUserId.equals(id) || !currentUserRole.equals(role)) {
-            return true;
-        }
-        return false;
+        return !currentUserId.equals(id) || !currentUserRole.equals(role);
     }
 
     private final ProfileService profileService;

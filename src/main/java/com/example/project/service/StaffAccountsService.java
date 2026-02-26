@@ -33,7 +33,7 @@ public class StaffAccountsService {
     }
 
     @SuppressWarnings("null")
-    public StaffAccounts saveStaffAccount(StaffAccounts account) {
-        return staffAccountsRepository.save(account);
+    public void saveStaffAccount(StaffAccounts account) {
+        staffAccountsRepository.save(account);
     }
 }

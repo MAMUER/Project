@@ -53,9 +53,9 @@ public class EquipmentAdminController {
 
     private boolean isStaffUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null &&
+        return authentication == null ||
                 authentication.getAuthorities().stream()
-                        .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("STAFF"));
+                        .noneMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("STAFF"));
     }
 
     private Integer getCurrentStaffId() {
@@ -75,7 +75,7 @@ public class EquipmentAdminController {
     @ApiResponse(responseCode = "200", description = "Панель управления успешно загружена")
     @ApiResponse(responseCode = "403", description = "Доступ запрещен - требуется роль STAFF")
     public String equipmentManagement(Model model) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
 
@@ -107,7 +107,7 @@ public class EquipmentAdminController {
     public String editClubEquipment(
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'", schema = @Schema(type = "string", format = "uri")) @PathVariable String clubName,
             Model model) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
 
@@ -121,7 +121,7 @@ public class EquipmentAdminController {
 
         final String finalClubName = actualClubName;
 
-        if (!hasAccessToClub(finalClubName)) {
+        if (hasAccessToClub(finalClubName)) {
             return "redirect:/error/403";
         }
 
@@ -136,7 +136,10 @@ public class EquipmentAdminController {
                         e.getEquipmentType().getTypeName();
                     }
                 })
-                .sorted(Comparator.comparing(e -> e.getEquipmentType().getTypeName()))
+                .sorted(Comparator.comparing(e -> {
+                    assert e.getEquipmentType() != null;
+                    return e.getEquipmentType().getTypeName();
+                }))
                 .toList();
 
         model.addAttribute("club", club);
@@ -161,7 +164,7 @@ public class EquipmentAdminController {
             @Parameter(description = "ID оборудования", example = "1", required = true) @RequestParam Integer equipmentId,
             @Parameter(description = "Новое количество", example = "10", required = true) @RequestParam Integer quantity,
             Model model) {
-        if (!isStaffUser() || !hasAccessToClub(clubName)) {
+        if (isStaffUser() || hasAccessToClub(clubName)) {
             return "redirect:/error/403";
         }
 
@@ -194,7 +197,7 @@ public class EquipmentAdminController {
             @Parameter(description = "Данные нового оборудования") @ModelAttribute Equipment newEquipment,
             @Parameter(description = "ID типа оборудования", example = "1", required = true) @RequestParam Integer equipmentTypeId,
             Model model) {
-        if (!isStaffUser() || !hasAccessToClub(clubName)) {
+        if (isStaffUser() || hasAccessToClub(clubName)) {
             return "redirect:/error/403";
         }
 
@@ -231,7 +234,7 @@ public class EquipmentAdminController {
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName,
             @Parameter(description = "ID оборудования", example = "1", required = true) @RequestParam Integer equipmentId,
             Model model) {
-        if (!isStaffUser() || !hasAccessToClub(clubName)) {
+        if (isStaffUser() || hasAccessToClub(clubName)) {
             return "redirect:/error/403";
         }
 
@@ -259,6 +262,6 @@ public class EquipmentAdminController {
 
         var staffSchedules = staffScheduleService.getStaffScheduleByStaff(staffId);
         return staffSchedules.stream()
-                .anyMatch(schedule -> schedule.getClub().getClubName().equals(clubName));
+                .noneMatch(schedule -> schedule.getClub().getClubName().equals(clubName));
     }
 }

@@ -37,11 +37,4 @@ public class TrainingSchedule {
     @ManyToMany(mappedBy = "trainingSchedules", fetch = FetchType.LAZY)
     private Set<Members> members = new HashSet<>();
 
-    public Set<Members> getMembers() {
-        return members;
-    }
-    
-    public void setMembers(Set<Members> members) {
-        this.members = members;
-    }
 }

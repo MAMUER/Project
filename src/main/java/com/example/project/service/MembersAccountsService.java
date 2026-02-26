@@ -45,7 +45,7 @@ public class MembersAccountsService {
     }
 
     @SuppressWarnings("null")
-    public MembersAccounts saveMemberAccount(MembersAccounts account) {
-        return membersAccountsRepository.save(account);
+    public void saveMemberAccount(MembersAccounts account) {
+        membersAccountsRepository.save(account);
     }
 }

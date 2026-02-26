@@ -33,7 +33,7 @@ public class TrainersAccountsService {
     }
 
     @SuppressWarnings("null")
-    public TrainersAccounts saveTrainerAccount(TrainersAccounts account) {
-        return trainersAccountsRepository.save(account);
+    public void saveTrainerAccount(TrainersAccounts account) {
+        trainersAccountsRepository.save(account);
     }
 }

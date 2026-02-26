@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import lombok.Getter;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -93,6 +94,7 @@ public class PasswordValidationService {
         return Pattern.compile("(.)\\1{2,}").matcher(password).find();
     }
     
+    @Getter
     public static class PasswordValidationResult {
         private boolean valid = true;
         private final List<String> errors = new java.util.ArrayList<>();
@@ -101,15 +103,7 @@ public class PasswordValidationService {
             errors.add(error);
             valid = false;
         }
-        
-        public boolean isValid() {
-            return valid;
-        }
-        
-        public List<String> getErrors() {
-            return errors;
-        }
-        
+
         public String getErrorMessage() {
             return String.join(", ", errors);
         }

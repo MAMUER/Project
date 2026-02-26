@@ -6,7 +6,9 @@ import com.example.project.model.Trainers;
 import com.example.project.model.TrainingSchedule;
 import com.example.project.model.StaffSchedule;
 import com.example.project.model.Achievements;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -111,7 +113,10 @@ public class ProfileService {
     }
 
     // DTO класс для передачи данных профиля
+    @Setter
+    @Getter
     public static class ProfileData {
+        // Геттеры и сеттеры
         private Integer memberId;
         private Object memberClub;
         private Members member;
@@ -129,47 +134,5 @@ public class ProfileService {
         private Staff staff;
         private Set<StaffSchedule> staffSchedule;
 
-        // Геттеры и сеттеры
-        public Integer getMemberId() { return memberId; }
-        public void setMemberId(Integer memberId) { this.memberId = memberId; }
-        
-        public Object getMemberClub() { return memberClub; }
-        public void setMemberClub(Object memberClub) { this.memberClub = memberClub; }
-        
-        public Members getMember() { return member; }
-        public void setMember(Members member) { this.member = member; }
-        
-        public Collection<?> getFeedbacks() { return feedbacks; }
-        public void setFeedbacks(Collection<?> feedbacks) { this.feedbacks = feedbacks; }
-        
-        public Set<Achievements> getAchievements() { return achievements; }
-        public void setAchievements(Set<Achievements> achievements) { this.achievements = achievements; }
-        
-        public Set<TrainingSchedule> getWorkouts() { return workouts; }
-        public void setWorkouts(Set<TrainingSchedule> workouts) { this.workouts = workouts; }
-        
-        public Long getWorkoutsCount() { return workoutsCount; }
-        public void setWorkoutsCount(Long workoutsCount) { this.workoutsCount = workoutsCount; }
-        
-        public String getPhotoURL() { return photoURL; }
-        public void setPhotoURL(String photoURL) { this.photoURL = photoURL; }
-        
-        public List<?> getAllNews() { return allNews; }
-        public void setAllNews(List<?> allNews) { this.allNews = allNews; }
-        
-        public Integer getTrainerId() { return trainerId; }
-        public void setTrainerId(Integer trainerId) { this.trainerId = trainerId; }
-        
-        public Trainers getTrainer() { return trainer; }
-        public void setTrainer(Trainers trainer) { this.trainer = trainer; }
-        
-        public Integer getStaffId() { return staffId; }
-        public void setStaffId(Integer staffId) { this.staffId = staffId; }
-        
-        public Staff getStaff() { return staff; }
-        public void setStaff(Staff staff) { this.staff = staff; }
-        
-        public Set<StaffSchedule> getStaffSchedule() { return staffSchedule; }
-        public void setStaffSchedule(Set<StaffSchedule> staffSchedule) { this.staffSchedule = staffSchedule; }
     }
 }

@@ -34,22 +34,19 @@ public class EquipmentService {
     }
 
     @SuppressWarnings("null")
-    public Equipment saveEquipment(Equipment equipment) {
-        return equipmentRepository.save(equipment);
+    public void saveEquipment(Equipment equipment) {
+        equipmentRepository.save(equipment);
     }
 
     // ДОБАВИТЬ: метод для удаления оборудования
     @SuppressWarnings("null")
     @Transactional
-    public boolean deleteEquipment(Integer equipmentId) {
+    public void deleteEquipment(Integer equipmentId) {
         try {
             if (equipmentRepository.existsById(equipmentId)) {
                 equipmentRepository.deleteByIdEquipment(equipmentId);
-                return true;
             }
-            return false;
         } catch (Exception e) {
-            return false;
         }
     }
 

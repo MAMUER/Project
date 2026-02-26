@@ -120,10 +120,10 @@
     </div>
 
     <script th:if="${role == 'member'}" th:inline="javascript">
-        var training_date = new Date(/*[[${session_date}]]*/);
-        var current_date = new Date();
+        const training_date = new Date(/*[[${session_date}]]*/);
+        const current_date = new Date();
         if (training_date < current_date) {
-            var container = document.getElementsByClassName('buttons-container');
+            const container = document.getElementsByClassName('buttons-container');
             container[0].style.display = 'none';
         }
     </script>

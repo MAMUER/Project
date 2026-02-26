@@ -72,23 +72,19 @@ public class ClubCapabilityService {
      */
     public List<Exercise> getAvailableExercisesByMuscleGroup(String clubName, String muscleGroup) {
         List<Exercise> allExercises = exerciseRepository.findByMuscleGroup(muscleGroup);
-        
-        List<Exercise> availableExercises = allExercises.stream()
+
+        return allExercises.stream()
             .filter(exercise -> canClubSupportExercise(clubName, exercise.getIdExercise()))
             .collect(Collectors.toList());
-        
-        return availableExercises;
     }
 
     public List<Exercise> getAllAvailableExercises(String clubName) {
         // Используем метод с JOIN FETCH
         List<Exercise> allExercises = exerciseRepository.findAllWithEquipmentRequirements();
-        
-        List<Exercise> availableExercises = allExercises.stream()
+
+        return allExercises.stream()
             .filter(exercise -> canClubSupportExercise(clubName, exercise.getIdExercise()))
             .collect(Collectors.toList());
-        
-        return availableExercises;
     }
 
     /**
@@ -132,13 +128,12 @@ public class ClubCapabilityService {
      */
     public Map<String, Integer> getClubEquipmentSummary(String clubName) {
         List<Equipment> clubEquipment = equipmentRepository.findByClubName(clubName);
-        
-        Map<String, Integer> equipmentSummary = clubEquipment.stream()
+
+        return clubEquipment.stream()
             .collect(Collectors.groupingBy(
                 equipment -> equipment.getEquipmentType().getTypeName(),
                 Collectors.summingInt(Equipment::getQuantity)
             ));
-        return equipmentSummary;
     }
 
     /**
@@ -151,7 +146,7 @@ public class ClubCapabilityService {
         
         List<Exercise> unavailableExercises = exerciseRepository.findAll().stream()
             .filter(exercise -> !canClubSupportExercise(clubName, exercise.getIdExercise()))
-            .collect(Collectors.toList());
+            .toList();
         
         // Анализируем, какое оборудование нужно добавить
         Map<String, Integer> missingEquipment = new HashMap<>();
@@ -176,9 +171,7 @@ public class ClubCapabilityService {
         
         if (!missingEquipment.isEmpty()) {
             improvementSuggestions.add("Рекомендуется добавить оборудование:");
-            missingEquipment.forEach((equipment, quantity) -> {
-                improvementSuggestions.add(String.format("• %s: +%d шт.", equipment, quantity));
-            });
+            missingEquipment.forEach((equipment, quantity) -> improvementSuggestions.add(String.format("• %s: +%d шт.", equipment, quantity)));
         }
         
         recommendations.put("suggestions", improvementSuggestions);

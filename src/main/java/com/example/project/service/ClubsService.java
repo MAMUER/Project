@@ -51,8 +51,8 @@ public class ClubsService {
     }
 
     @SuppressWarnings("null")
-    public Clubs saveClub(Clubs club) {
-        return clubsRepository.save(club);
+    public void saveClub(Clubs club) {
+        clubsRepository.save(club);
     }
 
     @SuppressWarnings("null")
@@ -66,7 +66,7 @@ public class ClubsService {
     }
 
     @SuppressWarnings("null")
-    public Clubs updateClub(String clubName, Clubs updatedClub) {
+    public void updateClub(String clubName, Clubs updatedClub) {
         Clubs existingClub = clubsRepository.findById(clubName)
                 .orElseThrow(() -> new RuntimeException("Club not found: " + clubName));
 
@@ -78,7 +78,7 @@ public class ClubsService {
             existingClub.setSchedule(updatedClub.getSchedule());
         }
 
-        return clubsRepository.save(existingClub);
+        clubsRepository.save(existingClub);
     }
 
     @SuppressWarnings("null")

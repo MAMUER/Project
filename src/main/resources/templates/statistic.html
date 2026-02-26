@@ -96,7 +96,7 @@
                     <div class="stat-icon">📊</div>
                     <div class="stat-content">
                         <span class="stat-label">За неделю</span>
-                        <span class="stat-value" th:text="${weeklyStats.totalVisits != null ? weeklyStats.totalVisits : 0}">0</span>
+                        <span class="stat-value" th:text="${weeklyStats.weekVisits != null ? weeklyStats.weekVisits : 0}">0</span>
                     </div>
                 </div>
             </div>
@@ -137,7 +137,7 @@
                 <p class="container-title">Тренировки:</p>
                 <div class="statistics-list">
                     <div class="statistics-item" th:each="statistic : ${statistics}">
-                        <p th:text="${statistic.trainingType != null ? statistic.trainingType.typeName : 'Тренировка'}"></p>
+                        <p th:text="${statistic.trainingType != null ? statistic.trainingType.trainingTypeName : 'Тренировка'}"></p>
                         <small th:text="${#temporals.format(statistic.sessionDate, 'dd.MM.yyyy HH:mm')}"></small>
                     </div>
                     <div th:if="${statistics == null or statistics.isEmpty()}" class="empty-state">
@@ -171,7 +171,7 @@
                 <p class="container-title">Проведенные тренировки:</p>
                 <div class="statistics-list">
                     <div class="statistics-item" th:each="statistic : ${statistics}">
-                        <p th:text="${statistic.trainingType != null ? statistic.trainingType.typeName : 'Тренировка'}"></p>
+                        <p th:text="${statistic.trainingType != null ? statistic.trainingType.trainingTypeName : 'Тренировка'}"></p>
                         <small th:text="${#temporals.format(statistic.sessionDate, 'dd.MM.yyyy HH:mm')}"></small>
                     </div>
                     <div th:if="${statistics == null or statistics.isEmpty()}" class="empty-state">

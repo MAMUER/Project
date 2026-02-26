@@ -191,8 +191,8 @@ public class MembersService {
 
     // === Сохранение и удаление ===
     @SuppressWarnings("null")
-    public Members save(Members member) {
-        return membersRepository.save(member);
+    public void save(Members member) {
+        membersRepository.save(member);
     }
 
     @SuppressWarnings("null")
@@ -247,13 +247,7 @@ public class MembersService {
 
     // Безопасный метод проверки InbodyAnalysis через нативный запрос
     public boolean hasInbodyAnalysisNative(Integer memberId) {
-        try {
-            // Временное решение - всегда возвращаем false, пока не настроим нативный запрос
-            return false;
-        } catch (Exception e) {
-            log.warn("Ошибка при проверке InbodyAnalysis для пользователя {}: {}", memberId, e.getMessage());
-            return false;
-        }
+        return false;
     }
 
     @Transactional(readOnly = true)

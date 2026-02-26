@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.HttpMethod;
@@ -41,11 +43,12 @@ public class StatsServiceClient {
         }
 
         String url = statsServiceUrl + "/api/stats/club/" + clubId + "/today";
-        log.debug("Calling stats service: {}", url);
+
 
         try {
-            ParameterizedTypeReference<Map<String, Object>> responseType = 
-                new ParameterizedTypeReference<Map<String, Object>>() {};
+            ParameterizedTypeReference<Map<String, Object>> responseType =
+                    new ParameterizedTypeReference<>() {
+                    };
             
             @SuppressWarnings("null")
             ResponseEntity<Map<String, Object>> response = 
@@ -64,7 +67,7 @@ public class StatsServiceClient {
             return 0;
             
         } catch (HttpClientErrorException.NotFound | ResourceAccessException e) {
-            log.error("Stats service error ({}): {}", url, e.getMessage());
+
             return 0;
         } catch (RestClientException e) {
             log.error("Error calling stats service: {}", e.getMessage(), e);
@@ -77,11 +80,12 @@ public class StatsServiceClient {
      */
     public List<Map<String, Object>> getTopActiveMembers() {
         String url = statsServiceUrl + "/api/stats/members/top";
-        log.debug("Calling stats service: {}", url);
+
 
         try {
-            ParameterizedTypeReference<List<Map<String, Object>>> responseType = 
-                new ParameterizedTypeReference<List<Map<String, Object>>>() {};
+            ParameterizedTypeReference<List<Map<String, Object>>> responseType =
+                    new ParameterizedTypeReference<>() {
+                    };
             
             @SuppressWarnings("null")
             ResponseEntity<List<Map<String, Object>>> response = 
@@ -91,7 +95,7 @@ public class StatsServiceClient {
             return body != null ? body : Collections.emptyList();
             
         } catch (HttpClientErrorException.NotFound | ResourceAccessException e) {
-            log.error("Stats service error ({}): {}", url, e.getMessage());
+
             return Collections.emptyList();
         } catch (RestClientException e) {
             log.error("Error getting top active members from stats service: {}", e.getMessage());
@@ -107,8 +111,9 @@ public class StatsServiceClient {
         log.debug("Calling stats service: {}", url);
 
         try {
-            ParameterizedTypeReference<Map<String, Object>> responseType = 
-                new ParameterizedTypeReference<Map<String, Object>>() {};
+            ParameterizedTypeReference<Map<String, Object>> responseType =
+                    new ParameterizedTypeReference<>() {
+                    };
             
             @SuppressWarnings("null")
             ResponseEntity<Map<String, Object>> response = 
@@ -148,10 +153,10 @@ public class StatsServiceClient {
     /**
      * DTO для ответа health check
      */
+    @Setter
+    @Getter
     public static class HealthResponse {
         private String status;
-        
-        public String getStatus() { return status; }
-        public void setStatus(String status) { this.status = status; }
+
     }
 }

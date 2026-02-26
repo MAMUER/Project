@@ -182,9 +182,7 @@ public class AccountService {
         Integer id = getIdByUsername(username);
         String role = getRoleByUsername(username);
 
-        AccountInfo accountInfo = new AccountInfo(username, password, id, role);
-
-        return accountInfo;
+        return new AccountInfo(username, password, id, role);
     }
 
     public AccountInfo getAccountInfoById(Integer userId) {
@@ -252,9 +250,7 @@ public class AccountService {
             return false;
         }
 
-        boolean matches = passwordEncoder.matches(rawPassword, encodedPassword);
-
-        return matches;
+        return passwordEncoder.matches(rawPassword, encodedPassword);
     }
 
     /**

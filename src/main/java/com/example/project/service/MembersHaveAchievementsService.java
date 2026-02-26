@@ -52,12 +52,8 @@ public class MembersHaveAchievementsService {
     }
 
     public void removeAchievementFromMember(Integer memberId, Integer achievementId) {
-        MembersHaveAchievements memberAchievement = membersHaveAchievementsRepository
-                .findByMemberIdMemberAndAchievementIdAchievement(memberId, achievementId)
-                .orElse(null);
-        if (memberAchievement != null) {
-            membersHaveAchievementsRepository.delete(memberAchievement);
-        }
+        membersHaveAchievementsRepository
+                .findByMemberIdMemberAndAchievementIdAchievement(memberId, achievementId).ifPresent(membersHaveAchievementsRepository::delete);
     }
 
     // Новые полезные методы

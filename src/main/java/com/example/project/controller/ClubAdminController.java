@@ -33,9 +33,9 @@ public class ClubAdminController {
 
     private boolean isStaffUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null &&
+        return authentication == null ||
                 authentication.getAuthorities().stream()
-                        .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("STAFF"));
+                        .noneMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("STAFF"));
     }
 
     private Integer getCurrentStaffId() {
@@ -53,7 +53,7 @@ public class ClubAdminController {
     @ApiResponse(responseCode = "200", description = "Список клубов успешно загружен")
     @ApiResponse(responseCode = "403", description = "Доступ запрещен - требуется роль STAFF")
     public String clubsAdmin(Model model) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
         model.addAttribute("clubs", clubsService.getAllClubs());
@@ -69,7 +69,7 @@ public class ClubAdminController {
     public String clubCapabilities(
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName,
             Model model) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
         Clubs club = clubsService.getClub(clubName);
@@ -92,7 +92,7 @@ public class ClubAdminController {
     public String clubEquipmentPage(
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName,
             Model model) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
         Map<String, Integer> equipmentSummary = clubCapabilityService.getClubEquipmentSummary(clubName);
@@ -110,7 +110,7 @@ public class ClubAdminController {
     @ApiResponse(responseCode = "200", description = "Форма создания клуба успешно загружена")
     @ApiResponse(responseCode = "403", description = "Доступ запрещен")
     public String createClubForm(Model model) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
         model.addAttribute("club", new Clubs());
@@ -127,7 +127,7 @@ public class ClubAdminController {
     public String editClubForm(
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName,
             Model model) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
         Clubs club = clubsService.getClub(clubName);
@@ -144,7 +144,7 @@ public class ClubAdminController {
     public String manageClubEquipment(
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName,
             Model model) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
         return "redirect:/admin/equipment/" + clubName;
@@ -158,7 +158,7 @@ public class ClubAdminController {
     @ApiResponse(responseCode = "403", description = "Доступ запрещен")
     public Object getClubEquipment(
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return Map.of("error", "Access denied");
         }
         return clubCapabilityService.getClubEquipmentSummary(clubName);
@@ -172,7 +172,7 @@ public class ClubAdminController {
     @ApiResponse(responseCode = "403", description = "Доступ запрещен")
     public Map<String, Object> getClubRecommendations(
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return Map.of("error", "Access denied");
         }
         return clubCapabilityService.getClubImprovementRecommendations(clubName);
@@ -186,7 +186,7 @@ public class ClubAdminController {
     @ApiResponse(responseCode = "403", description = "Доступ запрещен")
     public String createClub(
             @Parameter(description = "Данные нового клуба") @ModelAttribute Clubs club) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
         clubsService.saveClub(club);
@@ -203,7 +203,7 @@ public class ClubAdminController {
     public String updateClub(
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName,
             @Parameter(description = "Обновленные данные клуба") @ModelAttribute Clubs club) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
         clubsService.updateClub(clubName, club);
@@ -218,7 +218,7 @@ public class ClubAdminController {
     @ApiResponse(responseCode = "404", description = "Клуб не найден")
     public String deleteClub(
             @Parameter(description = "Название клуба", example = "Фитнес Центр 'Энергия'") @PathVariable String clubName) {
-        if (!isStaffUser()) {
+        if (isStaffUser()) {
             return "redirect:/error/403";
         }
         clubsService.deleteClub(clubName);

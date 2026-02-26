@@ -9,8 +9,6 @@ public class SchemaConfig {
 
     @Bean
     public HibernatePropertiesCustomizer hibernatePropertiesCustomizer() {
-        return properties -> {
-            properties.put("hibernate.default_schema", "fitness_club_db");
-        };
+        return properties -> properties.put("hibernate.default_schema", "fitness_club_db");
     }
 }

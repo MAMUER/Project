@@ -99,36 +99,6 @@
     </div>
 
     <script>
-        async function submitForm(button) {
-            // Получаем индекс формы из data-атрибута
-            const formIndex = button.getAttribute('data-form-index');
-            const form = document.querySelector(`#date-select-${formIndex}`).closest('.subscribe-form');
-
-            if (!form) {
-                console.error('Form not found for index:', formIndex);
-                alert('Ошибка: форма не найдена');
-                return;
-            }
-
-            // Проверяем доступность времени
-            const isValid = await checkData(form);
-            if (!isValid) {
-                return;
-            }
-
-            // Обновляем скрытое поле sessionDate из видимого поля ввода
-            const dateInput = document.querySelector(`#date-input-${formIndex}`);
-            const hiddenDateField = form.querySelector('input[name="sessionDate"]');
-            if (dateInput && hiddenDateField) {
-                hiddenDateField.value = dateInput.value;
-            }
-
-            // Показываем подтверждение
-            if (confirm('Вы уверены, что хотите записаться на тренировку?')) {
-                // Отправляем форму
-                form.submit();
-            }
-        }
 
         function formatTime(date) {
             let hours = date.getHours();
@@ -346,7 +316,7 @@
                 return false;
             }
 
-            var url = '/trainings?id_trainer=' + id_trainer + '&trainer_schedule=' + 1;
+            const url = '/trainings?id_trainer=' + id_trainer + '&trainer_schedule=' + 1;
 
             let dateInput = form.querySelector('input[name="sessionDate"]');
             if (!dateInput || !dateInput.value) {
