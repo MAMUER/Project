@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package ml_classification;
+
+option go_package = "healthfit-platform/proto/gen/ml_classification";
+
+service MLClassification {
+    rpc Classify(ClassifyRequest) returns (ClassifyResponse);
+}
+
+message ClassifyRequest {
+    int32 heart_rate = 1;
+    string ecg = 2;
+    int32 systolic = 3;
+    int32 diastolic = 4;
+    int32 spo2 = 5;
+    float temperature = 6;
+    int32 sleep_duration = 7;
+    int32 deep_sleep = 8;
+}
+
+message ClassifyResponse {
+    string class = 1;
+    float confidence = 2;
+    string analysis_data = 3;
+}

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: healthfit-config
+  namespace: healthfit
+data:
+  DB_HOST: "postgres-service"
+  DB_PORT: "5432"
+  DB_NAME: "healthfit"
+  REDIS_ADDR: "redis-service:6379"
+  RABBITMQ_HOST: "rabbitmq-service"
+  RABBITMQ_PORT: "5672"
+  ML_CLASSIFICATION_ADDR: "ml-classification-service:8001"
+  ML_GENERATION_ADDR: "ml-generation-service:8002"
+  LOG_LEVEL: "info"

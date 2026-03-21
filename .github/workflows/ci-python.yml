@@ -1,0 +1,48 @@
+name: Python ML Services CI
+
+on:
+  push:
+    paths:
+      - 'ml/**'
+    branches: [main, develop]
+  pull_request:
+    paths:
+      - 'ml/**'
+    branches: [main]
+
+jobs:
+  test:
+    name: Test ML Services
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies (classification)
+        run: |
+          cd ml/classification
+          pip install -r requirements.txt
+      
+      - name: Install dependencies (generation)
+        run: |
+          cd ml/generation
+          pip install -r requirements.txt
+      
+      - name: Lint with flake8
+        run: |
+          pip install flake8
+          flake8 ml/ --count --select=E9,F63,F7,F82 --show-source --statistics
+      
+      - name: Type check with mypy
+        run: |
+          pip install mypy
+          mypy ml/ --ignore-missing-imports
+      
+      - name: Run tests
+        run: |
+          pip install pytest
+          pytest ml/ -v --tb=short

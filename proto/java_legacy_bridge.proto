@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package java_legacy_bridge;
+
+option go_package = "healthfit-platform/proto/gen/java_legacy_bridge";
+
+service JavaLegacyBridge {
+    rpc GetClubInfo(GetClubInfoRequest) returns (GetClubInfoResponse);
+    rpc GetEquipment(GetEquipmentRequest) returns (GetEquipmentResponse);
+}
+
+message GetClubInfoRequest {
+    string club_id = 1;
+}
+
+message GetClubInfoResponse {
+    string club_id = 1;
+    string name = 2;
+    string address = 3;
+    string phone = 4;
+}
+
+message GetEquipmentRequest {
+    string club_id = 1;
+}
+
+message GetEquipmentResponse {
+    repeated Equipment items = 1;
+}
+
+message Equipment {
+    string id = 1;
+    string name = 2;
+    string type = 3;
+    bool available = 4;
+}

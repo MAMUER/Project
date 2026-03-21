@@ -1,0 +1,197 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: healthfit-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-healthfit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-healthfit123}
+      POSTGRES_DB: ${POSTGRES_DB:-healthfit}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healthfit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - healthfit-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: healthfit-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - healthfit-network
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: healthfit-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:-guest}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - healthfit-network
+
+  ml-classification:
+    build:
+      context: ../ml/classification
+      dockerfile: Dockerfile
+    container_name: healthfit-ml-classification
+    ports:
+      - "8001:8001"
+    environment:
+      - MODEL_PATH=/app/models
+    volumes:
+      - ../ml/classification/models:/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - healthfit-network
+
+  ml-generation:
+    build:
+      context: ../ml/generation
+      dockerfile: Dockerfile
+    container_name: healthfit-ml-generation
+    ports:
+      - "8002:8002"
+    environment:
+      - MODEL_PATH=/app/models
+    volumes:
+      - ../ml/generation/models:/app/models
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - healthfit-network
+
+  auth-service:
+    build:
+      context: ../..
+      dockerfile: cmd/auth-service/Dockerfile
+    container_name: healthfit-auth
+    ports:
+      - "50051:50051"
+    environment:
+      - SERVICE_PORT=50051
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${POSTGRES_USER:-healthfit}
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-healthfit123}
+      - DB_NAME=${POSTGRES_DB:-healthfit}
+      - JWT_SECRET=${JWT_SECRET:-your-secret-key}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - healthfit-network
+
+  biometric-ingest:
+    build:
+      context: ../..
+      dockerfile: cmd/biometric-ingest/Dockerfile
+    container_name: healthfit-biometric-ingest
+    ports:
+      - "8082:8082"
+    environment:
+      - SERVICE_PORT=8082
+      - DB_HOST=postgres
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - healthfit-network
+
+  data-processor:
+    build:
+      context: ../..
+      dockerfile: cmd/data-processor/Dockerfile
+    container_name: healthfit-data-processor
+    environment:
+      - DB_HOST=postgres
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASS:-guest}@rabbitmq:5672/
+      - ML_CLASSIFICATION_ADDR=ml-classification:8001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      ml-classification:
+        condition: service_healthy
+    networks:
+      - healthfit-network
+
+  api-gateway:
+    build:
+      context: ../..
+      dockerfile: cmd/api-gateway/Dockerfile
+    container_name: healthfit-api-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SERVICE_PORT=8080
+      - AUTH_SERVICE_ADDR=auth-service:50051
+      - ML_GENERATION_ADDR=ml-generation:8002
+      - JAVA_LEGACY_ADDR=${JAVA_LEGACY_ADDR:-http://localhost:8081}
+    depends_on:
+      auth-service:
+        condition: service_started
+      ml-generation:
+        condition: service_healthy
+    networks:
+      - healthfit-network
+
+  frontend:
+    build:
+      context: ../web
+      dockerfile: Dockerfile
+    container_name: healthfit-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8080
+    depends_on:
+      - api-gateway
+    networks:
+      - healthfit-network
+
+networks:
+  healthfit-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
