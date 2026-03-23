@@ -1,6 +1,6 @@
 FROM golang:1.25-alpine AS builder
 
-RUN apk add --no-cache git ca-certificates protobuf protobuf-dev
+RUN apk add --no-cache git ca-certificates
 
 WORKDIR /app
 

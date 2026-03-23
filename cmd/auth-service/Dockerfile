@@ -4,17 +4,14 @@ RUN apk add --no-cache git ca-certificates
 
 WORKDIR /app
 
+# Копируем go.mod и go.sum из корня проекта (контекст сборки = ../..)
 COPY go.mod go.sum ./
 RUN go mod download
 
+# Копируем весь код
 COPY . .
 
-# Генерация protobuf (требует protoc)
-RUN apk add --no-cache protobuf protobuf-dev
-RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-RUN go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-RUN ./scripts/generate-proto.sh
-
+# Собираем бинарник (путь относительно корня проекта)
 RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/auth-service ./cmd/auth-service
 
 FROM alpine:latest
@@ -27,7 +24,6 @@ RUN addgroup -g 1001 -S appgroup && \
 WORKDIR /app
 
 COPY --from=builder --chown=appuser:appgroup /app/bin/auth-service .
-COPY --from=builder --chown=appuser:appgroup /app/proto/gen ./proto/gen
 
 USER appuser
 

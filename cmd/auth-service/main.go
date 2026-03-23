@@ -2,29 +2,33 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"healthfit-platform/internal/pkg/config"
 	"healthfit-platform/internal/pkg/database"
 	"healthfit-platform/internal/pkg/logger"
 	pb "healthfit-platform/proto/gen/auth"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type authServer struct {
 	pb.UnimplementedAuthServiceServer
-	db *sql.DB
+	db     *sql.DB
+	secret []byte
 }
 
 func (s *authServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
-	// Поиск пользователя в БД
 	var user struct {
 		ID       string
 		Password string
@@ -41,8 +45,10 @@ func (s *authServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
 
-	// Генерация JWT
-	token := generateJWT(user.ID, user.Role)
+	token, err := generateJWT(user.ID, user.Role, s.secret)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "failed to generate token")
+	}
 
 	return &pb.LoginResponse{
 		Token:     token,
@@ -50,6 +56,16 @@ func (s *authServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 		Role:      user.Role,
 		ExpiresIn: 86400,
 	}, nil
+}
+
+func generateJWT(userID, role string, secret []byte) (string, error) {
+	claims := jwt.MapClaims{
+		"user_id": userID,
+		"role":    role,
+		"exp":     time.Now().Add(time.Hour * 24).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(secret)
 }
 
 func main() {
@@ -62,7 +78,6 @@ func main() {
 		log.Fatal("Failed to load config", zap.Error(err))
 	}
 
-	// Подключение к БД
 	db, err := database.NewPostgres(
 		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBPassword, cfg.DBName, cfg.DBSSLMode)
 	if err != nil {
@@ -70,18 +85,16 @@ func main() {
 	}
 	defer db.Close()
 
-	// gRPC сервер
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.ServicePort))
 	if err != nil {
 		log.Fatal("Failed to listen", zap.Error(err))
 	}
 
 	grpcServer := grpc.NewServer()
-	pb.RegisterAuthServiceServer(grpcServer, &authServer{db: db})
+	pb.RegisterAuthServiceServer(grpcServer, &authServer{db: db, secret: []byte(cfg.JWTSecret)})
 
 	log.Info("Auth service started", zap.Int("port", cfg.ServicePort))
 
-	// Graceful shutdown
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			log.Fatal("Failed to serve", zap.Error(err))

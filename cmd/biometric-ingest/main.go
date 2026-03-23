@@ -2,12 +2,10 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
-	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
 	"healthfit-platform/internal/pkg/config"
 	"healthfit-platform/internal/pkg/database"
 	"healthfit-platform/internal/pkg/logger"
@@ -15,21 +13,21 @@ import (
 )
 
 type BiometricData struct {
-	UserID      string    `json:"user_id"`
-	DeviceType  string    `json:"device_type"`
-	HeartRate   int       `json:"heart_rate"`
-	ECG         string    `json:"ecg"`
+	UserID        string `json:"user_id"`
+	DeviceType    string `json:"device_type"`
+	HeartRate     int    `json:"heart_rate"`
+	ECG           string `json:"ecg"`
 	BloodPressure struct {
 		Systolic  int `json:"systolic"`
 		Diastolic int `json:"diastolic"`
 	} `json:"blood_pressure"`
-	SpO2        int       `json:"spo2"`
-	Temperature float64   `json:"temperature"`
+	SpO2        int     `json:"spo2"`
+	Temperature float64 `json:"temperature"`
 	Sleep       struct {
 		Duration  int `json:"duration"`
 		DeepSleep int `json:"deep_sleep"`
 	} `json:"sleep"`
-	Timestamp   time.Time `json:"timestamp"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 func main() {
@@ -104,7 +102,7 @@ func main() {
 
 		w.WriteHeader(http.StatusAccepted)
 		json.NewEncoder(w).Encode(map[string]string{
-			"status": "accepted",
+			"status":  "accepted",
 			"message": "Biometric data received for processing",
 		})
 	})

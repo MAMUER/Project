@@ -1,14 +1,17 @@
-.PHONY: help proto build run test clean docker-up docker-down deploy-k8s
+.PHONY: help proto build run test clean docker-up docker-down deploy-k8s deps tree
 
 help:
 	@echo "Available commands:"
 	@echo "  make proto        - Generate protobuf code"
 	@echo "  make build        - Build all Go services"
-	echo "  make run          - Run all services locally"
+	@echo "  make run          - Run all services locally"
 	@echo "  make test         - Run tests"
 	@echo "  make docker-up    - Start Docker Compose environment"
 	@echo "  make docker-down  - Stop Docker Compose environment"
 	@echo "  make deploy-k8s   - Deploy to Kubernetes"
+	@echo "  make deps         - Install all dependencies (Go, Python, Node)"
+	@echo "  make tree         - Show project structure"
+	@echo "  make clean        - Clean build artifacts and containers"
 
 # Протобуферы
 proto:
@@ -85,8 +88,42 @@ clean:
 
 # Установка зависимостей
 deps:
+	@echo "Installing Go dependencies..."
 	@go mod tidy
-	@cd ml/classification && pip install -r requirements.txt
-	@cd ml/generation && pip install -r requirements.txt
-	@cd web && npm install
-	@echo "Dependencies installed"
+	@echo "Creating Python virtual environment..."
+	@python3 -m venv venv
+	@echo "Installing Python dependencies..."
+	@. venv/bin/activate && cd ml/classification && pip install -r requirements.txt
+	@. venv/bin/activate && cd ml/generation && pip install -r requirements.txt
+	@echo "Installing Node dependencies..."
+	@cd web && npm install --legacy-peer-deps
+	@echo "All dependencies installed"
+
+# Показать структуру проекта
+tree:
+	@echo "Project structure:"
+	@echo ""
+	@tree -a -I 'bin|node_modules|__pycache__|*.pyc|.git' --dirsfirst
+	@echo ""
+
+# Показать структуру с ограничением глубины
+tree-shallow:
+	@echo "Project structure (shallow):"
+	@echo ""
+	@tree -L 2 -a -I 'bin|node_modules|__pycache__|*.pyc|.git' --dirsfirst
+	@echo ""
+
+# Проверка кода
+lint:
+	@echo "Running Go linters..."
+	@go vet ./...
+	@echo "Running Python linters..."
+	@cd ml/classification && flake8 app/ || true
+	@cd ml/generation && flake8 app/ || true
+	@echo "Done"
+
+# Форматирование кода
+fmt:
+	@echo "Formatting Go code..."
+	@go fmt ./...
+	@echo "Done"

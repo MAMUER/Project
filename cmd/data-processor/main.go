@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"healthfit-platform/internal/pkg/config"
@@ -16,20 +16,20 @@ import (
 )
 
 type BiometricData struct {
-	UserID      string    `json:"user_id"`
-	HeartRate   int       `json:"heart_rate"`
-	ECG         string    `json:"ecg"`
+	UserID        string `json:"user_id"`
+	HeartRate     int    `json:"heart_rate"`
+	ECG           string `json:"ecg"`
 	BloodPressure struct {
 		Systolic  int `json:"systolic"`
 		Diastolic int `json:"diastolic"`
 	} `json:"blood_pressure"`
-	SpO2        int       `json:"spo2"`
-	Temperature float64   `json:"temperature"`
+	SpO2        int     `json:"spo2"`
+	Temperature float64 `json:"temperature"`
 	Sleep       struct {
 		Duration  int `json:"duration"`
 		DeepSleep int `json:"deep_sleep"`
 	} `json:"sleep"`
-	Timestamp   time.Time `json:"timestamp"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 func main() {
@@ -84,14 +84,14 @@ func main() {
 		// Вызываем ML сервис для классификации
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		resp, err := mlClient.Classify(ctx, &pb.ClassifyRequest{
-			HeartRate:   int32(data.HeartRate),
-			Ecg:         data.ECG,
-			Systolic:    int32(data.BloodPressure.Systolic),
-			Diastolic:   int32(data.BloodPressure.Diastolic),
-			Spo2:        int32(data.SpO2),
-			Temperature: float32(data.Temperature),
+			HeartRate:     int32(data.HeartRate),
+			Ecg:           data.ECG,
+			Systolic:      int32(data.BloodPressure.Systolic),
+			Diastolic:     int32(data.BloodPressure.Diastolic),
+			Spo2:          int32(data.SpO2),
+			Temperature:   float32(data.Temperature),
 			SleepDuration: int32(data.Sleep.Duration),
-			DeepSleep:    int32(data.Sleep.DeepSleep),
+			DeepSleep:     int32(data.Sleep.DeepSleep),
 		})
 		cancel()
 
@@ -114,9 +114,9 @@ func main() {
 
 		// Отправляем в очередь обработанных данных
 		processed, _ := json.Marshal(map[string]interface{}{
-			"user_id": data.UserID,
-			"timestamp": data.Timestamp,
-			"class": resp.Class,
+			"user_id":    data.UserID,
+			"timestamp":  data.Timestamp,
+			"class":      resp.Class,
 			"confidence": resp.Confidence,
 		})
 		rmq.Publish("biometric.processed", processed)
