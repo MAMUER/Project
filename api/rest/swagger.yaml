@@ -1,0 +1,202 @@
+openapi: 3.0.0
+info:
+  title: Fitness Platform API
+  version: 1.0.0
+  description: API for personalized fitness management
+servers:
+  - url: http://localhost:8080/api/v1
+paths:
+  /register:
+    post:
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+                full_name:
+                  type: string
+                role:
+                  type: string
+      responses:
+        '200':
+          description: User registered
+  /login:
+    post:
+      summary: Login user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+  /profile:
+    get:
+      summary: Get user profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile
+  /biometrics:
+    post:
+      summary: Add biometric record
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metric_type:
+                  type: string
+                value:
+                  type: number
+                timestamp:
+                  type: string
+                device_type:
+                  type: string
+      responses:
+        '200':
+          description: Record added
+    get:
+      summary: Get biometric records
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: metric_type
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Biometric records
+  /training/generate:
+    post:
+      summary: Generate training plan
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                duration_weeks:
+                  type: integer
+                available_days:
+                  type: array
+                  items:
+                    type: integer
+                class:
+                  type: string
+                confidence:
+                  type: number
+      responses:
+        '200':
+          description: Plan generated
+  /training/plans:
+    get:
+      summary: Get user training plans
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Training plans
+  /training/complete:
+    post:
+      summary: Complete a workout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                plan_id:
+                  type: string
+                workout_id:
+                  type: string
+                rating:
+                  type: integer
+                feedback:
+                  type: string
+      responses:
+        '200':
+          description: Workout completed
+  /training/progress:
+    get:
+      summary: Get user progress
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User progress
+  /ml/classify:
+    get:
+      summary: Classify user state
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Classification result
+  /ml/generate-plan:
+    post:
+      summary: Generate plan via ML
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                class_name:
+                  type: string
+                confidence:
+                  type: number
+                duration_weeks:
+                  type: integer
+                available_days:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: Plan generated
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service healthy
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

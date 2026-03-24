@@ -12,6 +12,13 @@ type Publisher struct {
     queue   string
 }
 
+type Consumer struct {
+    conn    *amqp.Connection
+    channel *amqp.Channel
+    queue   string
+    msgs    <-chan amqp.Delivery
+}
+
 func NewPublisher(url, queue string) (*Publisher, error) {
     conn, err := amqp.Dial(url)
     if err != nil {
@@ -50,6 +57,47 @@ func (p *Publisher) Close() error {
     }
     if p.conn != nil {
         return p.conn.Close()
+    }
+    return nil
+}
+
+func NewConsumer(url, queue string) (*Consumer, error) {
+    conn, err := amqp.Dial(url)
+    if err != nil {
+        return nil, err
+    }
+    ch, err := conn.Channel()
+    if err != nil {
+        conn.Close()
+        return nil, err
+    }
+    _, err = ch.QueueDeclare(queue, true, false, false, false, nil)
+    if err != nil {
+        ch.Close()
+        conn.Close()
+        return nil, err
+    }
+    
+    msgs, err := ch.Consume(queue, "", false, false, false, false, nil)
+    if err != nil {
+        ch.Close()
+        conn.Close()
+        return nil, err
+    }
+    
+    return &Consumer{conn: conn, channel: ch, queue: queue, msgs: msgs}, nil
+}
+
+func (c *Consumer) Messages() <-chan amqp.Delivery {
+    return c.msgs
+}
+
+func (c *Consumer) Close() error {
+    if c.channel != nil {
+        c.channel.Close()
+    }
+    if c.conn != nil {
+        return c.conn.Close()
     }
     return nil
 }

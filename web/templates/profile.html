@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Profile - Fitness Platform{% endblock %}
+
+{% block content %}
+<nav class="navbar">
+    <div class="nav-brand">Fitness AI</div>
+    <button class="menu-toggle" id="menuToggle">☰</button>
+    <ul class="nav-menu" id="navMenu">
+        <li><a href="/">Дашборд</a></li>
+        <li><a href="/profile" class="active">Профиль</a></li>
+        <li><a href="/training">Тренировки</a></li>
+        <li><a href="/achievements">Достижения</a></li>
+        <li><button id="logoutBtn" class="btn-logout">Выйти</button></li>
+    </ul>
+</nav>
+
+<main class="container">
+    <h1>Профиль</h1>
+    <form id="profileForm">
+        <input type="text" id="profileFullName" placeholder="ФИО">
+        <input type="number" id="profileAge" placeholder="Возраст">
+        <select id="profileGender">
+            <option value="">Пол</option>
+            <option value="male">Мужской</option>
+            <option value="female">Женский</option>
+        </select>
+        <input type="number" id="profileHeight" placeholder="Рост (см)">
+        <input type="number" id="profileWeight" placeholder="Вес (кг)">
+        <select id="profileFitnessLevel">
+            <option value="">Уровень подготовки</option>
+            <option value="beginner">Начинающий</option>
+            <option value="intermediate">Средний</option>
+            <option value="advanced">Продвинутый</option>
+        </select>
+        <div class="checkbox-group">
+            <label>Цели:</label>
+            <label><input type="checkbox" value="weight_loss"> Похудение</label>
+            <label><input type="checkbox" value="muscle_gain"> Набор мышц</label>
+            <label><input type="checkbox" value="endurance"> Выносливость</label>
+        </div>
+        <button type="submit">Сохранить</button>
+    </form>
+</main>
+{% endblock %}
