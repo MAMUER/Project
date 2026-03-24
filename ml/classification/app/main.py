@@ -15,8 +15,9 @@ app = FastAPI(title="HealthFit Classification Service", version="1.0.0")
 # Модель нейросети (6 входов -> класс тренировки)
 class TrainingClassifier:
     def __init__(self):
-        self.model = self._build_model()
+        # Сначала определяем классы, потом строим модель
         self.classes = ['cardio', 'strength', 'flexibility', 'recovery', 'hiit', 'endurance']
+        self.model = self._build_model()
         
     def _build_model(self):
         model = tf.keras.Sequential([
@@ -30,8 +31,6 @@ class TrainingClassifier:
         return model
     
     def predict(self, features):
-        # features: [heart_rate, ecg_mean, systolic, diastolic, spo2, temperature, sleep_duration, deep_sleep]
-        # Упрощаем до 6 параметров для первой нейросети
         input_data = np.array([[
             features['heart_rate'],
             features['ecg_mean'],
@@ -72,7 +71,6 @@ async def health():
 @app.post("/classify", response_model=ClassifyResponse)
 async def classify(request: ClassifyRequest):
     try:
-        # Вычисляем среднее значение ЭКГ (упрощенно)
         ecg_values = [int(x) for x in request.ecg.split(',')] if request.ecg else [0]
         ecg_mean = sum(ecg_values) / len(ecg_values) if ecg_values else 0
         

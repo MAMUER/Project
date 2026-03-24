@@ -32,6 +32,14 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
       
+      - name: Check formatting
+        run: |
+          go fmt ./...
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "❌ Code is not formatted. Run 'go fmt ./...' and commit changes."
+            exit 1
+          fi
+      
       - name: Generate protobuf
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
@@ -44,7 +52,7 @@ jobs:
       - name: Run vet
         run: go vet ./...
       
-      - name: Run tests
+      - name: Run tests with race detector
         run: go test -v -race -coverprofile=coverage.out ./...
       
       - name: Upload coverage
@@ -72,6 +80,7 @@ jobs:
       
       - name: Build all services
         run: |
+          mkdir -p bin
           go build -o bin/auth-service ./cmd/auth-service
           go build -o bin/biometric-ingest ./cmd/biometric-ingest
           go build -o bin/data-processor ./cmd/data-processor
