@@ -7,7 +7,7 @@ on:
       - 'internal/**'
       - 'pkg/**'
       - 'proto/**'
-    branches: [main, develop]
+    branches: [main, develop, Microservice_arc]
   pull_request:
     paths:
       - 'cmd/**'
