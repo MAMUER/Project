@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "github.com/MAMUER/Project/api/proto/user";
+
+service UserService {
+    rpc Register(RegisterRequest) returns (RegisterResponse);
+    rpc Login(LoginRequest) returns (LoginResponse);
+    rpc GetProfile(GetProfileRequest) returns (UserProfile);
+    rpc UpdateProfile(UpdateProfileRequest) returns (UserProfile);
+    rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+}
+
+message RegisterRequest {
+    string email = 1;
+    string password = 2;
+    string full_name = 3;
+    string role = 4;
+}
+
+message RegisterResponse {
+    string user_id = 1;
+    string message = 2;
+}
+
+message LoginRequest {
+    string email = 1;
+    string password = 2;
+}
+
+message LoginResponse {
+    string access_token = 1;
+    string token_type = 2;
+    int64 expires_in = 3;
+    string user_id = 4;
+    string role = 5;
+}
+
+message GetProfileRequest {
+    string user_id = 1;
+}
+
+message UpdateProfileRequest {
+    string user_id = 1;
+    optional int32 age = 2;
+    optional string gender = 3;
+    optional int32 height_cm = 4;
+    optional double weight_kg = 5;
+    optional string fitness_level = 6;
+    repeated string goals = 7;
+    repeated string contraindications = 8;
+}
+
+message UserProfile {
+    string user_id = 1;
+    string email = 2;
+    string full_name = 3;
+    string role = 4;
+    int32 age = 5;
+    string gender = 6;
+    int32 height_cm = 7;
+    double weight_kg = 8;
+    string fitness_level = 9;
+    repeated string goals = 10;
+    repeated string contraindications = 11;
+    string created_at = 12;
+    string updated_at = 13;
+}
+
+message ListUsersRequest {
+    int32 page = 1;
+    int32 page_size = 2;
+    string role = 3;
+}
+
+message ListUsersResponse {
+    repeated UserProfile users = 1;
+    int32 total = 2;
+}

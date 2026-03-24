@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package biometric;
+
+option go_package = "github.com/MAMUER/Project/api/proto/biometric";
+
+import "google/protobuf/timestamp.proto";
+
+service BiometricService {
+    rpc AddRecord(AddRecordRequest) returns (AddRecordResponse);
+    rpc BatchAddRecords(BatchAddRecordsRequest) returns (BatchAddRecordsResponse);
+    rpc GetRecords(GetRecordsRequest) returns (GetRecordsResponse);
+    rpc GetLatest(GetLatestRequest) returns (BiometricRecord);
+}
+
+message BiometricRecord {
+    string id = 1;
+    string user_id = 2;
+    string metric_type = 3;
+    double value = 4;
+    google.protobuf.Timestamp timestamp = 5;
+    string device_type = 6;
+    google.protobuf.Timestamp created_at = 7;
+}
+
+message AddRecordRequest {
+    string user_id = 1;
+    string metric_type = 2;
+    double value = 3;
+    google.protobuf.Timestamp timestamp = 4;
+    string device_type = 5;
+}
+
+message AddRecordResponse {
+    string id = 1;
+}
+
+message BatchAddRecordsRequest {
+    string user_id = 1;
+    repeated AddRecordRequest records = 2;
+}
+
+message BatchAddRecordsResponse {
+    int32 count = 1;
+}
+
+message GetRecordsRequest {
+    string user_id = 1;
+    string metric_type = 2;
+    google.protobuf.Timestamp from = 3;
+    google.protobuf.Timestamp to = 4;
+    int32 limit = 5;
+}
+
+message GetRecordsResponse {
+    repeated BiometricRecord records = 1;
+}
+
+message GetLatestRequest {
+    string user_id = 1;
+    string metric_type = 2;
+}

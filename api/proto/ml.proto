@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package ml;
+
+option go_package = "github.com/MAMUER/Project/api/proto/ml";
+
+service MLService {
+    rpc Classify(ClassifyRequest) returns (ClassifyResponse);
+    rpc Generate(GenerateRequest) returns (GenerateResponse);
+}
+
+message ClassifyRequest {
+    repeated double features = 1;
+    map<string, string> user_metadata = 2;
+}
+
+message ClassifyResponse {
+    string class = 1;
+    double confidence = 2;
+    string recommended_intensity = 3;
+}
+
+message GenerateRequest {
+    string class = 1;
+    string goal = 2;
+    int32 duration_weeks = 3;
+    repeated int32 available_days = 4;
+    repeated string contraindications = 5;
+    string fitness_level = 6;
+}
+
+message GenerateResponse {
+    string plan_id = 1;
+    bytes plan_data = 2;
+}

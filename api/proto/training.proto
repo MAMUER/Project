@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package training;
+
+option go_package = "github.com/MAMUER/Project/api/proto/training";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+service TrainingService {
+    rpc GeneratePlan(GeneratePlanRequest) returns (GeneratePlanResponse);
+    rpc GetPlan(GetPlanRequest) returns (TrainingPlan);
+    rpc ListPlans(ListPlansRequest) returns (ListPlansResponse);
+    rpc CompleteWorkout(CompleteWorkoutRequest) returns (CompleteWorkoutResponse);
+    rpc GetProgress(GetProgressRequest) returns (GetProgressResponse);
+}
+
+message GeneratePlanRequest {
+    string user_id = 1;
+    string classification_class = 2;
+    double confidence = 3;
+    int32 duration_weeks = 4;
+    repeated int32 available_days = 5;
+}
+
+message GeneratePlanResponse {
+    string plan_id = 1;
+    google.protobuf.Struct plan_data = 2;
+}
+
+message TrainingPlan {
+    string id = 1;
+    string user_id = 2;
+    google.protobuf.Struct plan_data = 3;
+    google.protobuf.Timestamp generated_at = 4;
+    google.protobuf.Timestamp start_date = 5;
+    google.protobuf.Timestamp end_date = 6;
+    string status = 7;
+}
+
+message GetPlanRequest {
+    string plan_id = 1;
+}
+
+message ListPlansRequest {
+    string user_id = 1;
+    int32 page = 2;
+    int32 page_size = 3;
+}
+
+message ListPlansResponse {
+    repeated TrainingPlan plans = 1;
+    int32 total = 2;
+}
+
+message CompleteWorkoutRequest {
+    string user_id = 1;
+    string plan_id = 2;
+    string workout_id = 3;
+    int32 rating = 4;
+    string feedback = 5;
+}
+
+message CompleteWorkoutResponse {
+    bool success = 1;
+    string achievement_id = 2;
+}
+
+message GetProgressRequest {
+    string user_id = 1;
+    google.protobuf.Timestamp from = 2;
+    google.protobuf.Timestamp to = 3;
+}
+
+message GetProgressResponse {
+    int32 total_workouts = 1;
+    int32 completed_workouts = 2;
+    double completion_rate = 3;
+    repeated WorkoutCompletion history = 4;
+}
+
+message WorkoutCompletion {
+    string workout_id = 1;
+    google.protobuf.Timestamp scheduled_date = 2;
+    google.protobuf.Timestamp completed_at = 3;
+    int32 rating = 4;
+}
