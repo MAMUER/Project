@@ -102,7 +102,7 @@ deps:
 # Показать структуру проекта
 tree:
 	@echo "Project structure:"
-	@echo ""
+	@echo " "
 	@tree -a -I 'bin|node_modules|__pycache__|*.pyc|.git' --dirsfirst
 	@echo ""
 
