@@ -8,7 +8,7 @@ on:
   pull_request:
     paths:
       - 'ml/**'
-    branches: [main]
+    branches: [main, Microservice_arc]
 
 jobs:
   test:

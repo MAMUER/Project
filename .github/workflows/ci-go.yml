@@ -14,7 +14,7 @@ on:
       - 'internal/**'
       - 'pkg/**'
       - 'proto/**'
-    branches: [main]
+    branches: [main, Microservice_arc]
 
 env:
   GO_VERSION: "1.25"

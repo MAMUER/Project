@@ -2,7 +2,7 @@ name: CD - Deploy to Kubernetes
 
 on:
   push:
-    branches: [main]
+    branches: [main, Microservice_arc]
     tags: ['v*']
 
 env:

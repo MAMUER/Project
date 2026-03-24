@@ -2,7 +2,7 @@ name: Deploy to WSL
 
 on:
   push:
-    branches: [main]
+    branches: [main, Microservice_arc]
   workflow_dispatch:
 
 jobs:
