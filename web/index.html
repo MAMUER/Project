@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Fitness Platform</title>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Навигация -->
+        <nav class="navbar">
+            <div class="nav-brand">Fitness AI</div>
+            <button class="menu-toggle" id="menuToggle">☰</button>
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="/" class="active">Дашборд</a></li>
+                <li><a href="/profile">Профиль</a></li>
+                <li><a href="/training">Тренировки</a></li>
+                <li><a href="/achievements">Достижения</a></li>
+                <li><button id="logoutBtn" class="btn-logout">Выйти</button></li>
+            </ul>
+        </nav>
+
+        <!-- Основной контент -->
+        <main class="container">
+            <!-- Страница входа/регистрации -->
+            <div id="authView" class="auth-container">
+                <div class="auth-card">
+                    <h2>Вход</h2>
+                    <form id="loginForm">
+                        <input type="email" id="loginEmail" placeholder="Email" required>
+                        <input type="password" id="loginPassword" placeholder="Пароль" required>
+                        <button type="submit">Войти</button>
+                    </form>
+                    <p>Нет аккаунта? <a href="#" id="showRegister">Зарегистрироваться</a></p>
+                </div>
+                <div class="auth-card hidden" id="registerCard">
+                    <h2>Регистрация</h2>
+                    <form id="registerForm">
+                        <input type="text" id="regFullName" placeholder="ФИО" required>
+                        <input type="email" id="regEmail" placeholder="Email" required>
+                        <input type="password" id="regPassword" placeholder="Пароль" required>
+                        <button type="submit">Зарегистрироваться</button>
+                    </form>
+                    <p>Уже есть аккаунт? <a href="#" id="showLogin">Войти</a></p>
+                </div>
+            </div>
+
+            <!-- Дашборд (после входа) -->
+            <div id="dashboardView" class="hidden">
+                <h1>Ваш дашборд</h1>
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">Пульс: --</div>
+                    <div class="stat-card">Давление: --/--</div>
+                    <div class="stat-card">SpO2: --</div>
+                    <div class="stat-card">Сон: -- ч</div>
+                </div>
+                <canvas id="heartChart" width="400" height="200"></canvas>
+                <div class="training-section">
+                    <h2>Тренировка на сегодня</h2>
+                    <div id="todayWorkout" class="workout-card">
+                        Загружается...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Профиль -->
+            <div id="profileView" class="hidden">
+                <h1>Профиль</h1>
+                <form id="profileForm">
+                    <input type="text" id="profileFullName" placeholder="ФИО">
+                    <input type="number" id="profileAge" placeholder="Возраст">
+                    <select id="profileGender">
+                        <option value="">Пол</option>
+                        <option value="male">Мужской</option>
+                        <option value="female">Женский</option>
+                    </select>
+                    <input type="number" id="profileHeight" placeholder="Рост (см)">
+                    <input type="number" id="profileWeight" placeholder="Вес (кг)">
+                    <select id="profileFitnessLevel">
+                        <option value="">Уровень подготовки</option>
+                        <option value="beginner">Начинающий</option>
+                        <option value="intermediate">Средний</option>
+                        <option value="advanced">Продвинутый</option>
+                    </select>
+                    <div class="checkbox-group">
+                        <label>Цели:</label>
+                        <label><input type="checkbox" value="weight_loss"> Похудение</label>
+                        <label><input type="checkbox" value="muscle_gain"> Набор мышц</label>
+                        <label><input type="checkbox" value="endurance"> Выносливость</label>
+                    </div>
+                    <button type="submit">Сохранить</button>
+                </form>
+            </div>
+
+            <!-- Тренировки -->
+            <div id="trainingView" class="hidden">
+                <h1>Мои программы</h1>
+                <div id="trainingPlans"></div>
+                <button id="generatePlanBtn" class="btn-primary">Сгенерировать новую программу</button>
+            </div>
+
+            <!-- Достижения -->
+            <div id="achievementsView" class="hidden">
+                <h1>Достижения</h1>
+                <div id="achievementsList" class="achievements-grid"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/api.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</body>
+</html>

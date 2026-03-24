@@ -3,9 +3,9 @@ services:
     image: postgres:15-alpine
     container_name: fitness-postgres
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-fitness}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: fitness
     ports:
       - "5432:5432"
     volumes:
@@ -17,6 +17,8 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - fitness-network
 
   redis:
     image: redis:7-alpine
@@ -31,6 +33,8 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - fitness-network
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -46,6 +50,38 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    networks:
+      - fitness-network
+
+  ml-classifier:
+    build:
+      context: ..
+      dockerfile: cmd/ml-classifier/Dockerfile
+    container_name: fitness-ml-classifier
+    ports:
+      - "8001:8001"
+    environment:
+      - ML_CLASSIFIER_PORT=8001
+    networks:
+      - fitness-network
+    restart: unless-stopped
+
+  ml-generator:
+    build:
+      context: ..
+      dockerfile: cmd/ml-generator/Dockerfile
+    container_name: fitness-ml-generator
+    ports:
+      - "8002:8002"
+    environment:
+      - ML_GENERATOR_PORT=8002
+    networks:
+      - fitness-network
+    restart: unless-stopped
+
+networks:
+  fitness-network:
+    driver: bridge
 
 volumes:
   postgres-data:

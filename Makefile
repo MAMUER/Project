@@ -1,4 +1,8 @@
-# Makefile для Windows (без переносов строк)
+# Загрузка переменных из .env
+ifneq (,$(wildcard ./.env))
+    include .env
+    export
+endif
 
 .PHONY: proto build run test docker-up docker-down clean dev
 

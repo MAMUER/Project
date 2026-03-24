@@ -7,21 +7,21 @@ CREATE TABLE IF NOT EXISTS users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
-    role VARCHAR(50) NOT NULL DEFAULT 'client', -- client, doctor, admin
+    role VARCHAR(50) NOT NULL DEFAULT 'client',
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Таблица профилей (дополнительная информация, цели, противопоказания)
+-- Таблица профилей
 CREATE TABLE IF NOT EXISTS user_profiles (
     user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     age INT,
     gender VARCHAR(10),
     height_cm INT,
     weight_kg DECIMAL(5,2),
-    fitness_level VARCHAR(50), -- beginner, intermediate, advanced
-    goals TEXT[], -- массив целей (weight_loss, muscle_gain, endurance, etc)
-    contraindications TEXT[], -- массив противопоказаний
+    fitness_level VARCHAR(50),
+    goals TEXT[],
+    contraindications TEXT[],
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -35,49 +35,47 @@ CREATE TABLE IF NOT EXISTS biometric_data (
     timestamp TIMESTAMPTZ NOT NULL,
     device_type VARCHAR(50),
     created_at TIMESTAMPTZ DEFAULT NOW()
-) PARTITION BY RANGE (timestamp);
+);
 
--- Создание партиций (для примера, можно автоматизировать)
-CREATE TABLE IF NOT EXISTS biometric_data_2025_01 PARTITION OF biometric_data
-    FOR VALUES FROM ('2025-01-01') TO ('2025-02-01');
-CREATE TABLE IF NOT EXISTS biometric_data_2025_02 PARTITION OF biometric_data
-    FOR VALUES FROM ('2025-02-01') TO ('2025-03-01');
--- и так далее, но в реальности нужно автоматическое создание
-
--- Индексы
+-- Индексы для биометрических данных
 CREATE INDEX IF NOT EXISTS idx_biometric_user_metric_time ON biometric_data(user_id, metric_type, timestamp);
+CREATE INDEX IF NOT EXISTS idx_biometric_timestamp ON biometric_data(timestamp);
+
+-- Индексы для пользователей
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
 -- Таблица программ тренировок
 CREATE TABLE IF NOT EXISTS training_plans (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    plan_data JSONB NOT NULL, -- структура программы (недели, дни, упражнения)
+    plan_data JSONB NOT NULL,
     generated_at TIMESTAMPTZ DEFAULT NOW(),
     start_date DATE,
     end_date DATE,
-    status VARCHAR(50) DEFAULT 'active', -- active, completed, archived
-    metadata JSONB -- дополнительные данные (класс тренировки, confidence и т.д.)
+    status VARCHAR(50) DEFAULT 'active'
 );
 
--- Таблица выполнения тренировок (прогресс)
+-- Таблица выполнения тренировок (исправленная)
 CREATE TABLE IF NOT EXISTS workout_completions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     training_plan_id UUID REFERENCES training_plans(id) ON DELETE CASCADE,
-    scheduled_date DATE NOT NULL,
+    workout_id VARCHAR(100) NOT NULL,
+    scheduled_date DATE DEFAULT CURRENT_DATE,
     completed BOOLEAN DEFAULT FALSE,
     completed_at TIMESTAMPTZ,
-    feedback JSONB, -- самооценка, ощущения
+    feedback TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Таблица достижений (ачивки)
+-- Таблица достижений
 CREATE TABLE IF NOT EXISTS achievements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    criteria JSONB, -- условия получения
-    icon_url VARCHAR(255)
+    criteria JSONB,
+    icon_url VARCHAR(255),
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Таблица пользовательских достижений
@@ -87,3 +85,17 @@ CREATE TABLE IF NOT EXISTS user_achievements (
     earned_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (user_id, achievement_id)
 );
+
+-- Индексы для тренировок
+CREATE INDEX IF NOT EXISTS idx_training_plans_user ON training_plans(user_id);
+CREATE INDEX IF NOT EXISTS idx_workout_completions_user ON workout_completions(user_id);
+CREATE INDEX IF NOT EXISTS idx_workout_completions_plan ON workout_completions(training_plan_id);
+
+-- Базовые достижения
+INSERT INTO achievements (id, name, description, criteria) VALUES
+    (gen_random_uuid(), 'Первый шаг', 'Первая завершенная тренировка', '{"type": "workout_count", "threshold": 1}'),
+    (gen_random_uuid(), 'Десятка', '10 завершенных тренировок', '{"type": "workout_count", "threshold": 10}'),
+    (gen_random_uuid(), 'Полтинник', '50 завершенных тренировок', '{"type": "workout_count", "threshold": 50}'),
+    (gen_random_uuid(), 'Сто дней', '100 дней активности', '{"type": "active_days", "threshold": 100}'),
+    (gen_random_uuid(), 'Мастер спорта', '1000 завершенных тренировок', '{"type": "workout_count", "threshold": 1000}')
+ON CONFLICT DO NOTHING;
