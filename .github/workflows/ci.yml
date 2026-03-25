@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, Microservice_arc]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, Microservice_arc]
 
 env:
   GO_VERSION: "1.25"

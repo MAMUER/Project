@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
+from tensorflow import keras # type: ignore
 
 def build_generator(latent_dim=100):
     """Построение генератора GAN"""

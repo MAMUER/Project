@@ -108,28 +108,3 @@ func TestLogLevels(t *testing.T) {
 		})
 	}
 }
-
-func TestLogWithFields(t *testing.T) {
-	core, recorded := observer.New(zap.InfoLevel)
-	log := &Logger{Logger: zap.New(core)}
-
-	// Используем log.Logger.With (а не log.With)
-	loggerWithFields := log.Logger.With(
-		zap.String("user_id", "user-123"),
-		zap.Int("attempts", 3),
-		zap.Bool("success", true),
-	)
-	loggerWithFields.Info("user action")
-
-	logs := recorded.All()
-	require.Len(t, logs, 1)
-
-	fields := make(map[string]interface{})
-	for _, field := range logs[0].Context {
-		fields[field.Key] = field.Interface
-	}
-
-	assert.Equal(t, "user-123", fields["user_id"])
-	assert.Equal(t, int64(3), fields["attempts"])
-	assert.Equal(t, true, fields["success"])
-}

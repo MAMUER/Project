@@ -30,3 +30,8 @@ func New(service string) *Logger {
 func (l *Logger) WithRequestID(requestID string) *zap.Logger {
 	return l.Logger.With(zap.String("request_id", requestID))
 }
+
+// Добавьте этот метод
+func (l *Logger) WithFields(fields ...zap.Field) *zap.Logger {
+	return l.Logger.With(fields...)
+}
