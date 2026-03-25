@@ -4,9 +4,44 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-.PHONY: proto build run test docker-up docker-down clean dev
+.PHONY: proto build run test test-integration test-cover docker-up docker-down clean dev fmt vet
 
 BIN_DIR := bin
+
+# Форматирование кода
+fmt:
+	@echo "Formatting Go code..."
+	go fmt ./...
+	@echo "Format complete."
+
+# Проверка кода
+vet:
+	@echo "Running go vet..."
+	go vet ./...
+	@echo "Vet complete."
+
+# Запуск всех тестов
+test:
+	@echo "Running unit tests..."
+	go test -v -short ./...
+	@echo "Tests complete."
+
+# Запуск интеграционных тестов (требуют запущенных сервисов)
+test-integration:
+	@echo "Running integration tests..."
+	go test -v -tags=integration ./...
+	@echo "Integration tests complete."
+
+# Запуск тестов с покрытием
+test-cover:
+	@echo "Running tests with coverage..."
+	go test -v -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report: coverage.html"
+
+# Запуск всех проверок
+check: fmt vet test
+	@echo "All checks passed!"
 
 proto:
 	@echo "Generating proto files..."
@@ -46,9 +81,6 @@ build:
 run: build
 	.\bin\gateway.exe
 
-test:
-	go test -v ./...
-
 docker-up:
 	docker-compose -f deployments/docker-compose.yml up -d
 
@@ -59,7 +91,25 @@ clean:
 	@echo "Cleaning..."
 	powershell -Command "if (Test-Path '$(BIN_DIR)') { Remove-Item -Recurse -Force '$(BIN_DIR)' }"
 	powershell -Command "if (Test-Path 'api/gen') { Remove-Item -Recurse -Force 'api/gen' }"
+	powershell -Command "if (Test-Path 'coverage.out') { Remove-Item 'coverage.out' }"
+	powershell -Command "if (Test-Path 'coverage.html') { Remove-Item 'coverage.html' }"
 	@echo "Clean complete."
 
 dev: docker-up
 	@echo "Services started. Run 'make run' to start gateway."
+
+help:
+	@echo "Available commands:"
+	@echo "  make fmt        - Format Go code"
+	@echo "  make vet        - Run go vet"
+	@echo "  make test       - Run unit tests"
+	@echo "  make test-integration - Run integration tests"
+	@echo "  make test-cover - Run tests with coverage report"
+	@echo "  make check      - Run fmt, vet and test"
+	@echo "  make proto      - Generate proto files"
+	@echo "  make build      - Build all services"
+	@echo "  make run        - Run gateway"
+	@echo "  make docker-up  - Start Docker services"
+	@echo "  make docker-down - Stop Docker services"
+	@echo "  make clean      - Clean generated files"
+	@echo "  make dev        - Start Docker services and run gateway"

@@ -14,6 +14,10 @@ logger = logging.getLogger("ml-classifier")
 
 app = FastAPI(title="ML Classifier Service", version="1.0.0")
 
+# Глобальные переменные для модели
+model = None
+scaler = None
+
 # Модель данных для запроса
 class BiometricFeatures(BaseModel):
     heart_rate: float = Field(..., ge=30, le=250, description="Пульс (уд/мин)")
@@ -81,10 +85,31 @@ CLASSES = {
     }
 }
 
-def predict_class(features: BiometricFeatures) -> dict:
+def load_models():
+    """Загрузка обученных моделей (если есть)"""
+    global model, scaler
+    try:
+        import tensorflow as tf
+        import joblib
+        
+        model_path = os.getenv("MODEL_PATH", "/app/models/classifier.h5")
+        scaler_path = os.getenv("SCALER_PATH", "/app/models/scaler.pkl")
+        
+        if os.path.exists(model_path) and os.path.exists(scaler_path):
+            model = tf.keras.models.load_model(model_path)
+            scaler = joblib.load(scaler_path)
+            logger.info(f"Models loaded from {model_path}")
+            return True
+    except ImportError:
+        logger.warning("TensorFlow not installed, using rule-based classification")
+    except Exception as e:
+        logger.warning(f"Failed to load models: {e}, using rule-based classification")
+    
+    return False
+
+def rule_based_classify(features: BiometricFeatures) -> dict:
     """
-    Простая логика классификации на основе правил.
-    В реальном проекте здесь будет нейросеть (TensorFlow/PyTorch)
+    Классификация на основе правил (fallback)
     """
     score = {
         "endurance": 0,
@@ -117,7 +142,6 @@ def predict_class(features: BiometricFeatures) -> dict:
     if features.sleep_hours >= 7:
         score["interval"] += 20
     
-    # Выбираем класс с максимальным score
     best_class = max(score, key=score.get)
     confidence = score[best_class] / 100 if score[best_class] > 0 else 0.5
     
@@ -128,6 +152,41 @@ def predict_class(features: BiometricFeatures) -> dict:
         "recommendations": CLASSES[best_class]["recommendations"]
     }
 
+def nn_classify(features: BiometricFeatures) -> dict:
+    """Классификация через нейросеть"""
+    global model, scaler
+    
+    features_array = np.array([[
+        features.heart_rate,
+        features.ecg,
+        features.blood_pressure_systolic,
+        features.blood_pressure_diastolic,
+        features.spo2,
+        features.temperature,
+        features.sleep_hours
+    ]])
+    
+    features_scaled = scaler.transform(features_array)
+    prediction = model.predict(features_scaled, verbose=0)
+    class_idx = np.argmax(prediction[0])
+    classes = ["endurance", "strength", "recovery", "interval"]
+    class_name = classes[class_idx]
+    
+    return {
+        "class_name": class_name,
+        "confidence": float(prediction[0][class_idx]),
+        "intensity": CLASSES[class_name]["intensity"],
+        "recommendations": CLASSES[class_name]["recommendations"]
+    }
+
+@app.on_event("startup")
+async def startup_event():
+    models_loaded = load_models()
+    if not models_loaded:
+        logger.info("Using rule-based classification")
+    else:
+        logger.info("Using neural network classification")
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "service": "ml-classifier", "timestamp": datetime.now().isoformat()}
@@ -137,7 +196,10 @@ async def classify(request: ClassifyRequest):
     logger.info(f"Classifying features: heart_rate={request.features.heart_rate}")
     
     try:
-        result = predict_class(request.features)
+        if model is not None and scaler is not None:
+            result = nn_classify(request.features)
+        else:
+            result = rule_based_classify(request.features)
         
         # Учитываем контекст пользователя
         if request.user_context:

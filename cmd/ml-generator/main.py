@@ -7,13 +7,16 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import uvicorn
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ml-generator")
 
 app = FastAPI(title="ML Generator Service (GAN)", version="1.0.0")
+
+# Глобальная переменная для GAN модели
+generator = None
 
 # Модели данных
 class GenerateRequest(BaseModel):
@@ -59,6 +62,22 @@ INTENSITY = {
     "high": {"duration": 50, "sets": 4, "reps": 15}
 }
 
+def load_gan_model():
+    """Загрузка обученной GAN модели"""
+    global generator
+    try:
+        import tensorflow as tf
+        model_path = os.getenv("GENERATOR_PATH", "/app/models/generator.h5")
+        if os.path.exists(model_path):
+            generator = tf.keras.models.load_model(model_path)
+            logger.info(f"GAN model loaded from {model_path}")
+            return True
+    except ImportError:
+        logger.warning("TensorFlow not installed, using rule-based generation")
+    except Exception as e:
+        logger.warning(f"Failed to load GAN model: {e}, using rule-based generation")
+    return False
+
 def generate_workout(day: int, class_name: str, intensity: str, fitness_level: str) -> dict:
     """Генерация одной тренировки"""
     exercises = EXERCISES.get(class_name, EXERCISES["endurance"])
@@ -99,7 +118,6 @@ def generate_workout(day: int, class_name: str, intensity: str, fitness_level: s
 
 def generate_plan(request: GenerateRequest) -> dict:
     """Генерация полной программы тренировок"""
-    # Определяем интенсивность на основе класса и confidence
     intensity_map = {
         "endurance": "medium",
         "strength": "high",
@@ -108,13 +126,11 @@ def generate_plan(request: GenerateRequest) -> dict:
     }
     intensity = intensity_map.get(request.class_name, "medium")
     
-    # Корректировка по confidence
     if request.confidence < 0.6:
         intensity = "low"
     elif request.confidence > 0.9:
         intensity = "high"
     
-    # Генерация недель
     weeks = []
     for week in range(1, request.duration_weeks + 1):
         week_data = {
@@ -123,14 +139,12 @@ def generate_plan(request: GenerateRequest) -> dict:
             "workouts": []
         }
         
-        # Генерация тренировок на указанные дни
         for day in request.available_days:
             workout = generate_workout(day, request.class_name, intensity, request.fitness_level)
             week_data["workouts"].append(workout)
         
         weeks.append(week_data)
     
-    # Общая информация
     plan = {
         "name": f"Программа тренировок: {request.class_name}",
         "class": request.class_name,
@@ -149,14 +163,17 @@ def generate_plan(request: GenerateRequest) -> dict:
         ]
     }
     
-    # Добавляем рекомендации по противопоказаниям
     if request.contraindications:
         plan["contraindications_warning"] = [
-            f"⚠️ Учитывая противопоказание: {c}. Проконсультируйтесь с врачом перед началом."
+            f"Учитывая противопоказание: {c}. Проконсультируйтесь с врачом перед началом."
             for c in request.contraindications
         ]
     
     return plan
+
+@app.on_event("startup")
+async def startup_event():
+    load_gan_model()
 
 @app.get("/health")
 async def health():
@@ -169,7 +186,6 @@ async def generate(request: GenerateRequest):
     try:
         plan_data = generate_plan(request)
         
-        # Генерируем уникальный ID
         import uuid
         plan_id = str(uuid.uuid4())
         
