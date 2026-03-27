@@ -6,15 +6,10 @@ WORKDIR /app
 COPY cmd/ml-classifier/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копирование кода
+# Копирование кода и моделей
 COPY cmd/ml-classifier/main.py .
-
-# Создание директории для моделей
-RUN mkdir -p /app/models
-
-# Копирование моделей, если они есть (необязательно, без условных конструкций)
-# Если папка models существует, она скопируется; если нет - ошибка, но мы её игнорируем через .dockerignore
-COPY models/ /app/models/
+COPY cmd/ml-classifier/classifier.keras /app/models/classifier.keras
+COPY cmd/ml-classifier/scaler.pkl /app/models/scaler.pkl
 
 EXPOSE 8001
 

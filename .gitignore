@@ -59,3 +59,17 @@ kubeconfig
 # Проект специфичные
 bin/
 coverage.out
+
+# ML models и датасеты
+models/
+datasets/
+*.h5
+*.pkl
+*.npy
+
+# Python
+__pycache__/
+*.pyc
+venv/
+venv_ml/
+.venv/

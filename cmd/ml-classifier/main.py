@@ -92,7 +92,7 @@ def load_models():
         import tensorflow as tf
         import joblib
         
-        model_path = os.getenv("MODEL_PATH", "/app/models/classifier.h5")
+        model_path = os.getenv("MODEL_PATH", "/app/models/classifier.keras")
         scaler_path = os.getenv("SCALER_PATH", "/app/models/scaler.pkl")
         
         if os.path.exists(model_path) and os.path.exists(scaler_path):

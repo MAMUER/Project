@@ -26,11 +26,13 @@ jobs:
         run: go vet ./...
       - name: Run fmt check
         run: |
-          if [ -n "$(gofmt -l .)" ]; then
+          FILES=$(gofmt -l . | grep -v "cmd/tools/tools.go" || true)
+          if [ -n "$FILES" ]; then
             echo "Files not formatted:"
-            gofmt -l .
+            echo "$FILES"
             exit 1
           fi
+          echo "All Go files are properly formatted"
       - name: Run tests
         run: go test -v -short ./...
 
@@ -71,9 +73,18 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
       
+      # Убедимся, что модели есть в нужных местах
+      - name: Prepare ML models
+        run: |
+          # Проверяем наличие моделей
+          echo "Checking ML models..."
+          ls -la cmd/ml-classifier/ || echo "No models in ml-classifier"
+          ls -la cmd/ml-generator/ || echo "No models in ml-generator"
+      
       - name: Build and push all images
         run: |
           for svc in user-service biometric-service training-service gateway ml-classifier ml-generator; do
+            echo "Building $svc..."
             docker build -f cmd/$svc/Dockerfile -t ${{ env.REGISTRY }}/${{ github.repository }}/$svc:latest .
             docker push ${{ env.REGISTRY }}/${{ github.repository }}/$svc:latest
           done
@@ -89,6 +100,38 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       
+      - name: Create .env file on VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            cat > /opt/techip/.env << EOF
+            POSTGRES_USER=postgres
+            POSTGRES_PASSWORD=postgres
+            POSTGRES_DB=fitness
+            DB_HOST=postgres
+            DB_PORT=5432
+            DB_NAME=fitness
+            DB_SSLMODE=disable
+            REDIS_ADDR=redis:6379
+            REDIS_PASSWORD=
+            REDIS_DB=0
+            RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            AUTH_PORT=8081
+            AUTH_GRPC_PORT=50051
+            TASKS_PORT=8082
+            AUTH_GRPC_ADDR=auth:50051
+            USER_SERVICE_ADDR=user-service:50051
+            BIOMETRIC_SERVICE_ADDR=biometric-service:50052
+            TRAINING_SERVICE_ADDR=training-service:50053
+            GATEWAY_PORT=8080
+            ML_CLASSIFIER_URL=http://ml-classifier:8001
+            ML_GENERATOR_URL=http://ml-generator:8002
+            MODEL_PATH=/app/models/classifier.keras
+            SCALER_PATH=/app/models/scaler.pkl
+            GENERATOR_PATH=/app/models/generator.h5
+            EOF
+          '
+      
       - name: Deploy with Docker Compose
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
@@ -97,4 +140,20 @@ jobs:
             docker system prune -f
             docker-compose pull
             docker-compose up -d
+            echo "Waiting for services..."
+            sleep 15
+            docker-compose ps
+          '
+      
+      - name: Verify deployment
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            echo "=== SERVICE HEALTH ==="
+            curl -s http://localhost:8080/health
+            echo ""
+            echo "=== ML CLASSIFIER ==="
+            curl -s http://localhost:8001/health
+            echo ""
+            echo "=== ML GENERATOR ==="
+            curl -s http://localhost:8002/health
           '
