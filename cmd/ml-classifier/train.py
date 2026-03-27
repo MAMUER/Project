@@ -9,7 +9,7 @@ import scipy.io as sio
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 import tensorflow as tf
-from tensorflow import keras
+from tensorflow import keras # type: ignore
 import joblib
 import warnings
 warnings.filterwarnings('ignore')

@@ -19,7 +19,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.25'
+          go-version: ${{ env.GO_VERSION }}
       - name: Install dependencies
         run: go mod download
       - name: Run vet
@@ -61,7 +61,8 @@ jobs:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
     needs: build
-    if: github.ref == 'refs/heads/main'
+    # Запускаем для Microservice_arc ветки (основной)
+    if: github.ref == 'refs/heads/Microservice_arc' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Docker Buildx
@@ -76,34 +77,69 @@ jobs:
       # Убедимся, что модели есть в нужных местах
       - name: Prepare ML models
         run: |
-          # Проверяем наличие моделей
           echo "Checking ML models..."
-          ls -la cmd/ml-classifier/ || echo "No models in ml-classifier"
-          ls -la cmd/ml-generator/ || echo "No models in ml-generator"
+          # Создаем директории для моделей если нужно
+          mkdir -p cmd/ml-classifier/models
+          mkdir -p cmd/ml-generator/models
+          
+          # Копируем модели из корня в нужные места (если есть)
+          if [ -f models/classifier.keras ]; then
+            cp models/classifier.keras cmd/ml-classifier/models/
+            cp models/scaler.pkl cmd/ml-classifier/models/
+            echo "✅ Classifier models copied"
+          else
+            echo "⚠️ classifier.keras not found, will use rule-based fallback"
+          fi
+          
+          if [ -f models/generator.h5 ]; then
+            cp models/generator.h5 cmd/ml-generator/models/
+            echo "✅ Generator model copied"
+          else
+            echo "⚠️ generator.h5 not found, will use rule-based generation"
+          fi
+          
+          ls -la cmd/ml-classifier/models/ 2>/dev/null || echo "No models in ml-classifier"
+          ls -la cmd/ml-generator/models/ 2>/dev/null || echo "No models in ml-generator"
       
       - name: Build and push all images
         run: |
-          for svc in user-service biometric-service training-service gateway ml-classifier ml-generator; do
+          # Список сервисов для сборки
+          services="user-service biometric-service training-service gateway ml-classifier ml-generator"
+          
+          for svc in $services; do
             echo "Building $svc..."
             docker build -f cmd/$svc/Dockerfile -t ${{ env.REGISTRY }}/${{ github.repository }}/$svc:latest .
             docker push ${{ env.REGISTRY }}/${{ github.repository }}/$svc:latest
+            echo "✅ $svc pushed"
           done
 
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
     needs: docker
-    if: github.ref == 'refs/heads/main'
+    # Запускаем для Microservice_arc ветки (основной)
+    if: github.ref == 'refs/heads/Microservice_arc' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       
+      - name: Prepare server directories
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            mkdir -p /opt/techip
+            mkdir -p /opt/techip/certs
+            mkdir -p /opt/techip/deploy/tls
+            mkdir -p /opt/techip/deploy/lb
+            mkdir -p /opt/techip/deploy/monitoring
+          '
+      
       - name: Create .env file on VPS
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
             cat > /opt/techip/.env << EOF
+            # PostgreSQL
             POSTGRES_USER=postgres
             POSTGRES_PASSWORD=postgres
             POSTGRES_DB=fitness
@@ -111,49 +147,131 @@ jobs:
             DB_PORT=5432
             DB_NAME=fitness
             DB_SSLMODE=disable
+            
+            # Redis
             REDIS_ADDR=redis:6379
             REDIS_PASSWORD=
             REDIS_DB=0
+            
+            # RabbitMQ
             RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+            
+            # JWT
             JWT_SECRET=${{ secrets.JWT_SECRET }}
+            
+            # Auth Service
             AUTH_PORT=8081
             AUTH_GRPC_PORT=50051
+            
+            # Tasks Service
             TASKS_PORT=8082
             AUTH_GRPC_ADDR=auth:50051
+            
+            # Service addresses
             USER_SERVICE_ADDR=user-service:50051
             BIOMETRIC_SERVICE_ADDR=biometric-service:50052
             TRAINING_SERVICE_ADDR=training-service:50053
             GATEWAY_PORT=8080
+            
+            # ML Services
             ML_CLASSIFIER_URL=http://ml-classifier:8001
             ML_GENERATOR_URL=http://ml-generator:8002
+            
+            # ML Model paths (inside containers)
             MODEL_PATH=/app/models/classifier.keras
             SCALER_PATH=/app/models/scaler.pkl
             GENERATOR_PATH=/app/models/generator.h5
             EOF
+            echo "✅ .env file created"
+          '
+      
+      - name: Copy docker-compose file
+        run: |
+          scp -o StrictHostKeyChecking=no deployments/docker-compose.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/techip/docker-compose.yml
+          echo "✅ docker-compose.yml copied"
+      
+      - name: Copy nginx configs
+        run: |
+          scp -o StrictHostKeyChecking=no deploy/tls/nginx.conf ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/techip/deploy/tls/nginx.conf 2>/dev/null || echo "No nginx.conf"
+          scp -o StrictHostKeyChecking=no deploy/lb/nginx.conf ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/techip/deploy/lb/nginx.conf 2>/dev/null || echo "No lb nginx.conf"
+      
+      - name: Copy prometheus config
+        run: |
+          scp -o StrictHostKeyChecking=no deploy/monitoring/prometheus.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/techip/deploy/monitoring/prometheus.yml 2>/dev/null || echo "No prometheus.yml"
+      
+      - name: Copy init SQL
+        run: |
+          scp -o StrictHostKeyChecking=no scripts/init-db.sql ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/techip/init.sql
+          echo "✅ init.sql copied"
+      
+      - name: Generate SSL certificates
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            if [ ! -f /opt/techip/certs/cert.pem ]; then
+              openssl req -x509 -newkey rsa:2048 -nodes \
+                -keyout /opt/techip/certs/key.pem \
+                -out /opt/techip/certs/cert.pem \
+                -days 365 \
+                -subj "/CN=${{ secrets.VPS_HOST }}"
+              echo "✅ SSL certificates generated"
+            fi
           '
       
       - name: Deploy with Docker Compose
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
             cd /opt/techip
+            echo "Stopping existing containers..."
             docker-compose down 2>/dev/null || true
-            docker system prune -f
+            
+            echo "Pulling latest images..."
             docker-compose pull
+            
+            echo "Starting services..."
             docker-compose up -d
-            echo "Waiting for services..."
-            sleep 15
+            
+            echo "Waiting for services to be ready..."
+            sleep 20
+            
+            echo "=== CONTAINER STATUS ==="
             docker-compose ps
           '
       
       - name: Verify deployment
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            echo ""
             echo "=== SERVICE HEALTH ==="
-            curl -s http://localhost:8080/health
+            
+            # Gateway health
+            GATEWAY_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health)
+            echo "Gateway health: $GATEWAY_STATUS"
+            
+            # ML Classifier health
+            CLASSIFIER_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health)
+            echo "ML Classifier: $CLASSIFIER_STATUS"
+            
+            # ML Generator health
+            GENERATOR_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8002/health)
+            echo "ML Generator: $GENERATOR_STATUS"
+            
             echo ""
-            echo "=== ML CLASSIFIER ==="
-            curl -s http://localhost:8001/health
-            echo ""
-            echo "=== ML GENERATOR ==="
-            curl -s http://localhost:8002/health
+            echo "=== CONTAINERS ==="
+            docker ps --format "table {{.Names}}\t{{.Status}}"
           '
+      
+      - name: Send notification on success
+        if: success()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="✅ CI/CD Pipeline успешно завершен!%0A%0A🌿 Ветка: ${{ github.ref_name }}%0A📦 Коммит: ${{ github.sha }}%0A📁 Репозиторий: ${{ github.repository }}%0A%0A🚀 Все сервисы развернуты на VPS" \
+            -d parse_mode=HTML
+      
+      - name: Send notification on failure
+        if: failure()
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
+            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
+            -d text="❌ CI/CD Pipeline завершился с ошибкой!%0A%0A🌿 Ветка: ${{ github.ref_name }}%0A📦 Коммит: ${{ github.sha }}%0A📁 Репозиторий: ${{ github.repository }}" \
+            -d parse_mode=HTML
