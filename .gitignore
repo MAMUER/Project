@@ -90,3 +90,5 @@ venv
 env
 *.md
 !README.md
+
+*tree.txt

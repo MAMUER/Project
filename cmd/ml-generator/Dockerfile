@@ -12,8 +12,8 @@ COPY cmd/ml-generator/main.py .
 # Создание директории для моделей
 RUN mkdir -p /app/models
 
-# Копирование моделей (из папки models внутри ml-generator)
-COPY cmd/ml-generator/models/ /app/models/
+# Копирование модели из корневой директории
+COPY models/generator.h5 /app/models/generator.h5
 
 EXPOSE 8002
 

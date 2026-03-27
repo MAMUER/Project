@@ -12,8 +12,9 @@ COPY cmd/ml-classifier/main.py .
 # Создание директории для моделей
 RUN mkdir -p /app/models
 
-# Копирование моделей (из папки models внутри ml-classifier)
-COPY cmd/ml-classifier/models/ /app/models/
+# Копирование моделей из корневой директории
+COPY models/classifier.keras /app/models/classifier.keras
+COPY models/scaler.pkl /app/models/scaler.pkl
 
 EXPOSE 8001
 
