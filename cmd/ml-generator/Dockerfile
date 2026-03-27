@@ -6,9 +6,14 @@ WORKDIR /app
 COPY cmd/ml-generator/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Копирование кода и моделей
+# Копирование кода
 COPY cmd/ml-generator/main.py .
-COPY cmd/ml-generator/generator.h5 /app/models/generator.h5
+
+# Создание директории для моделей
+RUN mkdir -p /app/models
+
+# Копирование моделей (из папки models внутри ml-generator)
+COPY cmd/ml-generator/models/ /app/models/
 
 EXPOSE 8002
 

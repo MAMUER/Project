@@ -101,6 +101,14 @@ jobs:
           ls -la cmd/ml-classifier/models/ 2>/dev/null || echo "No models in ml-classifier"
           ls -la cmd/ml-generator/models/ 2>/dev/null || echo "No models in ml-generator"
       
+      # Получаем имя репозитория в нижнем регистре
+      - name: Get lowercase repo name
+        id: repo-lower
+        run: |
+          REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "repo_lower=$REPO_LOWER" >> $GITHUB_OUTPUT
+          echo "Repository in lowercase: $REPO_LOWER"
+      
       - name: Build and push all images
         run: |
           # Список сервисов для сборки
@@ -108,8 +116,8 @@ jobs:
           
           for svc in $services; do
             echo "Building $svc..."
-            docker build -f cmd/$svc/Dockerfile -t ${{ env.REGISTRY }}/${{ github.repository }}/$svc:latest .
-            docker push ${{ env.REGISTRY }}/${{ github.repository }}/$svc:latest
+            docker build -f cmd/$svc/Dockerfile -t ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/$svc:latest .
+            docker push ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/$svc:latest
             echo "✅ $svc pushed"
           done
 
