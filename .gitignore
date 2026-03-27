@@ -61,11 +61,7 @@ bin/
 coverage.out
 
 # ML models и датасеты
-models/
 datasets/
-*.h5
-*.pkl
-*.npy
 
 # Python
 __pycache__/
