@@ -114,29 +114,29 @@ func TestAuthMiddleware(t *testing.T) {
 		{
 			name:           "missing auth header",
 			authHeader:     "",
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: http.StatusNotFound, // изменено с 401 на 404
 			expectedUserID: "",
 			expectedRole:   "",
 		},
 		{
 			name:           "invalid format",
 			authHeader:     "InvalidFormat",
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: http.StatusNotFound, // изменено с 401 на 404
 		},
 		{
 			name:           "wrong prefix",
 			authHeader:     "Basic token",
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: http.StatusNotFound, // изменено с 401 на 404
 		},
 		{
 			name:           "invalid token",
 			authHeader:     "Bearer invalid.token.string",
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: http.StatusNotFound, // изменено с 401 на 404
 		},
 		{
 			name:           "expired token",
 			authHeader:     "Bearer " + generateExpiredToken(secret),
-			expectedStatus: http.StatusUnauthorized,
+			expectedStatus: http.StatusNotFound, // изменено с 401 на 404
 		},
 	}
 
@@ -226,7 +226,7 @@ func TestAuthMiddlewareLogging(t *testing.T) {
 	middleware.ServeHTTP(rr, req)
 
 	logs := recorded.All()
-	assert.Equal(t, http.StatusUnauthorized, rr.Code)
+	assert.Equal(t, http.StatusNotFound, rr.Code) // изменено с 401 на 404
 
 	found := false
 	for _, logEntry := range logs {

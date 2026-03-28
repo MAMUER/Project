@@ -12,6 +12,7 @@ import (
 	biometricpb "github.com/MAMUER/Project/api/gen/biometric"
 	trainingpb "github.com/MAMUER/Project/api/gen/training"
 	userpb "github.com/MAMUER/Project/api/gen/user"
+	"github.com/MAMUER/Project/internal/auth"
 	"github.com/MAMUER/Project/internal/logger"
 	"github.com/MAMUER/Project/internal/middleware"
 	"github.com/gorilla/mux"
@@ -97,6 +98,12 @@ func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 		g.log.Error("Failed to get profile", zap.Error(err), zap.String("user_id", userID))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// Подпись ответа
+	signature, err := auth.SignResponse(resp, g.jwtSecret)
+	if err == nil {
+		w.Header().Set("X-Response-Signature", signature)
 	}
 
 	json.NewEncoder(w).Encode(resp)
@@ -215,8 +222,6 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 	availableDays := make([]int32, len(req.AvailableDays))
 	for i, d := range req.AvailableDays {
 		availableDays[i] = int32(d)
-		_ = i // используем i чтобы избежать ошибки unused
-		_ = d // используем d чтобы избежать ошибки unused
 	}
 
 	resp, err := g.trainingClient.GeneratePlan(r.Context(), &trainingpb.GeneratePlanRequest{
@@ -323,7 +328,6 @@ func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-// Хендлеры для ML
 func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
@@ -469,8 +473,6 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	availableDays := make([]int32, len(req.AvailableDays))
 	for i, d := range req.AvailableDays {
 		availableDays[i] = int32(d)
-		_ = i
-		_ = d
 	}
 
 	_, err = g.trainingClient.GeneratePlan(r.Context(), &trainingpb.GeneratePlanRequest{
@@ -562,6 +564,7 @@ func main() {
 	r.HandleFunc("/api/v1/login", g.loginHandler).Methods("POST")
 	r.HandleFunc("/health", g.healthHandler).Methods("GET")
 
+	// Защищённые маршруты
 	protected := r.PathPrefix("/api/v1").Subrouter()
 	protected.Use(middleware.AuthMiddleware(jwtSecret, log.Logger))
 	protected.HandleFunc("/profile", g.profileHandler).Methods("GET")
@@ -577,10 +580,14 @@ func main() {
 	protected.HandleFunc("/ml/classify", g.classifyHandler).Methods("GET")
 	protected.HandleFunc("/ml/generate-plan", g.generateMLPlanHandler).Methods("POST")
 
+	// Статические файлы
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./web/static/"))))
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/")))
 
+	// Применяем общие middleware
 	handler := middleware.RequestID(r)
+	handler = middleware.RemoveServerHeader(handler)
+	handler = middleware.SecurityHeaders(handler)
 
 	log.Info("Gateway starting", zap.String("port", port))
 	if err := http.ListenAndServe(":"+port, handler); err != nil {

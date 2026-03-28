@@ -64,14 +64,12 @@ jobs:
     if: github.ref == 'refs/heads/Microservice_arc' || github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
-      
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GHCR_TOKEN }}
-      
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -84,16 +82,22 @@ jobs:
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "repo_lower=$REPO_LOWER" >> $GITHUB_OUTPUT
       
+      - name: Get short SHA
+        id: sha
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      
       - name: Build and push all images
         run: |
           services="user-service biometric-service training-service gateway ml-classifier ml-generator"
           
           for svc in $services; do
-            echo "Building $svc..."
+            echo "Building $svc with tag ${{ steps.sha.outputs.short_sha }}..."
             docker build \
+              -t ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/$svc:${{ steps.sha.outputs.short_sha }} \
               -t ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/$svc:latest \
               -f cmd/$svc/Dockerfile \
               .
+            docker push ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/$svc:${{ steps.sha.outputs.short_sha }}
             docker push ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/$svc:latest
             echo "✅ $svc pushed"
           done
@@ -109,6 +113,37 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       
+      - name: Add host to known_hosts
+        run: ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+      
+      - name: Install Docker on VPS
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            echo "=== INSTALLING DOCKER ==="
+            if ! command -v docker &> /dev/null; then
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sh get-docker.sh
+              apt-get install -y docker-compose
+              systemctl enable docker
+              systemctl start docker
+              echo "Docker installed"
+            else
+              echo "Docker already installed"
+            fi
+            docker --version
+            docker-compose --version
+          '
+      
+      - name: Clean up old Docker data
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            echo "=== CLEANING UP OLD DOCKER DATA ==="
+            docker system prune -f --filter "until=72h"
+            docker image prune -f --filter "until=168h"
+            docker volume prune -f
+            echo "Cleanup completed"
+          '
+      
       - name: Prepare server directories
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
@@ -123,12 +158,12 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
             cat > /opt/techip/.env << EOF
-            POSTGRES_USER=postgres
-            POSTGRES_PASSWORD=postgres
-            POSTGRES_DB=fitness
+            POSTGRES_USER=${{ vars.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            POSTGRES_DB=${{ vars.POSTGRES_DB }}
             DB_HOST=postgres
             DB_PORT=5432
-            DB_NAME=fitness
+            DB_NAME=${{ vars.POSTGRES_DB }}
             DB_SSLMODE=disable
             REDIS_ADDR=redis:6379
             REDIS_PASSWORD=
@@ -151,6 +186,10 @@ jobs:
             EOF
           '
       
+      - name: Get short SHA for image tag
+        id: sha
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      
       - name: Copy docker-compose file
         run: |
           scp -o StrictHostKeyChecking=no deployments/docker-compose.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/techip/docker-compose.yml
@@ -158,6 +197,16 @@ jobs:
       - name: Copy init SQL
         run: |
           scp -o StrictHostKeyChecking=no scripts/init-db.sql ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/techip/init.sql
+      
+      - name: Update docker-compose with specific image tags
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            cd /opt/techip
+            # Заменяем теги образов на конкретные SHA
+            for svc in user-service biometric-service training-service gateway ml-classifier ml-generator; do
+              sed -i "s|ghcr.io/.*/$svc:latest|ghcr.io/${{ github.repository_owner }}/technology_2_sem/$svc:${{ steps.sha.outputs.short_sha }}|g" docker-compose.yml
+            done
+          '
       
       - name: Deploy with Docker Compose
         run: |
@@ -181,16 +230,131 @@ jobs:
             curl -s http://localhost:8002/health || echo "ML Generator not responding"
           '
       
-      - name: Send notification
-        if: always()
+      - name: Get deployment status for notification
+        id: deployment-status
         run: |
           if [ "${{ job.status }}" = "success" ]; then
-            MESSAGE="✅ CI/CD Pipeline успешно завершен!%0A%0A🌿 Ветка: ${{ github.ref_name }}%0A📦 Коммит: ${{ github.sha }}"
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "status_emoji=✅" >> $GITHUB_OUTPUT
+            echo "status_text=УСПЕШНО ЗАВЕРШЕН" >> $GITHUB_OUTPUT
           else
-            MESSAGE="❌ CI/CD Pipeline завершился с ошибкой!%0A%0A🌿 Ветка: ${{ github.ref_name }}%0A📦 Коммит: ${{ github.sha }}"
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "status_emoji=❌" >> $GITHUB_OUTPUT
+            echo "status_text=ЗАВЕРШИЛСЯ С ОШИБКОЙ" >> $GITHUB_OUTPUT
+          fi
+
+  notify:
+    name: Send Notification
+    runs-on: ubuntu-latest
+    needs: [test, build, docker, deploy]
+    if: always() && (github.ref == 'refs/heads/Microservice_arc' || github.ref == 'refs/heads/main')
+    steps:
+      - name: Get all job statuses
+        id: statuses
+        run: |
+          TEST_STATUS="${{ needs.test.result }}"
+          BUILD_STATUS="${{ needs.build.result }}"
+          DOCKER_STATUS="${{ needs.docker.result }}"
+          DEPLOY_STATUS="${{ needs.deploy.result }}"
+          
+          # Определяем общий статус
+          if [ "$DEPLOY_STATUS" = "success" ]; then
+            OVERALL="success"
+            OVERALL_EMOJI="✅"
+            OVERALL_TEXT="УСПЕШНО"
+          elif [ "$DEPLOY_STATUS" = "failure" ]; then
+            OVERALL="failure"
+            OVERALL_EMOJI="❌"
+            OVERALL_TEXT="ОШИБКА ДЕПЛОЯ"
+          elif [ "$DOCKER_STATUS" = "failure" ]; then
+            OVERALL="failure"
+            OVERALL_EMOJI="❌"
+            OVERALL_TEXT="ОШИБКА СБОРКИ DOCKER"
+          elif [ "$BUILD_STATUS" = "failure" ]; then
+            OVERALL="failure"
+            OVERALL_EMOJI="❌"
+            OVERALL_TEXT="ОШИБКА СБОРКИ"
+          elif [ "$TEST_STATUS" = "failure" ]; then
+            OVERALL="failure"
+            OVERALL_EMOJI="❌"
+            OVERALL_TEXT="ОШИБКА ТЕСТОВ"
+          else
+            OVERALL="success"
+            OVERALL_EMOJI="✅"
+            OVERALL_TEXT="УСПЕШНО"
           fi
           
-          curl -s -X POST https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage \
-            -d chat_id=${{ secrets.TELEGRAM_CHAT_ID }} \
-            -d text="$MESSAGE" \
-            -d parse_mode=HTML || echo "Telegram notification failed"
+          echo "overall=$OVERALL" >> $GITHUB_OUTPUT
+          echo "overall_emoji=$OVERALL_EMOJI" >> $GITHUB_OUTPUT
+          echo "overall_text=$OVERALL_TEXT" >> $GITHUB_OUTPUT
+          
+          # Функция для преобразования статуса в эмодзи
+          get_status_emoji() {
+            case "$1" in
+              "success") echo "✅" ;;
+              "failure") echo "❌" ;;
+              "cancelled") echo "⏸️" ;;
+              "skipped") echo "⏭️" ;;
+              *) echo "❓" ;;
+            esac
+          }
+          
+          echo "test_emoji=$(get_status_emoji $TEST_STATUS)" >> $GITHUB_OUTPUT
+          echo "build_emoji=$(get_status_emoji $BUILD_STATUS)" >> $GITHUB_OUTPUT
+          echo "docker_emoji=$(get_status_emoji $DOCKER_STATUS)" >> $GITHUB_OUTPUT
+          echo "deploy_emoji=$(get_status_emoji $DEPLOY_STATUS)" >> $GITHUB_OUTPUT
+          
+          echo "test_status=$TEST_STATUS" >> $GITHUB_OUTPUT
+          echo "build_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
+          echo "docker_status=$DOCKER_STATUS" >> $GITHUB_OUTPUT
+          echo "deploy_status=$DEPLOY_STATUS" >> $GITHUB_OUTPUT
+      
+      - name: Get commit info
+        id: commit
+        run: |
+          COMMIT_MSG=$(git log -1 --pretty=%B | head -1)
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          COMMIT_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          
+          echo "message=$COMMIT_MSG" >> $GITHUB_OUTPUT
+          echo "author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
+          echo "commit_url=$COMMIT_URL" >> $GITHUB_OUTPUT
+          echo "run_url=$RUN_URL" >> $GITHUB_OUTPUT
+      
+      - name: Send Telegram notification
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          format: markdown
+          message: |
+            *${{ steps.statuses.outputs.overall_emoji }} CI/CD Pipeline — ${{ steps.statuses.outputs.overall_text }}*
+            
+            📦 **Репозиторий:** [${{ github.repository }}](${{ github.server_url }}/${{ github.repository }})
+            🌿 **Ветка:** `${{ github.ref_name }}`
+            🔖 **Коммит:** [`${{ github.sha }}`](${{ steps.commit.outputs.commit_url }})
+            👤 **Автор:** ${{ steps.commit.outputs.author }}
+            📝 **Сообщение:** ${{ steps.commit.outputs.message }}
+            
+            ━━━━━━━━━━━━━━━━━━━━━
+            
+            *📊 Статусы этапов:*
+            | Этап | Статус |
+            |------|--------|
+            | 🧪 Тесты | ${{ steps.statuses.outputs.test_emoji }} ${{ steps.statuses.outputs.test_status }} |
+            | 🔨 Сборка | ${{ steps.statuses.outputs.build_emoji }} ${{ steps.statuses.outputs.build_status }} |
+            | 🐳 Docker | ${{ steps.statuses.outputs.docker_emoji }} ${{ steps.statuses.outputs.docker_status }} |
+            | 🚀 Деплой | ${{ steps.statuses.outputs.deploy_emoji }} ${{ steps.statuses.outputs.deploy_status }} |
+            
+            ━━━━━━━━━━━━━━━━━━━━━
+            
+            *🖥️ Сервисы:*
+            • Gateway: http://${{ secrets.VPS_HOST }}:8080
+            • ML Classifier: http://${{ secrets.VPS_HOST }}:8001
+            • ML Generator: http://${{ secrets.VPS_HOST }}:8002
+            • RabbitMQ UI: http://${{ secrets.VPS_HOST }}:15672
+            • Prometheus: http://${{ secrets.VPS_HOST }}:9090
+            • Grafana: http://${{ secrets.VPS_HOST }}:3000
+            
+            [🔗 Подробнее в Actions](${{ steps.commit.outputs.run_url }})

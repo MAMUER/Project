@@ -35,19 +35,21 @@ func AuthMiddleware(secret string, log *zap.Logger) func(http.Handler) http.Hand
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				log.Debug("Missing authorization header")
+				http.Error(w, "not found", http.StatusNotFound)
 				return
 			}
 			parts := strings.Split(authHeader, " ")
 			if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
-				http.Error(w, "invalid authorization format", http.StatusUnauthorized)
+				log.Debug("Invalid authorization format", zap.String("header", authHeader))
+				http.Error(w, "not found", http.StatusNotFound)
 				return
 			}
 			token := parts[1]
 			claims, err := auth.ValidateJWT(token, secret)
 			if err != nil {
 				log.Debug("Invalid token", zap.Error(err))
-				http.Error(w, "invalid token", http.StatusUnauthorized)
+				http.Error(w, "not found", http.StatusNotFound)
 				return
 			}
 			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
