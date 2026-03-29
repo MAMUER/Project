@@ -315,6 +315,7 @@ jobs:
     needs: [test, build, docker, deploy, k8s-deploy]
     if: always() && (github.ref == 'refs/heads/Microservice_arc' || github.ref == 'refs/heads/main')
     steps:
+      - uses: actions/checkout@v4 
       - name: Get all job statuses
         id: statuses
         run: |
