@@ -75,21 +75,17 @@ jobs:
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-      
       - name: Get lowercase repo name
         id: repo-lower
         run: |
           REPO_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           echo "repo_lower=$REPO_LOWER" >> $GITHUB_OUTPUT
-      
       - name: Get short SHA
         id: sha
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      
       - name: Build and push all images
         run: |
           services="user-service biometric-service training-service gateway ml-classifier ml-generator"
-          
           for svc in $services; do
             echo "Building $svc with tag ${{ steps.sha.outputs.short_sha }}..."
             docker build \
@@ -112,10 +108,8 @@ jobs:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      
       - name: Add host to known_hosts
         run: ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
-      
       - name: Install Docker on VPS
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
@@ -133,7 +127,6 @@ jobs:
             docker --version
             docker-compose --version
           '
-      
       - name: Clean up old Docker data
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
@@ -143,7 +136,6 @@ jobs:
             docker volume prune -f
             echo "Cleanup completed"
           '
-      
       - name: Prepare server directories
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
@@ -153,7 +145,6 @@ jobs:
             mkdir -p /opt/techip/deploy/lb
             mkdir -p /opt/techip/deploy/monitoring
           '
-      
       - name: Create .env file on VPS
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
@@ -185,29 +176,23 @@ jobs:
             GENERATOR_PATH=/app/models/generator.h5
             EOF
           '
-      
       - name: Get short SHA for image tag
         id: sha
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      
       - name: Copy docker-compose file
         run: |
           scp -o StrictHostKeyChecking=no deployments/docker-compose.yml ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/techip/docker-compose.yml
-      
       - name: Copy init SQL
         run: |
           scp -o StrictHostKeyChecking=no scripts/init-db.sql ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/opt/techip/init.sql
-      
       - name: Update docker-compose with specific image tags
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
             cd /opt/techip
-            # Заменяем теги образов на конкретные SHA
             for svc in user-service biometric-service training-service gateway ml-classifier ml-generator; do
               sed -i "s|ghcr.io/.*/$svc:latest|ghcr.io/${{ github.repository_owner }}/technology_2_sem/$svc:${{ steps.sha.outputs.short_sha }}|g" docker-compose.yml
             done
           '
-      
       - name: Deploy with Docker Compose
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
@@ -218,7 +203,6 @@ jobs:
             sleep 20
             docker-compose ps
           '
-      
       - name: Verify deployment
         run: |
           ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
@@ -229,7 +213,36 @@ jobs:
             echo ""
             curl -s http://localhost:8002/health || echo "ML Generator not responding"
           '
-      
+      - name: Configure system for DDoS protection
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
+            echo "=== Setting sysctl parameters ==="
+            cat >> /etc/sysctl.d/99-fitness.conf << EOF
+            net.ipv4.tcp_syncookies=1
+            net.ipv4.tcp_syn_retries=2
+            net.ipv4.tcp_synack_retries=2
+            net.core.somaxconn=1024
+            net.ipv4.ip_local_port_range=1024 65535
+            EOF
+            sysctl -p /etc/sysctl.d/99-fitness.conf
+
+            echo "=== Creating cleanup script ==="
+            mkdir -p /opt/techip
+            cat > /opt/techip/cleanup.sh << '"EOF"'
+            #!/bin/bash
+            docker image prune -a -f --filter "until=168h"
+            docker container prune -f
+            docker volume prune -f
+            docker builder prune -f
+            find /var/log -name "*.log" -type f -mtime +30 -delete
+            journalctl --vacuum-time=7d
+            docker system prune -f --volumes
+            EOF
+            chmod +x /opt/techip/cleanup.sh
+
+            echo "=== Setting up cron for weekly cleanup ==="
+            (crontab -l 2>/dev/null; echo "0 2 * * 0 /opt/techip/cleanup.sh >> /var/log/cleanup.log 2>&1") | crontab -
+          '
       - name: Get deployment status for notification
         id: deployment-status
         run: |
@@ -243,10 +256,63 @@ jobs:
             echo "status_text=ЗАВЕРШИЛСЯ С ОШИБКОЙ" >> $GITHUB_OUTPUT
           fi
 
+  k8s-deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: docker
+    if: github.ref == 'refs/heads/Microservice_arc' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create secrets from GitHub Secrets
+        run: |
+          kubectl create namespace fitness-platform --dry-run=client -o yaml | kubectl apply -f -
+          kubectl create secret generic app-secrets \
+            --namespace=fitness-platform \
+            --from-literal=POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
+            --from-literal=POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+            --from-literal=JWT_SECRET=${{ secrets.JWT_SECRET }} \
+            --from-literal=RABBITMQ_USER=${{ secrets.RABBITMQ_USER }} \
+            --from-literal=RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+      - name: Configure kubectl
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+      - name: Apply Kubernetes manifests
+        run: |
+          kubectl apply -f configs/k8s/namespace.yaml
+          kubectl apply -f configs/k8s/configmap.yaml
+          kubectl apply -f configs/k8s/pvc.yaml
+          kubectl apply -f configs/k8s/init-sql.yaml
+          kubectl apply -f configs/k8s/deployments/postgres.yaml
+          kubectl apply -f configs/k8s/deployments/redis.yaml
+          kubectl apply -f configs/k8s/deployments/rabbitmq.yaml
+          kubectl wait --for=condition=ready pod -l app=postgres -n fitness-platform --timeout=120s || true
+          kubectl apply -f configs/k8s/deployments/user-service.yaml
+          kubectl apply -f configs/k8s/deployments/biometric-service.yaml
+          kubectl apply -f configs/k8s/deployments/training-service.yaml
+          kubectl apply -f configs/k8s/deployments/ml-classifier.yaml
+          kubectl apply -f configs/k8s/deployments/ml-generator.yaml
+          kubectl apply -f configs/k8s/deployments/gateway.yaml
+          kubectl apply -f configs/k8s/services/
+          # Дополнительные манифесты безопасности (если существуют)
+          kubectl apply -f configs/k8s/network-policies.yaml || true
+          kubectl apply -f configs/k8s/resource-quota.yaml || true
+          kubectl apply -f configs/k8s/hpa.yaml || true
+          kubectl apply -f configs/k8s/pdb.yaml || true
+      - name: Verify pods
+        run: kubectl get pods -n fitness-platform
+
   notify:
     name: Send Notification
     runs-on: ubuntu-latest
-    needs: [test, build, docker, deploy]
+    needs: [test, build, docker, deploy, k8s-deploy]
     if: always() && (github.ref == 'refs/heads/Microservice_arc' || github.ref == 'refs/heads/main')
     steps:
       - name: Get all job statuses
@@ -256,13 +322,13 @@ jobs:
           BUILD_STATUS="${{ needs.build.result }}"
           DOCKER_STATUS="${{ needs.docker.result }}"
           DEPLOY_STATUS="${{ needs.deploy.result }}"
+          K8S_STATUS="${{ needs.k8s-deploy.result }}"
           
-          # Определяем общий статус
-          if [ "$DEPLOY_STATUS" = "success" ]; then
+          if [ "$K8S_STATUS" = "success" ] && [ "$DEPLOY_STATUS" = "success" ]; then
             OVERALL="success"
             OVERALL_EMOJI="✅"
             OVERALL_TEXT="УСПЕШНО"
-          elif [ "$DEPLOY_STATUS" = "failure" ]; then
+          elif [ "$K8S_STATUS" = "failure" ] || [ "$DEPLOY_STATUS" = "failure" ]; then
             OVERALL="failure"
             OVERALL_EMOJI="❌"
             OVERALL_TEXT="ОШИБКА ДЕПЛОЯ"
@@ -288,7 +354,6 @@ jobs:
           echo "overall_emoji=$OVERALL_EMOJI" >> $GITHUB_OUTPUT
           echo "overall_text=$OVERALL_TEXT" >> $GITHUB_OUTPUT
           
-          # Функция для преобразования статуса в эмодзи
           get_status_emoji() {
             case "$1" in
               "success") echo "✅" ;;
@@ -303,12 +368,13 @@ jobs:
           echo "build_emoji=$(get_status_emoji $BUILD_STATUS)" >> $GITHUB_OUTPUT
           echo "docker_emoji=$(get_status_emoji $DOCKER_STATUS)" >> $GITHUB_OUTPUT
           echo "deploy_emoji=$(get_status_emoji $DEPLOY_STATUS)" >> $GITHUB_OUTPUT
+          echo "k8s_emoji=$(get_status_emoji $K8S_STATUS)" >> $GITHUB_OUTPUT
           
           echo "test_status=$TEST_STATUS" >> $GITHUB_OUTPUT
           echo "build_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
           echo "docker_status=$DOCKER_STATUS" >> $GITHUB_OUTPUT
           echo "deploy_status=$DEPLOY_STATUS" >> $GITHUB_OUTPUT
-      
+          echo "k8s_status=$K8S_STATUS" >> $GITHUB_OUTPUT
       - name: Get commit info
         id: commit
         run: |
@@ -316,12 +382,10 @@ jobs:
           COMMIT_AUTHOR=$(git log -1 --pretty=%an)
           COMMIT_URL="https://github.com/${{ github.repository }}/commit/${{ github.sha }}"
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          
           echo "message=$COMMIT_MSG" >> $GITHUB_OUTPUT
           echo "author=$COMMIT_AUTHOR" >> $GITHUB_OUTPUT
           echo "commit_url=$COMMIT_URL" >> $GITHUB_OUTPUT
           echo "run_url=$RUN_URL" >> $GITHUB_OUTPUT
-      
       - name: Send Telegram notification
         uses: appleboy/telegram-action@master
         with:
@@ -345,7 +409,8 @@ jobs:
             | 🧪 Тесты | ${{ steps.statuses.outputs.test_emoji }} ${{ steps.statuses.outputs.test_status }} |
             | 🔨 Сборка | ${{ steps.statuses.outputs.build_emoji }} ${{ steps.statuses.outputs.build_status }} |
             | 🐳 Docker | ${{ steps.statuses.outputs.docker_emoji }} ${{ steps.statuses.outputs.docker_status }} |
-            | 🚀 Деплой | ${{ steps.statuses.outputs.deploy_emoji }} ${{ steps.statuses.outputs.deploy_status }} |
+            | 🚀 Деплой (VPS) | ${{ steps.statuses.outputs.deploy_emoji }} ${{ steps.statuses.outputs.deploy_status }} |
+            | ☸️ Kubernetes | ${{ steps.statuses.outputs.k8s_emoji }} ${{ steps.statuses.outputs.k8s_status }} |
             
             ━━━━━━━━━━━━━━━━━━━━━
             

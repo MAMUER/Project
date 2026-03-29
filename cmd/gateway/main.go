@@ -586,6 +586,7 @@ func main() {
 
 	// Применяем общие middleware
 	handler := middleware.RequestID(r)
+	handler = middleware.RateLimit(handler) // ← добавить
 	handler = middleware.RemoveServerHeader(handler)
 	handler = middleware.SecurityHeaders(handler)
 
