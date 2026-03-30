@@ -91,3 +91,5 @@ env
 
 configs\k8s\secrets.yaml
 configs\config.dev.yaml
+
+docs

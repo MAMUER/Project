@@ -1,0 +1,268 @@
+{% extends "base.html" %}
+
+{% block title %}ML Классификация - Fitness Platform{% endblock %}
+
+{% block content %}
+<nav class="navbar">
+    <div class="nav-brand">Fitness AI</div>
+    <button class="menu-toggle" id="menuToggle">☰</button>
+    <ul class="nav-menu" id="navMenu">
+        <li><a href="/">Дашборд</a></li>
+        <li><a href="/profile">Профиль</a></li>
+        <li><a href="/training">Тренировки</a></li>
+        <li><a href="/ml-classify" class="active">ML Анализ</a></li>
+        <li><a href="/achievements">Достижения</a></li>
+        <li><button id="logoutBtn" class="btn-logout">Выйти</button></li>
+    </ul>
+</nav>
+
+<main class="container">
+    <h1>🤖 ML Классификация Типа Тренировки</h1>
+    
+    <div class="ml-section">
+        <div class="ml-card">
+            <h2>📊 Текущие Физиологические Параметры</h2>
+            <div class="params-grid" id="paramsGrid">
+                <div class="param-item">
+                    <span class="param-label">Пульс</span>
+                    <span class="param-value" id="hrValue">--</span>
+                    <span class="param-unit">уд/мин</span>
+                </div>
+                <div class="param-item">
+                    <span class="param-label">HRV</span>
+                    <span class="param-value" id="hrvValue">--</span>
+                    <span class="param-unit">мс</span>
+                </div>
+                <div class="param-item">
+                    <span class="param-label">SpO2</span>
+                    <span class="param-value" id="spo2Value">--</span>
+                    <span class="param-unit">%</span>
+                </div>
+                <div class="param-item">
+                    <span class="param-label">Температура</span>
+                    <span class="param-value" id="tempValue">--</span>
+                    <span class="param-unit">°C</span>
+                </div>
+                <div class="param-item">
+                    <span class="param-label">Давление</span>
+                    <span class="param-value" id="bpValue">--/--</span>
+                    <span class="param-unit">мм рт.ст.</span>
+                </div>
+            </div>
+            
+            <button id="classifyBtn" class="btn-primary btn-large">
+                🔍 Классифицировать Тип Тренировки
+            </button>
+        </div>
+        
+        <div class="ml-card" id="resultCard" style="display: none;">
+            <h2>📈 Результат Классификации</h2>
+            <div class="result-content" id="resultContent">
+                <!-- Результат будет здесь -->
+            </div>
+        </div>
+        
+        <div class="ml-card">
+            <h2>ℹ️ Типы Тренировок</h2>
+            <div class="training-types">
+                <div class="type-card type-recovery">
+                    <h3>🔵 Восстановление</h3>
+                    <p>Пульс: 50-65% HRmax | HRV: Высокий</p>
+                    <p>Лёгкая активность, йога, растяжка</p>
+                </div>
+                <div class="type-card type-endurance">
+                    <h3>🟢 Базовая Выносливость (E1-E2)</h3>
+                    <p>Пульс: 65-80% HRmax | HRV: Умеренный</p>
+                    <p>Бег, велосипед, плавание в аэробной зоне</p>
+                </div>
+                <div class="type-card type-threshold">
+                    <h3>🟡 Пороговая Выносливость (E3)</h3>
+                    <p>Пульс: 80-90% HRmax | HRV: Сниженный</p>
+                    <p>Темповый бег, интервалы на пороге</p>
+                </div>
+                <div class="type-card type-hiit">
+                    <h3>🔴 Силовая/HIIT</h3>
+                    <p>Пульс: 90-100% HRmax | HRV: Резкое падение</p>
+                    <p>HIIT, спринты, силовые тренировки</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (!authToken) {
+        window.location.href = '/';
+        return;
+    }
+    
+    loadBiometricParams();
+    
+    document.getElementById('classifyBtn').addEventListener('click', classifyTraining);
+});
+
+async function loadBiometricParams() {
+    try {
+        const records = await getBiometricRecords('', null, null, 50);
+        
+        let hr = 0, hrCount = 0;
+        let hrv = 50;
+        let spo2 = 0, spo2Count = 0;
+        let temp = 0, tempCount = 0;
+        let bp = 0, bpCount = 0;
+        
+        records.records?.forEach(rec => {
+            switch(rec.metric_type) {
+                case 'heart_rate':
+                    hr += rec.value;
+                    hrCount++;
+                    break;
+                case 'hrv':
+                    hrv = rec.value;
+                    break;
+                case 'spo2':
+                    spo2 += rec.value;
+                    spo2Count++;
+                    break;
+                case 'temperature':
+                    temp += rec.value;
+                    tempCount++;
+                    break;
+                case 'blood_pressure':
+                    bp += rec.value;
+                    bpCount++;
+                    break;
+            }
+        });
+        
+        document.getElementById('hrValue').textContent = hrCount > 0 ? Math.round(hr/hrCount) : '--';
+        document.getElementById('hrvValue').textContent = Math.round(hrv);
+        document.getElementById('spo2Value').textContent = spo2Count > 0 ? Math.round(spo2/spo2Count) : '--';
+        document.getElementById('tempValue').textContent = tempCount > 0 ? (temp/tempCount).toFixed(1) : '--';
+        document.getElementById('bpValue').textContent = bpCount > 0 ? Math.round(bp/bpCount) + '/80' : '--';
+        
+    } catch (error) {
+        console.error('Failed to load biometric params:', error);
+    }
+}
+
+async function classifyTraining() {
+    const btn = document.getElementById('classifyBtn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Анализ...';
+    
+    try {
+        const response = await fetch('/api/v1/ml/classify', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            }
+        });
+        
+        const result = await response.json();
+        
+        displayResult(result);
+        
+    } catch (error) {
+        alert('Ошибка классификации: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 Классифицировать Тип Тренировки';
+    }
+}
+
+function displayResult(result) {
+    const resultCard = document.getElementById('resultCard');
+    const resultContent = document.getElementById('resultContent');
+    
+    const classColors = {
+        'recovery': 'type-recovery',
+        'endurance_e1e2': 'type-endurance',
+        'threshold_e3': 'type-threshold',
+        'strength_hiit': 'type-hiit'
+    };
+    
+    const classIcons = {
+        'recovery': '🔵',
+        'endurance_e1e2': '🟢',
+        'threshold_e3': '🟡',
+        'strength_hiit': '🔴'
+    };
+    
+    resultCard.style.display = 'block';
+    resultContent.innerHTML = `
+        <div class="classification-result ${classColors[result.predicted_class] || ''}">
+            <h3>${classIcons[result.predicted_class] || '📊'} ${result.predicted_class_ru}</h3>
+            <p class="confidence">Уверенность: ${(result.confidence * 100).toFixed(1)}%</p>
+            <p class="description">${result.description}</p>
+            <p class="hr-range">Зона пульса: ${result.hr_range}</p>
+            
+            <div class="recommendations">
+                <h4>Рекомендации:</h4>
+                <ul>
+                    ${result.recommendations.map(r => `<li>${r}</li>`).join('')}
+                </ul>
+            </div>
+            
+            ${result.personalized_notes ? `
+                <div class="personalized-notes">
+                    <strong>⚠️ Персональные заметки:</strong>
+                    <p>${result.personalized_notes}</p>
+                </div>
+            ` : ''}
+            
+            <button onclick="generatePlanFromClassification('${result.predicted_class}')" class="btn-primary">
+                📋 Сгенерировать План Тренировки
+            </button>
+        </div>
+        
+        <div class="probabilities">
+            <h4>Вероятности классов:</h4>
+            ${Object.entries(result.probabilities).map(([cls, prob]) => `
+                <div class="prob-bar">
+                    <span class="prob-label">${cls}</span>
+                    <div class="prob-fill" style="width: ${prob * 100}%"></div>
+                    <span class="prob-value">${(prob * 100).toFixed(1)}%</span>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
+    resultCard.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function generatePlanFromClassification(trainingClass) {
+    try {
+        const response = await fetch('/api/v1/ml/generate-plan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                training_class: trainingClass,
+                duration_weeks: 4,
+                available_days: [1, 3, 5],
+                preferences: {
+                    max_duration: 60,
+                    available_equipment: [],
+                    preferred_time: 'evening'
+                }
+            })
+        });
+        
+        const plan = await response.json();
+        
+        alert('План сгенерирован! Переходим к тренировкам...');
+        window.location.href = '/training';
+        
+    } catch (error) {
+        alert('Ошибка генерации плана: ' + error.message);
+    }
+}
+</script>
+{% endblock %}

@@ -9,6 +9,7 @@ package user
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	_ "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -313,6 +314,7 @@ func (x *GetProfileRequest) GetUserId() string {
 	return ""
 }
 
+// ✅ Обновлён: добавлены nutrition и sleep_hours
 type UpdateProfileRequest struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	UserId            string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -323,6 +325,8 @@ type UpdateProfileRequest struct {
 	FitnessLevel      *string                `protobuf:"bytes,6,opt,name=fitness_level,json=fitnessLevel,proto3,oneof" json:"fitness_level,omitempty"`
 	Goals             []string               `protobuf:"bytes,7,rep,name=goals,proto3" json:"goals,omitempty"`
 	Contraindications []string               `protobuf:"bytes,8,rep,name=contraindications,proto3" json:"contraindications,omitempty"`
+	Nutrition         *string                `protobuf:"bytes,9,opt,name=nutrition,proto3,oneof" json:"nutrition,omitempty"`                        // ← НОВОЕ
+	SleepHours        *float32               `protobuf:"fixed32,10,opt,name=sleep_hours,json=sleepHours,proto3,oneof" json:"sleep_hours,omitempty"` // ← НОВОЕ
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -413,6 +417,21 @@ func (x *UpdateProfileRequest) GetContraindications() []string {
 	return nil
 }
 
+func (x *UpdateProfileRequest) GetNutrition() string {
+	if x != nil && x.Nutrition != nil {
+		return *x.Nutrition
+	}
+	return ""
+}
+
+func (x *UpdateProfileRequest) GetSleepHours() float32 {
+	if x != nil && x.SleepHours != nil {
+		return *x.SleepHours
+	}
+	return 0
+}
+
+// ✅ Обновлён: добавлены nutrition и sleep_hours
 type UserProfile struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
 	UserId            string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
@@ -428,6 +447,8 @@ type UserProfile struct {
 	Contraindications []string               `protobuf:"bytes,11,rep,name=contraindications,proto3" json:"contraindications,omitempty"`
 	CreatedAt         string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	UpdatedAt         string                 `protobuf:"bytes,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Nutrition         string                 `protobuf:"bytes,14,opt,name=nutrition,proto3" json:"nutrition,omitempty"`                       // ← НОВОЕ
+	SleepHours        float32                `protobuf:"fixed32,15,opt,name=sleep_hours,json=sleepHours,proto3" json:"sleep_hours,omitempty"` // ← НОВОЕ
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
@@ -553,6 +574,20 @@ func (x *UserProfile) GetUpdatedAt() string {
 	return ""
 }
 
+func (x *UserProfile) GetNutrition() string {
+	if x != nil {
+		return x.Nutrition
+	}
+	return ""
+}
+
+func (x *UserProfile) GetSleepHours() float32 {
+	if x != nil {
+		return x.SleepHours
+	}
+	return 0
+}
+
 type ListUsersRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Page          int32                  `protobuf:"varint,1,opt,name=page,proto3" json:"page,omitempty"`
@@ -670,7 +705,7 @@ var File_user_proto protoreflect.FileDescriptor
 const file_user_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"user.proto\x12\x04user\"t\n" +
+	"user.proto\x12\x04user\x1a\x1fgoogle/protobuf/timestamp.proto\"t\n" +
 	"\x0fRegisterRequest\x12\x14\n" +
 	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
 	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1b\n" +
@@ -691,7 +726,7 @@ const file_user_proto_rawDesc = "" +
 	"\auser_id\x18\x04 \x01(\tR\x06userId\x12\x12\n" +
 	"\x04role\x18\x05 \x01(\tR\x04role\",\n" +
 	"\x11GetProfileRequest\x12\x17\n" +
-	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xd6\x02\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\"\xbd\x03\n" +
 	"\x14UpdateProfileRequest\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x15\n" +
 	"\x03age\x18\x02 \x01(\x05H\x00R\x03age\x88\x01\x01\x12\x1b\n" +
@@ -700,14 +735,21 @@ const file_user_proto_rawDesc = "" +
 	"\tweight_kg\x18\x05 \x01(\x01H\x03R\bweightKg\x88\x01\x01\x12(\n" +
 	"\rfitness_level\x18\x06 \x01(\tH\x04R\ffitnessLevel\x88\x01\x01\x12\x14\n" +
 	"\x05goals\x18\a \x03(\tR\x05goals\x12,\n" +
-	"\x11contraindications\x18\b \x03(\tR\x11contraindicationsB\x06\n" +
+	"\x11contraindications\x18\b \x03(\tR\x11contraindications\x12!\n" +
+	"\tnutrition\x18\t \x01(\tH\x05R\tnutrition\x88\x01\x01\x12$\n" +
+	"\vsleep_hours\x18\n" +
+	" \x01(\x02H\x06R\n" +
+	"sleepHours\x88\x01\x01B\x06\n" +
 	"\x04_ageB\t\n" +
 	"\a_genderB\f\n" +
 	"\n" +
 	"_height_cmB\f\n" +
 	"\n" +
 	"_weight_kgB\x10\n" +
-	"\x0e_fitness_level\"\xf8\x02\n" +
+	"\x0e_fitness_levelB\f\n" +
+	"\n" +
+	"_nutritionB\x0e\n" +
+	"\f_sleep_hours\"\xb7\x03\n" +
 	"\vUserProfile\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1b\n" +
@@ -724,7 +766,10 @@ const file_user_proto_rawDesc = "" +
 	"\n" +
 	"created_at\x18\f \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\r \x01(\tR\tupdatedAt\"W\n" +
+	"updated_at\x18\r \x01(\tR\tupdatedAt\x12\x1c\n" +
+	"\tnutrition\x18\x0e \x01(\tR\tnutrition\x12\x1f\n" +
+	"\vsleep_hours\x18\x0f \x01(\x02R\n" +
+	"sleepHours\"W\n" +
 	"\x10ListUsersRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
 	"\tpage_size\x18\x02 \x01(\x05R\bpageSize\x12\x12\n" +
@@ -738,7 +783,7 @@ const file_user_proto_rawDesc = "" +
 	"\n" +
 	"GetProfile\x12\x17.user.GetProfileRequest\x1a\x11.user.UserProfile\x12>\n" +
 	"\rUpdateProfile\x12\x1a.user.UpdateProfileRequest\x1a\x11.user.UserProfile\x12<\n" +
-	"\tListUsers\x12\x16.user.ListUsersRequest\x1a\x17.user.ListUsersResponseB*Z(github.com/MAMUER/Project/api/proto/userb\x06proto3"
+	"\tListUsers\x12\x16.user.ListUsersRequest\x1a\x17.user.ListUsersResponseB(Z&github.com/MAMUER/Project/api/gen/userb\x06proto3"
 
 var (
 	file_user_proto_rawDescOnce sync.Once

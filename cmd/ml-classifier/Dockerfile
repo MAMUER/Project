@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Копирование кода
 COPY cmd/ml-classifier/main.py .
+COPY cmd/ml-classifier/train.py .
 
 # Создание директории для моделей
 RUN mkdir -p /app/models

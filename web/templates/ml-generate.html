@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block title %}Генерация Плана - Fitness Platform{% endblock %}
+
+{% block head %}
+<style>
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.form-group label {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.form-group input,
+.form-group select {
+    padding: 0.75rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 1rem;
+}
+
+.checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 1rem 0;
+}
+
+.checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.plan-preview {
+    background: #f8f9fa;
+    padding: 1.5rem;
+    border-radius: 8px;
+    margin-top: 1rem;
+}
+
+.exercise-list {
+    list-style: none;
+    padding: 0;
+}
+
+.exercise-list li {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+}
+
+.weekly-schedule {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.day-card {
+    background: white;
+    padding: 0.5rem;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 0.9rem;
+}
+
+.day-card.rest {
+    background: #f0f0f0;
+    color: #666;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<nav class="navbar">
+    <div class="nav-brand">Fitness AI</div>
+    <button class="menu-toggle" id="menuToggle">☰</button>
+    <ul class="nav-menu" id="navMenu">
+        <li><a href="/">Дашборд</a></li>
+        <li><a href="/profile">Профиль</a></li>
+        <li><a href="/training">Тренировки</a></li>
+        <li><a href="/ml-classify">ML Анализ</a></li>
+        <li><a href="/ml-generate" class="active">Генерация Плана</a></li>
+        <li><a href="/achievements">Достижения</a></li>
+        <li><button id="logoutBtn" class="btn-logout">Выйти</button></li>
+    </ul>
+</nav>
+
+<main class="container">
+    <h1>🎯 Генерация Персонализированного Плана</h1>
+    
+    <div class="ml-section">
+        <div class="ml-card">
+            <h2>📝 Параметры Плана</h2>
+            <form id="planForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Тип Тренировки</label>
+                        <select id="trainingClass" required>
+                            <option value="recovery">🔵 Восстановление</option>
+                            <option value="endurance_e1e2" selected>🟢 Базовая Выносливость</option>
+                            <option value="threshold_e3">🟡 Пороговая Выносливость</option>
+                            <option value="strength_hiit">🔴 Силовая/HIIT</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Длительность (недели)</label>
+                        <input type="number" id="durationWeeks" value="4" min="1" max="12">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Макс. Длительность Тренировки (мин)</label>
+                        <input type="number" id="maxDuration" value="60" min="20" max="120">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Предпочтительное Время</label>
+                        <select id="preferredTime">
+                            <option value="morning">Утро</option>
+                            <option value="afternoon">День</option>
+                            <option value="evening" selected>Вечер</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Дни Тренировок</label>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" name="days" value="1" checked> Пн</label>
+                        <label><input type="checkbox" name="days" value="2"> Вт</label>
+                        <label><input type="checkbox" name="days" value="3" checked> Ср</label>
+                        <label><input type="checkbox" name="days" value="4"> Чт</label>
+                        <label><input type="checkbox" name="days" value="5" checked> Пт</label>
+                        <label><input type="checkbox" name="days" value="6"> Сб</label>
+                        <label><input type="checkbox" name="days" value="0"> Вс</label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Доступное Оборудование</label>
+                    <div class="checkbox-group">
+                        <label><input type="checkbox" name="equipment" value="dumbbells"> Гантели</label>
+                        <label><input type="checkbox" name="equipment" value="barbell"> Штанга</label>
+                        <label><input type="checkbox" name="equipment" value="treadmill"> Беговая дорожка</label>
+                        <label><input type="checkbox" name="equipment" value="bike"> Велотренажёр</label>
+                        <label><input type="checkbox" name="equipment" value="pullup_bar"> Турник</label>
+                        <label><input type="checkbox" name="equipment" value="none" checked> Без оборудования</label>
+                    </div>
+                </div>
+                
+                <button type="submit" class="btn-primary btn-large">
+                    ✨ Сгенерировать План
+                </button>
+            </form>
+        </div>
+        
+        <div class="ml-card" id="planResult" style="display: none;">
+            <h2>📋 Ваш Персонализированный План</h2>
+            <div id="planContent"></div>
+        </div>
+    </div>
+</main>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    if (!authToken) {
+        window.location.href = '/';
+        return;
+    }
+    
+    document.getElementById('planForm').addEventListener('submit', generatePlan);
+});
+
+async function generatePlan(e) {
+    e.preventDefault();
+    
+    const btn = e.target.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.textContent = '⏳ Генерация...';
+    
+    const days = Array.from(document.querySelectorAll('input[name="days"]:checked'))
+        .map(cb => parseInt(cb.value));
+    
+    const equipment = Array.from(document.querySelectorAll('input[name="equipment"]:checked'))
+        .map(cb => cb.value)
+        .filter(v => v !== 'none');
+    
+    const requestData = {
+        training_class: document.getElementById('trainingClass').value,
+        duration_weeks: parseInt(document.getElementById('durationWeeks').value),
+        available_days: days,
+        preferences: {
+            max_duration: parseInt(document.getElementById('maxDuration').value),
+            available_equipment: equipment,
+            preferred_time: document.getElementById('preferredTime').value
+        }
+    };
+    
+    try {
+        const response = await fetch('/api/v1/ml/generate-plan', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(requestData)
+        });
+        
+        const plan = await response.json();
+        displayPlan(plan);
+        
+    } catch (error) {
+        alert('Ошибка генерации: ' + error.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '✨ Сгенерировать План';
+    }
+}
+
+function displayPlan(plan) {
+    const planResult = document.getElementById('planResult');
+    const planContent = document.getElementById('planContent');
+    
+    planResult.style.display = 'block';
+    planContent.innerHTML = `
+        <div class="plan-preview">
+            <h3>${plan.training_type_ru || plan.training_type}</h3>
+            <div class="plan-stats">
+                <span>⏱️ ${plan.duration_minutes} мин</span>
+                <span>📊 Интенсивность: ${(plan.intensity * 100).toFixed(0)}%</span>
+                <span>📅 ${plan.weekly_frequency} раз/неделю</span>
+            </div>
+            
+            <h4>Структура Тренировки:</h4>
+            <ul class="exercise-list">
+                ${plan.session_structure?.map(ex => `
+                    <li>
+                        <strong>${ex.name}</strong> - ${ex.duration_minutes} мин 
+                        (интенсивность: ${(ex.intensity * 100).toFixed(0)}%)
+                    </li>
+                `).join('') || '<li>Стандартная структура тренировки</li>'}
+            </ul>
+            
+            <h4>Упражнения:</h4>
+            <p>${plan.exercises?.join(', ') || 'Бег, велосипед, плавание'}</p>
+            
+            <h4>Расписание на неделю:</h4>
+            <div class="weekly-schedule">
+                ${Object.entries(plan.weekly_schedule || {}).map(([day, activity]) => `
+                    <div class="day-card ${activity === 'rest' ? 'rest' : ''}">
+                        <strong>${getDayName(day)}</strong><br>
+                        ${activity === 'rest' ? 'Отдых' : activity}
+                    </div>
+                `).join('')}
+            </div>
+            
+            ${plan.notes?.length > 0 ? `
+                <div class="personalized-notes">
+                    <h4>⚠️ Персональные Рекомендации:</h4>
+                    <ul>
+                        ${plan.notes.map(note => `<li>${note}</li>`).join('')}
+                    </ul>
+                </div>
+            ` : ''}
+            
+            <button onclick="savePlan()" class="btn-primary">
+                💾 Сохранить План
+            </button>
+        </div>
+    `;
+    
+    planResult.scrollIntoView({ behavior: 'smooth' });
+}
+
+function getDayName(day) {
+    const days = {
+        'monday': 'Пн', 'tuesday': 'Вт', 'wednesday': 'Ср',
+        'thursday': 'Чт', 'friday': 'Пт', 'saturday': 'Сб', 'sunday': 'Вс'
+    };
+    return days[day] || day;
+}
+
+async function savePlan() {
+    alert('План сохранён! Переходим к тренировкам...');
+    window.location.href = '/training';
+}
+</script>
+{% endblock %}

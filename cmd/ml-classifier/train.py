@@ -1,376 +1,301 @@
+"""
+Training script for ML Classifier
+Classifies training types based on physiological parameters
+Based on: Recovery, Endurance E1-E2, Threshold E3, Strength/HIIT
+"""
 import os
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+import json
 import numpy as np
 import pandas as pd
-import pickle
-import glob
-import scipy.io as sio
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, confusion_matrix
 import tensorflow as tf
-from tensorflow import keras # type: ignore
+from tensorflow import keras
+from tensorflow.keras import layers, models, callbacks
 import joblib
-import warnings
-warnings.filterwarnings('ignore')
+from datetime import datetime
 
-RAW_DATA_PATH = os.getenv('DATASET_PATH', 'datasets/raw')
+# Suppress TF warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+tf.get_logger().setLevel('ERROR')
 
-def load_wesad():
-    """WESAD: пульс, ЭКГ, температура, метки"""
-    print("Loading WESAD...")
-    records = []
-    wesad_path = os.path.join(RAW_DATA_PATH, 'wesad')
-    
-    if not os.path.exists(wesad_path):
-        print(f"WESAD path not found: {wesad_path}")
-        return records
-    
-    for subj in range(2, 18):
-        subj_dir = os.path.join(wesad_path, f'S{subj}')
-        pkl_path = os.path.join(subj_dir, f'S{subj}.pkl')
-        if os.path.exists(pkl_path):
-            try:
-                with open(pkl_path, 'rb') as f:
-                    data = pickle.load(f, encoding='latin1')
-                
-                bvp = data['signal']['wrist']['BVP']
-                ecg = data['signal']['chest']['ECG']
-                temp = data['signal']['wrist']['TEMP']
-                labels = data['label']
-                
-                heart_rate = np.mean(bvp) / 1000
-                heart_rate = np.clip(heart_rate, 50, 180)
-                
-                ecg_feature = np.std(ecg) / 100
-                ecg_feature = np.clip(ecg_feature, 0.5, 1.5)
-                
-                temperature = np.mean(temp) if len(temp) > 0 else 36.6
-                temperature = np.clip(temperature, 35, 38)
-                
-                spo2 = 96 + np.random.randn() * 2
-                spo2 = np.clip(spo2, 92, 100)
-                
-                bp_systolic = 110 + np.random.randn() * 15
-                bp_systolic = np.clip(bp_systolic, 90, 140)
-                bp_diastolic = 70 + np.random.randn() * 10
-                bp_diastolic = np.clip(bp_diastolic, 60, 90)
-                
-                sleep = 7 + np.random.randn() * 1.5
-                sleep = np.clip(sleep, 4, 10)
-                
-                main_label = np.bincount(labels).argmax() if len(labels) > 0 else 0
-                class_label = main_label % 4
-                
-                records.append({
-                    'heart_rate': heart_rate,
-                    'ecg': ecg_feature,
-                    'bp_systolic': bp_systolic,
-                    'bp_diastolic': bp_diastolic,
-                    'spo2': spo2,
-                    'temperature': temperature,
-                    'sleep': sleep,
-                    'class': class_label
-                })
-                print(f"  - Loaded S{subj}")
-            except Exception as e:
-                print(f"  - Error loading S{subj}: {e}")
-    
-    print(f"Loaded {len(records)} records from WESAD")
-    return records
+# Training type classes (from document)
+TRAINING_CLASSES = {
+    0: {
+        'name': 'recovery',
+        'name_ru': 'Восстановление',
+        'hr_range': '50-65% HRmax',
+        'hrv': 'Высокий',
+        'spo2': '96-99%',
+        'marker': 'Низкая нагрузка + высокий HRV + хорошее восстановление'
+    },
+    1: {
+        'name': 'endurance_e1e2',
+        'name_ru': 'Базовая выносливость (E1-E2)',
+        'hr_range': '65-80% HRmax',
+        'hrv': 'Умеренный',
+        'spo2': '95-98%',
+        'marker': 'Работа ниже лактатного порога'
+    },
+    2: {
+        'name': 'threshold_e3',
+        'name_ru': 'Пороговая выносливость (E3)',
+        'hr_range': '80-90% HRmax',
+        'hrv': 'Сниженный',
+        'spo2': '93-96%',
+        'marker': 'Нагрузка вблизи анаэробного порога'
+    },
+    3: {
+        'name': 'strength_hiit',
+        'name_ru': 'Силовая/HIIT',
+        'hr_range': '90-100% HRmax',
+        'hrv': 'Резкое падение',
+        'spo2': '90-94%',
+        'marker': 'Высокая вариабельность + постнагрузочная гипертензия'
+    }
+}
 
-def load_bidmc():
-    """BIDMC: PPG сигнал -> пульс, дыхание"""
-    print("Loading BIDMC...")
-    records = []
-    bidmc_path = os.path.join(RAW_DATA_PATH, 'bidmc')
-    csv_dir = os.path.join(bidmc_path, 'bidmc_csv')
-    
-    if not os.path.exists(csv_dir):
-        print(f"BIDMC CSV directory not found: {csv_dir}")
-        return records
-    
-    files = glob.glob(os.path.join(csv_dir, '*_Signals.csv'))
-    print(f"Found {len(files)} BIDMC files")
-    
-    for file in files[:50]:  # Ограничим 50 файлами
-        try:
-            df = pd.read_csv(file)
-            if 'PPG' in df.columns:
-                ppg = df['PPG'].values
-                heart_rate = np.mean(ppg) * 10
-                heart_rate = np.clip(heart_rate, 50, 120)
-                
-                records.append({
-                    'heart_rate': heart_rate,
-                    'ecg': 0.8 + np.random.randn() * 0.1,
-                    'bp_systolic': 115 + np.random.randn() * 10,
-                    'bp_diastolic': 75 + np.random.randn() * 8,
-                    'spo2': 97 + np.random.randn() * 2,
-                    'temperature': 36.6 + np.random.randn() * 0.3,
-                    'sleep': 7.5 + np.random.randn() * 1,
-                    'class': np.random.randint(0, 4)
-                })
-        except Exception as e:
-            continue
-    
-    print(f"Loaded {len(records)} records from BIDMC")
-    return records
 
-def load_capnobase():
-    """CapnoBase: дыхательные данные"""
-    print("Loading CapnoBase...")
-    records = []
-    capno_path = os.path.join(RAW_DATA_PATH, 'capnobase_long')
+def load_real_data():
+    """
+    Загрузка данных из предобработанного CSV
+    Пробует несколько путей к файлу
+    """
+    possible_paths = [
+        '../../datasets/processed/training_data_real.csv',
+        '../../datasets/processed/training_data.csv',
+        'datasets/processed/training_data_real.csv',
+        'datasets/processed/training_data.csv'
+    ]
     
-    if not os.path.exists(capno_path):
-        print(f"CapnoBase path not found: {capno_path}")
-        return records
+    data_path = None
+    for path in possible_paths:
+        if os.path.exists(path):
+            data_path = path
+            break
     
-    csv_dir = os.path.join(capno_path, 'data', 'csv')
-    if os.path.exists(csv_dir):
-        subdirs = glob.glob(os.path.join(csv_dir, '*l'))
-        print(f"Found {len(subdirs)} CapnoBase records")
-        
-        for subdir in subdirs[:30]:
-            try:
-                meta_file = glob.glob(os.path.join(subdir, '*_meta.csv'))
-                param_file = glob.glob(os.path.join(subdir, '*_param.csv'))
-                
-                if meta_file and param_file:
-                    meta_df = pd.read_csv(meta_file[0])
-                    param_df = pd.read_csv(param_file[0])
-                    
-                    heart_rate = 70 + np.random.randn() * 15
-                    heart_rate = np.clip(heart_rate, 55, 100)
-                    
-                    records.append({
-                        'heart_rate': heart_rate,
-                        'ecg': 0.7 + np.random.randn() * 0.2,
-                        'bp_systolic': 118 + np.random.randn() * 12,
-                        'bp_diastolic': 76 + np.random.randn() * 8,
-                        'spo2': 96 + np.random.randn() * 2,
-                        'temperature': 36.5 + np.random.randn() * 0.4,
-                        'sleep': 7 + np.random.randn() * 1.2,
-                        'class': np.random.randint(0, 4)
-                    })
-            except Exception as e:
-                continue
+    if data_path is None:
+        print("⚠️  Real data not found. Falling back to synthetic data...")
+        return generate_synthetic_data(5000)
     
-    print(f"Loaded {len(records)} records from CapnoBase")
-    return records
+    print(f"✅ Loading real data from: {data_path}")
+    df = pd.read_csv(data_path)
+    
+    # Проверка колонок
+    required_cols = ['hr', 'hrv', 'spo2', 'temp', 'bp_s', 'bp_d', 'sleep', 'label']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        raise ValueError(f"Missing columns: {missing_cols}")
+    
+    # Формирование матриц (порядок как в main.py)
+    X = df[['hr', 'hrv', 'spo2', 'temp', 'bp_s', 'bp_d', 'sleep']].values
+    y = df['label'].values
+    
+    print(f"✅ Loaded {len(df)} samples")
+    print(f"   Class distribution: {np.bincount(y.astype(int))}")
+    
+    return X, y
 
-def load_sleep_edf():
-    """Sleep-EDF: данные сна"""
-    print("Loading Sleep-EDF...")
-    records = []
-    sleep_path = os.path.join(RAW_DATA_PATH, 'sleep_edf')
+
+def generate_synthetic_data(n_samples=5000):
+    """
+    Generate synthetic physiological data for training
+    Based on the training type parameters from the document
+    """
+    np.random.seed(42)
+    features = []
+    labels = []
     
-    if not os.path.exists(sleep_path):
-        print(f"Sleep-EDF path not found: {sleep_path}")
-        return records
+    samples_per_class = n_samples // 4
     
-    rec_files = glob.glob(os.path.join(sleep_path, '*.rec'))
-    print(f"Found {len(rec_files)} Sleep-EDF records")
-    
-    for rec_file in rec_files[:20]:
-        try:
-            sleep_hours = 6 + np.random.randn() * 1.5
-            sleep_hours = np.clip(sleep_hours, 4, 9)
+    for class_id in range(4):
+        for _ in range(samples_per_class):
+            if class_id == 0:  # Recovery
+                hr = np.random.uniform(50, 65)
+                hrv = np.random.uniform(60, 100)
+                spo2 = np.random.uniform(96, 99)
+                temp = np.random.uniform(36.5, 37.0)
+                bp_systolic = np.random.uniform(110, 130)
+                bp_diastolic = np.random.uniform(70, 85)
+                sleep_hours = np.random.uniform(7, 9)
+                
+            elif class_id == 1:  # Endurance E1-E2
+                hr = np.random.uniform(65, 80)
+                hrv = np.random.uniform(40, 70)
+                spo2 = np.random.uniform(95, 98)
+                temp = np.random.uniform(37.0, 37.8)
+                bp_systolic = np.random.uniform(130, 150)
+                bp_diastolic = np.random.uniform(80, 90)
+                sleep_hours = np.random.uniform(6, 8)
+                
+            elif class_id == 2:  # Threshold E3
+                hr = np.random.uniform(80, 90)
+                hrv = np.random.uniform(20, 50)
+                spo2 = np.random.uniform(93, 96)
+                temp = np.random.uniform(37.5, 38.2)
+                bp_systolic = np.random.uniform(150, 170)
+                bp_diastolic = np.random.uniform(85, 100)
+                sleep_hours = np.random.uniform(5, 7)
+                
+            else:  # Strength/HIIT
+                hr = np.random.uniform(90, 100)
+                hrv = np.random.uniform(10, 30)
+                spo2 = np.random.uniform(90, 94)
+                temp = np.random.uniform(38.0, 39.0)
+                bp_systolic = np.random.uniform(170, 200)
+                bp_diastolic = np.random.uniform(95, 110)
+                sleep_hours = np.random.uniform(4, 6)
             
-            records.append({
-                'heart_rate': 65 + np.random.randn() * 12,
-                'ecg': 0.75 + np.random.randn() * 0.15,
-                'bp_systolic': 112 + np.random.randn() * 10,
-                'bp_diastolic': 72 + np.random.randn() * 8,
-                'spo2': 96 + np.random.randn() * 2,
-                'temperature': 36.3 + np.random.randn() * 0.3,
-                'sleep': sleep_hours,
-                'class': np.random.randint(0, 4)
-            })
-        except Exception as e:
-            continue
+            features.append([hr, hrv, spo2, temp, bp_systolic, bp_diastolic, sleep_hours])
+            labels.append(class_id)
     
-    print(f"Loaded {len(records)} records from Sleep-EDF")
-    return records
+    indices = np.random.permutation(len(features))
+    features = np.array(features)[indices]
+    labels = np.array(labels)[indices]
+    
+    return features, labels
 
-def load_ppg_dalia():
-    """PPG-DaLiA: пульс, SpO2"""
-    print("Loading PPG-DaLiA...")
-    records = []
-    ppg_path = os.path.join(RAW_DATA_PATH, 'ppg_dalia')
-    
-    if not os.path.exists(ppg_path):
-        print(f"PPG-DaLiA path not found: {ppg_path}")
-        return records
-    
-    # Распаковка если нужно
-    zip_file = os.path.join(ppg_path, 'data.zip')
-    if os.path.exists(zip_file):
-        import zipfile
-        try:
-            with zipfile.ZipFile(zip_file, 'r') as z:
-                z.extractall(ppg_path)
-        except:
-            pass
-    
-    # Ищем csv файлы
-    csv_files = glob.glob(os.path.join(ppg_path, '**/*.csv'), recursive=True)
-    print(f"Found {len(csv_files)} PPG-DaLiA files")
-    
-    for csv_file in csv_files[:30]:
-        try:
-            df = pd.read_csv(csv_file)
-            if 'heart_rate' in df.columns:
-                heart_rate = df['heart_rate'].mean() if len(df) > 0 else 75
-                heart_rate = np.clip(heart_rate, 55, 130)
-                
-                records.append({
-                    'heart_rate': heart_rate,
-                    'ecg': 0.8 + np.random.randn() * 0.1,
-                    'bp_systolic': 115 + np.random.randn() * 12,
-                    'bp_diastolic': 75 + np.random.randn() * 8,
-                    'spo2': 96 + np.random.randn() * 2,
-                    'temperature': 36.5 + np.random.randn() * 0.4,
-                    'sleep': 7 + np.random.randn() * 1,
-                    'class': np.random.randint(0, 4)
-                })
-        except Exception as e:
-            continue
-    
-    print(f"Loaded {len(records)} records from PPG-DaLiA")
-    return records
 
-def load_all_datasets():
-    """Загрузка всех доступных датасетов"""
-    records = []
-    records.extend(load_wesad())
-    records.extend(load_bidmc())
-    records.extend(load_capnobase())
-    records.extend(load_sleep_edf())
-    records.extend(load_ppg_dalia())
-    return records
-
-def prepare_features(records):
-    """Преобразование записей в матрицу признаков"""
-    X = []
-    y = []
-    for rec in records:
-        features = [
-            rec['heart_rate'],
-            rec['ecg'],
-            rec['bp_systolic'],
-            rec['bp_diastolic'],
-            rec['spo2'],
-            rec['temperature'],
-            rec['sleep']
-        ]
-        X.append(features)
-        y.append(rec['class'])
-    
-    return np.array(X, dtype=np.float32), np.array(y, dtype=np.int32)
-
-def build_model(input_dim=7):
-    """Нейросеть с регуляризацией"""
-    model = keras.Sequential([
-        keras.layers.Input(shape=(input_dim,)),
-        keras.layers.Dense(64, activation='relu'),
-        keras.layers.BatchNormalization(),
-        keras.layers.Dropout(0.3),
-        keras.layers.Dense(32, activation='relu'),
-        keras.layers.BatchNormalization(),
-        keras.layers.Dropout(0.2),
-        keras.layers.Dense(16, activation='relu'),
-        keras.layers.Dense(4, activation='softmax')
+def create_classifier_model(input_shape=7, num_classes=4):
+    """
+    Create the classifier neural network model
+    """
+    model = models.Sequential([
+        layers.Input(shape=(input_shape,)),
+        
+        layers.Dense(64, activation='relu'),
+        layers.BatchNormalization(),
+        layers.Dropout(0.3),
+        
+        layers.Dense(32, activation='relu'),
+        layers.BatchNormalization(),
+        layers.Dropout(0.3),
+        
+        layers.Dense(16, activation='relu'),
+        layers.BatchNormalization(),
+        layers.Dropout(0.2),
+        
+        layers.Dense(num_classes, activation='softmax')
     ])
+    
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=0.0005),
+        optimizer=keras.optimizers.Adam(learning_rate=0.001),
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )
+    
     return model
 
-def augment_data(X, y, n_synthetic=5000):
-    """Аугментация данных с шумом"""
-    X_aug = X.copy()
-    y_aug = y.copy()
-    
-    for i in range(n_synthetic):
-        idx = np.random.randint(0, len(X))
-        noise = np.random.randn(X.shape[1]) * 0.05
-        X_aug = np.vstack([X_aug, X[idx] + noise])
-        y_aug = np.append(y_aug, y[idx])
-    
-    return X_aug, y_aug
 
-def train():
+def train_model():
+    """
+    Main training function
+    """
     print("=" * 60)
-    print("TRAINING NEURAL NETWORK WITH ALL DATASETS")
+    print("Starting ML Classifier Training")
     print("=" * 60)
     
-    # 1. Загрузка всех датасетов
-    all_records = load_all_datasets()
+    # Load/generate data
+    print("\n[1/5] Loading physiological data...")
+    X, y = load_real_data()
+    print(f"Total samples: {len(X)} with {len(np.unique(y))} classes")
+    print(f"Feature shape: {X.shape}")
     
-    if len(all_records) > 0:
-        print(f"\n✅ Total real records: {len(all_records)}")
-        X, y = prepare_features(all_records)
-        
-        # 2. Аугментация данных
-        X_aug, y_aug = augment_data(X, y, 5000)
-        print(f"After augmentation: {X_aug.shape[0]} samples")
-        
-        # 3. Нормализация
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X_aug)
-        
-        # 4. Разделение
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_scaled, y_aug, test_size=0.2, random_state=42, stratify=y_aug
-        )
-        
-        # 5. Обучение
-        model = build_model()
-        print(model.summary())
-        
-        early_stop = keras.callbacks.EarlyStopping(patience=30, restore_best_weights=True)
-        reduce_lr = keras.callbacks.ReduceLROnPlateau(factor=0.5, patience=15)
-        
-        history = model.fit(
-            X_train, y_train,
-            epochs=200,
-            batch_size=64,
-            validation_data=(X_test, y_test),
-            verbose=1,
-            callbacks=[early_stop, reduce_lr]
-        )
-        
-        # 6. Сохранение
-        os.makedirs('models', exist_ok=True)
-        model.save('models/classifier.keras')  # Используем новый формат
-        joblib.dump(scaler, 'models/scaler.pkl')
-        print("\n✅ Model saved to models/classifier.keras")
-        print("✅ Scaler saved to models/scaler.pkl")
-        
-        # 7. Оценка
-        loss, acc = model.evaluate(X_test, y_test)
-        print(f"\n📊 Test accuracy: {acc:.4f} ({acc*100:.1f}%)")
-        
-    else:
-        print("\n⚠️ No real data found. Using synthetic data.")
-        from sklearn.datasets import make_classification
-        X, y = make_classification(n_samples=10000, n_features=7, n_classes=4, random_state=42)
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        
-        scaler = StandardScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
-        
-        model = build_model()
-        model.fit(X_train, y_train, epochs=50, batch_size=64, validation_data=(X_test, y_test))
-        
-        os.makedirs('models', exist_ok=True)
-        model.save('models/classifier.keras')
-        joblib.dump(scaler, 'models/scaler.pkl')
+    # Split data
+    print("\n[2/5] Splitting data...")
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+    print(f"Train: {len(X_train)}, Test: {len(X_test)}")
+    
+    # Scale features
+    print("\n[3/5] Scaling features...")
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    
+    # Save scaler
+    os.makedirs('../../models', exist_ok=True)
+    joblib.dump(scaler, '../../models/scaler.pkl')
+    print("Scaler saved to ../../models/scaler.pkl")
+    
+    # Create model
+    print("\n[4/5] Creating model...")
+    model = create_classifier_model(input_shape=X_train_scaled.shape[1])
+    model.summary()
+    
+    # Callbacks
+    early_stop = callbacks.EarlyStopping(
+        monitor='val_loss',
+        patience=10,
+        restore_best_weights=True,
+        verbose=1
+    )
+    
+    reduce_lr = callbacks.ReduceLROnPlateau(
+        monitor='val_loss',
+        factor=0.5,
+        patience=5,
+        min_lr=1e-6,
+        verbose=1
+    )
+    
+    checkpoint = callbacks.ModelCheckpoint(
+        '../../models/classifier.keras',
+        monitor='val_accuracy',
+        save_best_only=True,
+        verbose=1
+    )
+    
+    # Train
+    print("\n[5/5] Training model...")
+    history = model.fit(
+        X_train_scaled, y_train,
+        validation_data=(X_test_scaled, y_test),
+        epochs=50,
+        batch_size=32,
+        callbacks=[early_stop, reduce_lr, checkpoint],
+        verbose=1
+    )
+    
+    # Evaluate
+    print("\n" + "=" * 60)
+    print("Evaluation Results")
+    print("=" * 60)
+    
+    y_pred = np.argmax(model.predict(X_test_scaled, verbose=0), axis=1)
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred, 
+                                target_names=[TRAINING_CLASSES[i]['name_ru'] for i in range(4)]))
+    
+    print("\nConfusion Matrix:")
+    print(confusion_matrix(y_test, y_pred))
+    
+    # Save model
+    model.save('../../models/classifier.keras')
+    print("\nModel saved to ../../models/classifier.keras")
+    
+    # Save training history
+    training_history = {
+        'accuracy': [float(a) for a in history.history['accuracy']],
+        'val_accuracy': [float(a) for a in history.history['val_accuracy']],
+        'loss': [float(l) for l in history.history['loss']],
+        'val_loss': [float(l) for l in history.history['val_loss']],
+        'timestamp': datetime.now().isoformat(),
+        'classes': TRAINING_CLASSES
+    }
+    
+    with open('../../models/training_history.json', 'w', encoding='utf-8') as f:
+        json.dump(training_history, f, indent=2, ensure_ascii=False)
+    print("Training history saved to ../../models/training_history.json")
+    
+    print("\n" + "=" * 60)
+    print("Training Complete!")
+    print("=" * 60)
+    
+    return model, scaler
 
-if __name__ == "__main__":
-    train()
+
+if __name__ == '__main__':
+    train_model()

@@ -32,6 +32,15 @@ type gateway struct {
 	jwtSecret       string
 }
 
+// ========== Helper Functions ==========
+
+func ptrInt32(v int32) *int32    { return &v }
+func ptrString(v string) *string { return &v }
+func ptrFloat64(v float64) *float64 { return &v }
+func ptrFloat32(v float32) *float32 { return &v }
+
+// ========== Auth Handlers ==========
+
 func (g *gateway) registerHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email    string `json:"email"`
@@ -84,6 +93,8 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
+// ========== Profile Handlers ==========
+
 func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
@@ -100,7 +111,6 @@ func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Подпись ответа
 	signature, err := auth.SignResponse(resp, g.jwtSecret)
 	if err == nil {
 		w.Header().Set("X-Response-Signature", signature)
@@ -109,14 +119,52 @@ func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func (g *gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
-		"status":    "ok",
-		"service":   "gateway",
-		"timestamp": time.Now().UTC().Format(time.RFC3339),
+func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Age              int32    `json:"age"`
+		Gender           string   `json:"gender"`
+		HeightCm         int32    `json:"height_cm"`
+		WeightKg         float64  `json:"weight_kg"`
+		FitnessLevel     string   `json:"fitness_level"`
+		Goals            []string `json:"goals"`
+		Contraindications []string `json:"contraindications"`
+		Nutrition        string   `json:"nutrition"`
+		SleepHours       float32  `json:"sleep_hours"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		g.log.Error("Failed to decode update profile request", zap.Error(err))
+		http.Error(w, "invalid request", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := g.userClient.UpdateProfile(r.Context(), &userpb.UpdateProfileRequest{
+		UserId:            userID,
+		Age:               ptrInt32(req.Age),
+		Gender:            ptrString(req.Gender),
+		HeightCm:          ptrInt32(req.HeightCm),
+		WeightKg:          ptrFloat64(req.WeightKg),
+		FitnessLevel:      ptrString(req.FitnessLevel),
+		Goals:             req.Goals,
+		Contraindications: req.Contraindications,
+		Nutrition:         ptrString(req.Nutrition),
+		SleepHours:        ptrFloat32(req.SleepHours),
 	})
+	if err != nil {
+		g.log.Error("Failed to update profile", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(resp)
 }
+
+// ========== Biometric Handlers ==========
 
 func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
@@ -195,6 +243,8 @@ func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(resp)
 }
 
+// ========== Training Handlers ==========
+
 func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
@@ -216,7 +266,7 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 
 	class := req.Class
 	if class == "" {
-		class = "general"
+		class = "endurance_e1e2"
 	}
 
 	availableDays := make([]int32, len(req.AvailableDays))
@@ -328,6 +378,8 @@ func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
+// ========== ML Classifier Handler ==========
+
 func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
@@ -335,20 +387,24 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Получаем биометрические данные
 	records, err := g.biometricClient.GetRecords(r.Context(), &biometricpb.GetRecordsRequest{
 		UserId: userID,
 		Limit:  100,
 	})
 	if err != nil {
+		g.log.Error("Failed to get biometric data", zap.Error(err))
 		http.Error(w, "failed to get biometric data", http.StatusInternalServerError)
 		return
 	}
 
+	// Вычисляем средние значения
 	features := map[string]float64{
 		"heart_rate":  0,
 		"spo2":        0,
 		"temperature": 0,
-		"sleep_hours": 0,
+		"hrv":         50,
+		"bp_systolic": 120,
 	}
 
 	var hrCount, spo2Count, tempCount int
@@ -363,8 +419,10 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 		case "temperature":
 			features["temperature"] += rec.Value
 			tempCount++
-		case "sleep":
-			features["sleep_hours"] += rec.Value
+		case "hrv":
+			features["hrv"] = rec.Value
+		case "blood_pressure":
+			features["bp_systolic"] = rec.Value
 		}
 	}
 
@@ -378,33 +436,41 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 		features["temperature"] /= float64(tempCount)
 	}
 
+	// Получаем профиль пользователя
 	profile, err := g.userClient.GetProfile(r.Context(), &userpb.GetProfileRequest{UserId: userID})
 	if err != nil {
+		g.log.Error("Failed to get profile", zap.Error(err))
 		http.Error(w, "failed to get profile", http.StatusInternalServerError)
 		return
 	}
 
+	// Формируем запрос к ML классификатору
 	classifyReq := map[string]interface{}{
-		"features": map[string]interface{}{
+		"physiological_data": map[string]interface{}{
 			"heart_rate":               features["heart_rate"],
-			"ecg":                      0.8,
-			"blood_pressure_systolic":  120,
-			"blood_pressure_diastolic": 80,
+			"heart_rate_variability":   features["hrv"],
 			"spo2":                     features["spo2"],
 			"temperature":              features["temperature"],
-			"sleep_hours":              features["sleep_hours"],
+			"blood_pressure_systolic":  features["bp_systolic"],
+			"blood_pressure_diastolic": 80,
 		},
-		"user_context": map[string]interface{}{
-			"age":               profile.Age,
+		"user_profile": map[string]interface{}{
 			"gender":            profile.Gender,
+			"age":               profile.Age,
 			"fitness_level":     profile.FitnessLevel,
+			"weight":            profile.WeightKg,
+			"height":            profile.HeightCm,
+			"health_conditions": profile.Contraindications,
 			"goals":             profile.Goals,
-			"contraindications": profile.Contraindications,
+			"sleep_hours":       profile.SleepHours,
+			"nutrition":         profile.Nutrition,
 		},
 	}
 
 	reqBody, _ := json.Marshal(classifyReq)
-	resp, err := http.Post(g.mlClassifierURL+"/classify", "application/json", bytes.NewBuffer(reqBody))
+	
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Post(g.mlClassifierURL+"/classify", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
 		g.log.Error("Failed to call ML classifier", zap.Error(err))
 		http.Error(w, "failed to classify", http.StatusInternalServerError)
@@ -414,8 +480,11 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 
 	body, _ := io.ReadAll(resp.Body)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
 	w.Write(body)
 }
+
+// ========== ML Generator Handler ==========
 
 func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
@@ -425,34 +494,58 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req struct {
-		ClassName     string  `json:"class_name"`
-		Confidence    float64 `json:"confidence"`
-		DurationWeeks int     `json:"duration_weeks"`
-		AvailableDays []int   `json:"available_days"`
+		ClassName     string   `json:"training_class"`
+		DurationWeeks int      `json:"duration_weeks"`
+		AvailableDays []int    `json:"available_days"`
+		Preferences   struct {
+			MaxDuration      int      `json:"max_duration"`
+			AvailableEquipment []string `json:"available_equipment"`
+			PreferredTime    string   `json:"preferred_time"`
+		} `json:"preferences"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		g.log.Error("Failed to decode generate ML plan request", zap.Error(err))
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
 
+	// Получаем профиль пользователя
 	profile, err := g.userClient.GetProfile(r.Context(), &userpb.GetProfileRequest{UserId: userID})
 	if err != nil {
+		g.log.Error("Failed to get profile", zap.Error(err))
 		http.Error(w, "failed to get profile", http.StatusInternalServerError)
 		return
 	}
 
+	// Формируем запрос к ML генератору
 	genReq := map[string]interface{}{
-		"class_name":        req.ClassName,
-		"confidence":        req.Confidence,
-		"duration_weeks":    req.DurationWeeks,
-		"available_days":    req.AvailableDays,
-		"user_goals":        profile.Goals,
-		"fitness_level":     profile.FitnessLevel,
-		"contraindications": profile.Contraindications,
+		"training_class": req.ClassName,
+		"user_profile": map[string]interface{}{
+			"gender":            profile.Gender,
+			"age":               profile.Age,
+			"fitness_level":     profile.FitnessLevel,
+			"weight":            profile.WeightKg,
+			"height":            profile.HeightCm,
+			"health_conditions": profile.Contraindications,
+			"goals":             profile.Goals,
+			"sleep_hours":       profile.SleepHours,
+			"nutrition":         profile.Nutrition,
+			"lifestyle": map[string]interface{}{
+				"sleep_hours":       profile.SleepHours,
+				"nutrition_quality": 0.7,
+			},
+		},
+		"preferences": map[string]interface{}{
+			"max_duration":        req.Preferences.MaxDuration,
+			"available_equipment": req.Preferences.AvailableEquipment,
+			"preferred_time":      req.Preferences.PreferredTime,
+		},
 	}
 
 	reqBody, _ := json.Marshal(genReq)
-	resp, err := http.Post(g.mlGeneratorURL+"/generate", "application/json", bytes.NewBuffer(reqBody))
+	
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Post(g.mlGeneratorURL+"/generate-plan", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
 		g.log.Error("Failed to call ML generator", zap.Error(err))
 		http.Error(w, "failed to generate plan", http.StatusInternalServerError)
@@ -460,35 +553,47 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	defer resp.Body.Close()
 
-	var mlResp struct {
-		PlanID   string                 `json:"plan_id"`
-		PlanData map[string]interface{} `json:"plan_data"`
-	}
 	body, _ := io.ReadAll(resp.Body)
-	if err := json.Unmarshal(body, &mlResp); err != nil {
-		http.Error(w, "failed to parse ML response", http.StatusInternalServerError)
-		return
-	}
+	
+	// Сохраняем план в training service
+	var mlResp map[string]interface{}
+	if err := json.Unmarshal(body, &mlResp); err == nil {
+		availableDays := make([]int32, len(req.AvailableDays))
+		for i, d := range req.AvailableDays {
+			availableDays[i] = int32(d)
+		}
 
-	availableDays := make([]int32, len(req.AvailableDays))
-	for i, d := range req.AvailableDays {
-		availableDays[i] = int32(d)
-	}
-
-	_, err = g.trainingClient.GeneratePlan(r.Context(), &trainingpb.GeneratePlanRequest{
-		UserId:              userID,
-		ClassificationClass: req.ClassName,
-		Confidence:          req.Confidence,
-		DurationWeeks:       int32(req.DurationWeeks),
-		AvailableDays:       availableDays,
-	})
-	if err != nil {
-		g.log.Error("Failed to save plan to training service", zap.Error(err))
+		_, err = g.trainingClient.GeneratePlan(r.Context(), &trainingpb.GeneratePlanRequest{
+			UserId:              userID,
+			ClassificationClass: req.ClassName,
+			Confidence:          0.85,
+			DurationWeeks:       int32(req.DurationWeeks),
+			AvailableDays:       availableDays,
+		})
+		if err != nil {
+			g.log.Warn("Failed to save plan to training service", zap.Error(err))
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
 	w.Write(body)
 }
+
+// ========== Health Check ==========
+
+func (g *gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":        "ok",
+		"service":       "gateway",
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+		"ml_classifier": g.mlClassifierURL,
+		"ml_generator":  g.mlGeneratorURL,
+	})
+}
+
+// ========== Main ==========
 
 func main() {
 	log := logger.New("gateway")
@@ -530,19 +635,25 @@ func main() {
 		log.Warn("Using default JWT secret")
 	}
 
-	userConn, err := grpc.Dial(userServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	userConn, err := grpc.Dial(userServiceAddr, 
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
 		log.Fatal("Failed to connect to user service", zap.Error(err))
 	}
 	defer userConn.Close()
 
-	biometricConn, err := grpc.Dial(biometricServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	biometricConn, err := grpc.Dial(biometricServiceAddr, 
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
 		log.Fatal("Failed to connect to biometric service", zap.Error(err))
 	}
 	defer biometricConn.Close()
 
-	trainingConn, err := grpc.Dial(trainingServiceAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	trainingConn, err := grpc.Dial(trainingServiceAddr, 
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
 		log.Fatal("Failed to connect to training service", zap.Error(err))
 	}
@@ -560,37 +671,44 @@ func main() {
 
 	r := mux.NewRouter()
 
+	// Public routes
 	r.HandleFunc("/api/v1/register", g.registerHandler).Methods("POST")
 	r.HandleFunc("/api/v1/login", g.loginHandler).Methods("POST")
 	r.HandleFunc("/health", g.healthHandler).Methods("GET")
 
-	// Защищённые маршруты
+	// Protected routes
 	protected := r.PathPrefix("/api/v1").Subrouter()
 	protected.Use(middleware.AuthMiddleware(jwtSecret, log.Logger))
+	
 	protected.HandleFunc("/profile", g.profileHandler).Methods("GET")
-
+	protected.HandleFunc("/profile", g.updateProfileHandler).Methods("PUT")
+	
 	protected.HandleFunc("/biometrics", g.addBiometricRecordHandler).Methods("POST")
 	protected.HandleFunc("/biometrics", g.getBiometricRecordsHandler).Methods("GET")
-
+	
 	protected.HandleFunc("/training/generate", g.generatePlanHandler).Methods("POST")
 	protected.HandleFunc("/training/plans", g.getPlansHandler).Methods("GET")
 	protected.HandleFunc("/training/complete", g.completeWorkoutHandler).Methods("POST")
 	protected.HandleFunc("/training/progress", g.getProgressHandler).Methods("GET")
-
-	protected.HandleFunc("/ml/classify", g.classifyHandler).Methods("GET")
+	
+	protected.HandleFunc("/ml/classify", g.classifyHandler).Methods("POST")
 	protected.HandleFunc("/ml/generate-plan", g.generateMLPlanHandler).Methods("POST")
 
-	// Статические файлы
+	// Static files
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./web/static/"))))
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/")))
 
-	// Применяем общие middleware
+	// Middleware
 	handler := middleware.RequestID(r)
-	handler = middleware.RateLimit(handler) // ← добавить
+	handler = middleware.RateLimit(handler)
 	handler = middleware.RemoveServerHeader(handler)
 	handler = middleware.SecurityHeaders(handler)
 
-	log.Info("Gateway starting", zap.String("port", port))
+	log.Info("Gateway starting", 
+		zap.String("port", port),
+		zap.String("ml_classifier", mlClassifierURL),
+		zap.String("ml_generator", mlGeneratorURL))
+	
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal("Failed to start server", zap.Error(err))
 	}

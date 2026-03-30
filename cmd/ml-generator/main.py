@@ -1,214 +1,288 @@
-import os
-import json
-import random
-import numpy as np
+"""
+ML Generator API Service
+Generates personalized training plans using GAN
+"""
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Optional
-import uvicorn
-import logging
-from datetime import datetime
+from typing import Optional, List, Dict
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+import os
+import json
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("ml-generator")
+app = FastAPI(
+    title="ML Generator Service",
+    description="Generates personalized training plans using GAN",
+    version="1.0.0"
+)
 
-app = FastAPI(title="ML Generator Service (GAN)", version="1.0.0")
-
-# Глобальная переменная для GAN модели
+# Global variable
 generator = None
 
-# Модели данных
-class GenerateRequest(BaseModel):
-    class_name: str = Field(..., description="Класс тренировки: endurance, strength, recovery, interval")
-    confidence: float = Field(default=0.8, ge=0, le=1)
-    duration_weeks: int = Field(default=4, ge=1, le=52)
-    available_days: List[int] = Field(default=[1, 3, 5])
-    user_goals: Optional[List[str]] = None
-    fitness_level: Optional[str] = "intermediate"
-    contraindications: Optional[List[str]] = None
+TRAINING_CLASSES = {
+    0: 'recovery',
+    1: 'endurance_e1e2',
+    2: 'threshold_e3',
+    3: 'strength_hiit'
+}
 
-class GenerateResponse(BaseModel):
-    plan_id: str
-    plan_data: dict
-
-# База упражнений
-EXERCISES = {
-    "endurance": {
-        "cardio": ["Бег", "Велосипед", "Плавание", "Гребля", "Скакалка", "Эллипс"],
-        "strength": ["Выпады", "Приседания", "Отжимания", "Подтягивания", "Планка"],
-        "stretching": ["Растяжка ног", "Растяжка спины", "Йога-позы"]
+TRAINING_TEMPLATES = {
+    'recovery': {
+        'duration_range': (20, 45),
+        'intensity_range': (0.3, 0.5),
+        'exercises': ['walking', 'yoga', 'stretching', 'light_swimming', 'mobility'],
+        'rest_ratio': 0.7,
+        'name_ru': 'Восстановление'
     },
-    "strength": {
-        "cardio": ["Бурпи", "Спринт", "Бег", "Велосипед"],
-        "strength": ["Жим лежа", "Приседания со штангой", "Становая тяга", "Подтягивания", "Отжимания на брусьях", "Тяга штанги"],
-        "stretching": ["Растяжка грудных", "Растяжка спины", "Динамическая растяжка"]
+    'endurance_e1e2': {
+        'duration_range': (45, 90),
+        'intensity_range': (0.5, 0.7),
+        'exercises': ['running', 'cycling', 'swimming', 'rowing', 'hiking'],
+        'rest_ratio': 0.4,
+        'name_ru': 'Базовая выносливость'
     },
-    "recovery": {
-        "cardio": ["Ходьба", "Легкий бег", "Плавание", "Йога"],
-        "strength": ["Растяжка", "Пилатес", "Мобильность"],
-        "stretching": ["Йога", "Растяжка всех групп мышц", "Дыхательные практики"]
+    'threshold_e3': {
+        'duration_range': (30, 60),
+        'intensity_range': (0.7, 0.85),
+        'exercises': ['tempo_run', 'threshold_intervals', 'fartlek', 'critical_power'],
+        'rest_ratio': 0.3,
+        'name_ru': 'Пороговая выносливость'
     },
-    "interval": {
-        "cardio": ["Интервальный бег", "Табата", "Бурпи-интервалы", "Велоспринты"],
-        "strength": ["Круговая тренировка", "AMRAP", "EMOM"],
-        "stretching": ["Динамическая растяжка", "Заминка"]
+    'strength_hiit': {
+        'duration_range': (20, 45),
+        'intensity_range': (0.85, 1.0),
+        'exercises': ['hiit', 'strength', 'sprints', 'crossfit', 'plyometrics'],
+        'rest_ratio': 0.5,
+        'name_ru': 'Силовая/HIIT'
     }
 }
 
-INTENSITY = {
-    "low": {"duration": 20, "sets": 2, "reps": 10},
-    "medium": {"duration": 35, "sets": 3, "reps": 12},
-    "high": {"duration": 50, "sets": 4, "reps": 15}
-}
 
-def load_gan_model():
-    """Загрузка обученной GAN модели"""
+class UserProfile(BaseModel):
+    """User profile for plan generation"""
+    gender: str = Field(..., description="Gender (male/female)")
+    age: int = Field(..., description="Age", ge=10, le=100)
+    fitness_level: str = Field(..., description="Fitness level (beginner/intermediate/advanced)")
+    weight: Optional[float] = Field(None, description="Weight (kg)", ge=30, le=200)
+    height: Optional[float] = Field(None, description="Height (cm)", ge=100, le=250)
+    health_conditions: Optional[List[str]] = Field(None, description="Health conditions")
+    goals: Optional[List[str]] = Field(None, description="Training goals")
+    lifestyle: Optional[Dict] = Field(None, description="Lifestyle factors (nutrition, sleep, etc.)")
+
+
+class PlanGenerationRequest(BaseModel):
+    """Request for training plan generation"""
+    training_class: str = Field(..., description="Training class from classifier")
+    user_profile: UserProfile
+    preferences: Optional[Dict] = Field(None, description="User preferences (time, equipment, etc.)")
+
+
+class Exercise(BaseModel):
+    """Exercise details"""
+    name: str
+    duration_minutes: int
+    intensity: float
+
+
+class TrainingPlan(BaseModel):
+    """Generated training plan"""
+    training_type: str
+    training_type_ru: str
+    duration_minutes: int
+    intensity: float
+    weekly_frequency: int
+    primary_exercise: str
+    warmup_minutes: int
+    cooldown_minutes: int
+    exercises: List[str]
+    session_structure: List[Exercise]
+    notes: List[str]
+    weekly_schedule: Optional[Dict] = None
+
+
+def load_generator():
+    """Load trained generator model"""
     global generator
-    try:
-        import tensorflow as tf
-        model_path = os.getenv("GENERATOR_PATH", "/app/models/generator.h5")
-        if os.path.exists(model_path):
-            generator = tf.keras.models.load_model(model_path)
-            logger.info(f"GAN model loaded from {model_path}")
-            return True
-    except ImportError:
-        logger.warning("TensorFlow not installed, using rule-based generation")
-    except Exception as e:
-        logger.warning(f"Failed to load GAN model: {e}, using rule-based generation")
-    return False
+    
+    model_path = '../../models/generator.h5'
+    
+    if os.path.exists(model_path):
+        generator = keras.models.load_model(model_path)
+        print(f"Generator loaded from {model_path}")
+    else:
+        print(f"Generator not found at {model_path}")
 
-def generate_workout(day: int, class_name: str, intensity: str, fitness_level: str) -> dict:
-    """Генерация одной тренировки"""
-    exercises = EXERCISES.get(class_name, EXERCISES["endurance"])
-    intensity_cfg = INTENSITY.get(intensity, INTENSITY["medium"])
-    
-    # Выбор упражнений
-    cardio = random.sample(exercises["cardio"], min(2, len(exercises["cardio"])))
-    strength = random.sample(exercises["strength"], min(3, len(exercises["strength"])))
-    stretching = random.sample(exercises["stretching"], min(2, len(exercises["stretching"])))
-    
-    workout = {
-        "day": day,
-        "type": class_name,
-        "intensity": intensity,
-        "duration_minutes": intensity_cfg["duration"],
-        "warmup": ["Разминка суставов", "Легкий бег 5 минут"],
-        "main_part": [
-            {"name": ex, "sets": intensity_cfg["sets"], "reps": intensity_cfg["reps"]}
-            for ex in strength
-        ],
-        "cardio": [{"name": ex, "minutes": intensity_cfg["duration"] // 3} for ex in cardio],
-        "cooldown": stretching,
-        "notes": [
-            "Следите за пульсом",
-            "Пейте воду во время тренировки",
-            "При болях прекратите упражнение"
-        ]
-    }
-    
-    # Корректировка для начинающих
-    if fitness_level == "beginner":
-        workout["duration_minutes"] = max(15, workout["duration_minutes"] - 10)
-        for item in workout["main_part"]:
-            item["sets"] = max(2, item["sets"] - 1)
-            item["reps"] = max(8, item["reps"] - 2)
-    
-    return workout
-
-def generate_plan(request: GenerateRequest) -> dict:
-    """Генерация полной программы тренировок"""
-    intensity_map = {
-        "endurance": "medium",
-        "strength": "high",
-        "recovery": "low",
-        "interval": "high"
-    }
-    intensity = intensity_map.get(request.class_name, "medium")
-    
-    if request.confidence < 0.6:
-        intensity = "low"
-    elif request.confidence > 0.9:
-        intensity = "high"
-    
-    weeks = []
-    for week in range(1, request.duration_weeks + 1):
-        week_data = {
-            "week": week,
-            "focus": f"Неделя {week}: {request.class_name}",
-            "workouts": []
-        }
-        
-        for day in request.available_days:
-            workout = generate_workout(day, request.class_name, intensity, request.fitness_level)
-            week_data["workouts"].append(workout)
-        
-        weeks.append(week_data)
-    
-    plan = {
-        "name": f"Программа тренировок: {request.class_name}",
-        "class": request.class_name,
-        "confidence": request.confidence,
-        "duration_weeks": request.duration_weeks,
-        "intensity": intensity,
-        "available_days": request.available_days,
-        "goals": request.user_goals or ["Общее укрепление здоровья"],
-        "weeks": weeks,
-        "recommendations": [
-            "Занимайтесь в комфортном темпе",
-            "Следите за самочувствием",
-            "При появлении боли обратитесь к врачу",
-            "Пейте воду до, во время и после тренировки",
-            "Делайте разминку и заминку"
-        ]
-    }
-    
-    if request.contraindications:
-        plan["contraindications_warning"] = [
-            f"Учитывая противопоказание: {c}. Проконсультируйтесь с врачом перед началом."
-            for c in request.contraindications
-        ]
-    
-    return plan
 
 @app.on_event("startup")
 async def startup_event():
-    load_gan_model()
+    """Load generator on startup"""
+    load_generator()
+
 
 @app.get("/health")
-async def health():
-    return {"status": "ok", "service": "ml-generator", "timestamp": datetime.now().isoformat()}
-
-@app.post("/generate", response_model=GenerateResponse)
-async def generate(request: GenerateRequest):
-    logger.info(f"Generating plan for class: {request.class_name}, weeks: {request.duration_weeks}")
-    
-    try:
-        plan_data = generate_plan(request)
-        
-        import uuid
-        plan_id = str(uuid.uuid4())
-        
-        return GenerateResponse(
-            plan_id=plan_id,
-            plan_data=plan_data
-        )
-        
-    except Exception as e:
-        logger.error(f"Generation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/")
-async def root():
+async def health_check():
+    """Health check endpoint"""
     return {
-        "service": "ML Generator (GAN)",
-        "version": "1.0.0",
-        "endpoints": {
-            "generate": "POST /generate - Генерация программы тренировок",
-            "health": "GET /health - Проверка здоровья"
-        }
+        "status": "healthy",
+        "generator_loaded": generator is not None
     }
 
+
+@app.get("/templates")
+async def get_templates():
+    """Get training templates"""
+    return TRAINING_TEMPLATES
+
+
+def encode_user_profile(profile: UserProfile) -> np.ndarray:
+    """Encode user profile to model input (10 dimensions)"""
+    # Normalize features
+    age_norm = (profile.age - 10) / 90
+    fitness_map = {'beginner': 0.3, 'intermediate': 0.6, 'advanced': 0.9}
+    fitness_norm = fitness_map.get(profile.fitness_level, 0.5)
+    
+    weight_norm = (profile.weight or 70) / 200
+    height_norm = (profile.height or 170) / 250
+    
+    # Goal encoding
+    goal_encoded = 0.5
+    if profile.goals:
+        goals_lower = [g.lower() for g in profile.goals]
+        if 'похудение' in goals_lower or 'weight_loss' in goals_lower:
+            goal_encoded = 0.2
+        elif 'набор массы' in goals_lower or 'muscle_gain' in goals_lower:
+            goal_encoded = 0.8
+        elif 'реабилитация' in goals_lower or 'rehabilitation' in goals_lower:
+            goal_encoded = 0.1
+    
+    health_flag = 1.0 if profile.health_conditions else 0.0
+    gender_encoded = 1.0 if profile.gender.lower() == 'male' else 0.0
+    
+    # Lifestyle factors
+    sleep_score = 0.5
+    nutrition_score = 0.5
+    if profile.lifestyle:
+        sleep_score = profile.lifestyle.get('sleep_hours', 7) / 10
+        nutrition_score = profile.lifestyle.get('nutrition_quality', 0.5)
+    
+    encoded = np.array([
+        age_norm,
+        fitness_norm,
+        weight_norm,
+        height_norm,
+        goal_encoded,
+        health_flag,
+        gender_encoded,
+        sleep_score,
+        nutrition_score,
+        0.5  # Reserved
+    ])
+    
+    return encoded.reshape(1, -1)
+
+
+def decode_plan(plan_vector: np.ndarray, training_class: str, user_profile: UserProfile) -> dict:
+    """Decode GAN output (16 dimensions) to training plan"""
+    template = TRAINING_TEMPLATES.get(training_class, TRAINING_TEMPLATES['endurance_e1e2'])
+    
+    duration = int(plan_vector[0] * 100)
+    intensity = plan_vector[1]
+    rest_ratio = plan_vector[2]
+    weekly_freq = int(plan_vector[3] * 7)
+    
+    exercise_probs = plan_vector[4:9]
+    primary_exercise_idx = np.argmax(exercise_probs)
+    primary_exercise = template['exercises'][primary_exercise_idx % len(template['exercises'])]
+    
+    warmup = int(plan_vector[9] * 100)
+    cooldown = int(plan_vector[10] * 100)
+    
+    # Build session structure
+    session_structure = [
+        Exercise(name="Разминка", duration_minutes=max(5, min(20, warmup)), intensity=0.3),
+        Exercise(name=primary_exercise, duration_minutes=int(duration * 0.6), intensity=intensity),
+        Exercise(name="Заминка", duration_minutes=max(5, min(20, cooldown)), intensity=0.3)
+    ]
+    
+    # Build notes
+    notes = []
+    if user_profile.fitness_level == 'beginner':
+        notes.append("Начните с 50% от рекомендованной интенсивности")
+        duration = int(duration * 0.7)
+    
+    if user_profile.age > 50:
+        notes.append("Увеличьте время разминки и заминки")
+    
+    if user_profile.health_conditions:
+        notes.append("Проконсультируйтесь с врачом перед началом")
+    
+    if user_profile.goals:
+        goals_lower = [g.lower() for g in user_profile.goals]
+        if 'похудение' in goals_lower:
+            notes.append("Добавьте 10-15 минут кардио после основной тренировки")
+        if 'набор массы' in goals_lower:
+            notes.append("Сфокусируйтесь на силовых упражнениях")
+        if 'реабилитация' in goals_lower:
+            notes.append("Следите за техникой выполнения упражнений")
+    
+    # Weekly schedule
+    weekly_schedule = {
+        'monday': primary_exercise if weekly_freq >= 1 else 'rest',
+        'wednesday': primary_exercise if weekly_freq >= 2 else 'rest',
+        'friday': primary_exercise if weekly_freq >= 3 else 'rest',
+        'saturday': 'active_recovery' if weekly_freq >= 4 else 'rest',
+        'sunday': 'rest'
+    }
+    
+    return {
+        'training_type': training_class,
+        'training_type_ru': template['name_ru'],
+        'duration_minutes': max(20, min(120, duration)),
+        'intensity': round(float(intensity), 2),
+        'weekly_frequency': max(1, min(7, weekly_freq)),
+        'primary_exercise': primary_exercise,
+        'warmup_minutes': max(5, min(20, warmup)),
+        'cooldown_minutes': max(5, min(20, cooldown)),
+        'exercises': template['exercises'],
+        'session_structure': [e.dict() for e in session_structure],
+        'notes': notes,
+        'weekly_schedule': weekly_schedule
+    }
+
+
+@app.post("/generate-plan", response_model=TrainingPlan)
+async def generate_plan(request: PlanGenerationRequest):
+    """Generate personalized training plan"""
+    if generator is None:
+        raise HTTPException(status_code=503, detail="Generator not loaded")
+    
+    try:
+        # Get training class index
+        class_idx = list(TRAINING_CLASSES.values()).index(request.training_class)
+        
+        # Encode user profile
+        profile_encoded = encode_user_profile(request.user_profile)
+        
+        # Encode training class
+        class_onehot = keras.utils.to_categorical([class_idx], 4)
+        
+        # Generate noise
+        noise = np.random.normal(0, 1, (1, 32))
+        
+        # Generate plan
+        plan_vector = generator.predict([noise, profile_encoded, class_onehot], verbose=0)[0]
+        
+        # Decode to human-readable format
+        plan = decode_plan(plan_vector, request.training_class, request.user_profile)
+        
+        return TrainingPlan(**plan)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
-    port = int(os.getenv("ML_GENERATOR_PORT", 8002))
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8002)

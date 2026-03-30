@@ -1,235 +1,243 @@
-import os
-import json
-import numpy as np
+"""
+ML Classifier API Service
+Classifies training type based on physiological parameters
+"""
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Optional
-import uvicorn
-import logging
-from datetime import datetime
+from typing import Optional, List, Dict
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+import joblib
+import os
+import json
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("ml-classifier")
+app = FastAPI(
+    title="ML Classifier Service",
+    description="Classifies training types based on physiological parameters",
+    version="1.0.0"
+)
 
-app = FastAPI(title="ML Classifier Service", version="1.0.0")
-
-# Глобальные переменные для модели
+# Global variables
 model = None
 scaler = None
 
-# Модель данных для запроса
-class BiometricFeatures(BaseModel):
-    heart_rate: float = Field(..., ge=30, le=250, description="Пульс (уд/мин)")
-    ecg: float = Field(..., ge=0, le=2, description="ЭКГ индекс (нормализованный)")
-    blood_pressure_systolic: float = Field(..., ge=70, le=250, description="Давление систолическое")
-    blood_pressure_diastolic: float = Field(..., ge=40, le=150, description="Давление диастолическое")
-    spo2: float = Field(..., ge=70, le=100, description="Сатурация кислорода (%)")
-    temperature: float = Field(..., ge=35, le=42, description="Температура тела (°C)")
-    sleep_hours: float = Field(..., ge=0, le=24, description="Длительность сна (часы)")
-
-class UserContext(BaseModel):
-    age: Optional[int] = None
-    gender: Optional[str] = None
-    fitness_level: Optional[str] = None
-    goals: Optional[List[str]] = None
-    contraindications: Optional[List[str]] = None
-
-class ClassifyRequest(BaseModel):
-    features: BiometricFeatures
-    user_context: Optional[UserContext] = None
-
-class ClassifyResponse(BaseModel):
-    class_name: str
-    confidence: float
-    intensity: str
-    recommendations: List[str]
-
-# Карта классов тренировок
-CLASSES = {
-    "endurance": {
-        "name": "Выносливость",
-        "intensity": "medium",
-        "recommendations": [
-            "Увеличьте продолжительность кардио-тренировок",
-            "Добавьте интервальные нагрузки",
-            "Следите за пульсом в зоне 60-70% от максимума"
+TRAINING_CLASSES = {
+    0: {
+        'name': 'recovery',
+        'name_ru': 'Восстановление',
+        'description': 'Низкая нагрузка + высокий HRV + хорошее восстановление',
+        'hr_range': '50-65% HRmax',
+        'hrv': 'Высокий',
+        'spo2': '96-99%',
+        'recommendations': [
+            'Лёгкая активность (ходьба, йога)',
+            'Растяжка и мобилизация',
+            'Плавание в лёгком темпе',
+            'Велопрогулка без напряжения'
         ]
     },
-    "strength": {
-        "name": "Силовая",
-        "intensity": "high",
-        "recommendations": [
-            "Увеличьте рабочий вес на 5-10%",
-            "Сократите отдых между подходами",
-            "Добавьте базовые упражнения"
+    1: {
+        'name': 'endurance_e1e2',
+        'name_ru': 'Базовая выносливость (E1-E2)',
+        'description': 'Работа ниже лактатного порога, устойчивая кардиореспираторная система',
+        'hr_range': '65-80% HRmax',
+        'hrv': 'Умеренный',
+        'spo2': '95-98%',
+        'recommendations': [
+            'Бег в аэробной зоне',
+            'Велосипед (средняя интенсивность)',
+            'Плавание (дистанция)',
+            'Лыжи/беговые лыжи'
         ]
     },
-    "recovery": {
-        "name": "Восстановление",
-        "intensity": "low",
-        "recommendations": [
-            "Снизьте интенсивность тренировок",
-            "Увеличьте время сна",
-            "Добавьте растяжку и массаж"
+    2: {
+        'name': 'threshold_e3',
+        'name_ru': 'Пороговая выносливость (E3)',
+        'description': 'Нагрузка вблизи анаэробного порога, баланс лактата',
+        'hr_range': '80-90% HRmax',
+        'hrv': 'Сниженный',
+        'spo2': '93-96%',
+        'recommendations': [
+            'Темповый бег',
+            'Интервалы на пороге',
+            'Fartlek тренировки',
+            'Критическая мощность (велосипед)'
         ]
     },
-    "interval": {
-        "name": "Интервальная",
-        "intensity": "high",
-        "recommendations": [
-            "Чередуйте высокую и низкую интенсивность",
-            "Следите за восстановлением между интервалами",
-            "Используйте пульсометр"
+    3: {
+        'name': 'strength_hiit',
+        'name_ru': 'Силовая/HIIT',
+        'description': 'Высокая вариабельность пульса + постнагрузочная гипертензия + стресс-реакция',
+        'hr_range': '90-100% HRmax',
+        'hrv': 'Резкое падение',
+        'spo2': '90-94%',
+        'recommendations': [
+            'HIIT интервалы',
+            'Силовые тренировки',
+            'Спринты',
+            'CrossFit/WOD'
         ]
     }
 }
 
+
+class PhysiologicalData(BaseModel):
+    """Input physiological parameters"""
+    heart_rate: float = Field(..., description="Heart rate (bpm)", ge=40, le=220)
+    heart_rate_variability: Optional[float] = Field(None, description="HRV (ms)", ge=0, le=200)
+    spo2: Optional[float] = Field(None, description="Blood oxygen saturation (%)", ge=80, le=100)
+    temperature: Optional[float] = Field(None, description="Body temperature (°C)", ge=35.0, le=42.0)
+    blood_pressure_systolic: Optional[float] = Field(None, description="Systolic blood pressure (mmHg)", ge=80, le=250)
+    blood_pressure_diastolic: Optional[float] = Field(None, description="Diastolic blood pressure (mmHg)", ge=50, le=150)
+    sleep_hours: Optional[float] = Field(None, description="Sleep hours", ge=0, le=24)
+
+
+class UserProfile(BaseModel):
+    """User profile for personalized recommendations"""
+    gender: str = Field(..., description="Gender (male/female)")
+    age: int = Field(..., description="Age", ge=10, le=100)
+    fitness_level: str = Field(..., description="Fitness level (beginner/intermediate/advanced)")
+    weight: Optional[float] = Field(None, description="Weight (kg)", ge=30, le=200)
+    height: Optional[float] = Field(None, description="Height (cm)", ge=100, le=250)
+    health_conditions: Optional[List[str]] = Field(None, description="Health conditions/limitations")
+    goals: Optional[List[str]] = Field(None, description="Training goals")
+
+
+class ClassificationRequest(BaseModel):
+    """Request for classification"""
+    physiological_data: PhysiologicalData
+    user_profile: Optional[UserProfile] = None
+
+
+class ClassificationResponse(BaseModel):
+    """Response with classification result"""
+    predicted_class: str
+    predicted_class_ru: str
+    confidence: float
+    probabilities: Dict[str, float]
+    description: str
+    hr_range: str
+    recommendations: List[str]
+    personalized_notes: Optional[str] = None
+
+
 def load_models():
-    """Загрузка обученных моделей (если есть)"""
-    global model, scaler
-    try:
-        import tensorflow as tf
-        import joblib
-        
-        model_path = os.getenv("MODEL_PATH", "/app/models/classifier.keras")
-        scaler_path = os.getenv("SCALER_PATH", "/app/models/scaler.pkl")
-        
-        if os.path.exists(model_path) and os.path.exists(scaler_path):
-            model = tf.keras.models.load_model(model_path)
-            scaler = joblib.load(scaler_path)
-            logger.info(f"Models loaded from {model_path}")
-            return True
-    except ImportError:
-        logger.warning("TensorFlow not installed, using rule-based classification")
-    except Exception as e:
-        logger.warning(f"Failed to load models: {e}, using rule-based classification")
-    
-    return False
-
-def rule_based_classify(features: BiometricFeatures) -> dict:
-    """
-    Классификация на основе правил (fallback)
-    """
-    score = {
-        "endurance": 0,
-        "strength": 0,
-        "recovery": 0,
-        "interval": 0
-    }
-    
-    # Правила для endurance (выносливость)
-    if 120 <= features.heart_rate <= 160 and features.sleep_hours >= 7:
-        score["endurance"] += 30
-    if features.spo2 >= 96:
-        score["endurance"] += 20
-    
-    # Правила для strength (силовая)
-    if features.heart_rate <= 140 and features.blood_pressure_systolic >= 110:
-        score["strength"] += 30
-    if features.sleep_hours >= 8:
-        score["strength"] += 20
-    
-    # Правила для recovery (восстановление)
-    if features.sleep_hours < 6 or features.heart_rate > 80:
-        score["recovery"] += 40
-    if features.temperature > 37:
-        score["recovery"] += 30
-    
-    # Правила для interval (интервальная)
-    if features.heart_rate > 150 and features.spo2 >= 95:
-        score["interval"] += 40
-    if features.sleep_hours >= 7:
-        score["interval"] += 20
-    
-    best_class = max(score, key=score.get)
-    confidence = score[best_class] / 100 if score[best_class] > 0 else 0.5
-    
-    return {
-        "class_name": best_class,
-        "confidence": confidence,
-        "intensity": CLASSES[best_class]["intensity"],
-        "recommendations": CLASSES[best_class]["recommendations"]
-    }
-
-def nn_classify(features: BiometricFeatures) -> dict:
-    """Классификация через нейросеть"""
+    """Load trained models"""
     global model, scaler
     
-    features_array = np.array([[
-        features.heart_rate,
-        features.ecg,
-        features.blood_pressure_systolic,
-        features.blood_pressure_diastolic,
-        features.spo2,
-        features.temperature,
-        features.sleep_hours
-    ]])
+    model_path = '../../models/classifier.keras'
+    scaler_path = '../../models/scaler.pkl'
     
-    features_scaled = scaler.transform(features_array)
-    prediction = model.predict(features_scaled, verbose=0)
-    class_idx = np.argmax(prediction[0])
-    classes = ["endurance", "strength", "recovery", "interval"]
-    class_name = classes[class_idx]
+    if os.path.exists(model_path):
+        model = keras.models.load_model(model_path)
+        print(f"Model loaded from {model_path}")
+    else:
+        print(f"Model not found at {model_path}")
     
-    return {
-        "class_name": class_name,
-        "confidence": float(prediction[0][class_idx]),
-        "intensity": CLASSES[class_name]["intensity"],
-        "recommendations": CLASSES[class_name]["recommendations"]
-    }
+    if os.path.exists(scaler_path):
+        scaler = joblib.load(scaler_path)
+        print(f"Scaler loaded from {scaler_path}")
+    else:
+        print(f"Scaler not found at {scaler_path}")
+
 
 @app.on_event("startup")
 async def startup_event():
-    models_loaded = load_models()
-    if not models_loaded:
-        logger.info("Using rule-based classification")
-    else:
-        logger.info("Using neural network classification")
+    """Load models on startup"""
+    load_models()
+
 
 @app.get("/health")
-async def health():
-    return {"status": "ok", "service": "ml-classifier", "timestamp": datetime.now().isoformat()}
-
-@app.post("/classify", response_model=ClassifyResponse)
-async def classify(request: ClassifyRequest):
-    logger.info(f"Classifying features: heart_rate={request.features.heart_rate}")
-    
-    try:
-        if model is not None and scaler is not None:
-            result = nn_classify(request.features)
-        else:
-            result = rule_based_classify(request.features)
-        
-        # Учитываем контекст пользователя
-        if request.user_context:
-            if request.user_context.contraindications:
-                if "heart" in str(request.user_context.contraindications).lower():
-                    result["intensity"] = "low"
-                    result["recommendations"].append("Учитывая сердечные ограничения, снизьте нагрузку")
-            
-            if request.user_context.fitness_level == "beginner":
-                result["intensity"] = "low"
-            elif request.user_context.fitness_level == "advanced":
-                result["intensity"] = "high"
-        
-        return ClassifyResponse(**result)
-        
-    except Exception as e:
-        logger.error(f"Classification error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/")
-async def root():
+async def health_check():
+    """Health check endpoint"""
     return {
-        "service": "ML Classifier",
-        "version": "1.0.0",
-        "endpoints": {
-            "classify": "POST /classify - Классифицировать состояние пользователя",
-            "health": "GET /health - Проверка здоровья"
-        }
+        "status": "healthy",
+        "model_loaded": model is not None,
+        "scaler_loaded": scaler is not None
     }
 
+
+@app.get("/classes")
+async def get_training_classes():
+    """Get available training classes"""
+    return TRAINING_CLASSES
+
+
+@app.post("/classify", response_model=ClassificationResponse)
+async def classify_training(request: ClassificationRequest):
+    """
+    Classify training type based on physiological parameters
+    """
+    if model is None or scaler is None:
+        raise HTTPException(status_code=503, detail="Models not loaded")
+    
+    try:
+        # Prepare features (7 dimensions)
+        pd = request.physiological_data
+        features = [
+            pd.heart_rate,
+            pd.heart_rate_variability or 50.0,
+            pd.spo2 or 98.0,
+            pd.temperature or 37.0,
+            pd.blood_pressure_systolic or 120.0,
+            pd.blood_pressure_diastolic or 80.0,
+            pd.sleep_hours or 7.0
+        ]
+        
+        # Scale features
+        features_array = np.array(features).reshape(1, -1)
+        features_scaled = scaler.transform(features_array)
+        
+        # Predict
+        probabilities = model.predict(features_scaled, verbose=0)[0]
+        predicted_class = int(np.argmax(probabilities))
+        confidence = float(probabilities[predicted_class])
+        
+        # Get class info
+        class_info = TRAINING_CLASSES[predicted_class]
+        
+        # Generate personalized notes
+        personalized_notes = None
+        if request.user_profile:
+            up = request.user_profile
+            notes = []
+            
+            if up.fitness_level == 'beginner':
+                notes.append("Рекомендуется снизить интенсивность на 10-15%")
+            
+            if up.age > 50:
+                notes.append("Учитывайте возраст при планировании восстановления")
+            
+            if up.health_conditions:
+                notes.append(f"Проконсультируйтесь с врачом при: {', '.join(up.health_conditions)}")
+            
+            if up.goals:
+                goals_lower = [g.lower() for g in up.goals]
+                if 'похудение' in goals_lower and predicted_class == 0:
+                    notes.append("Для похудения добавьте кардио в зоне E1-E2")
+            
+            personalized_notes = " | ".join(notes) if notes else None
+        
+        return ClassificationResponse(
+            predicted_class=class_info['name'],
+            predicted_class_ru=class_info['name_ru'],
+            confidence=round(confidence, 4),
+            probabilities={
+                TRAINING_CLASSES[i]['name']: round(float(p), 4) 
+                for i, p in enumerate(probabilities)
+            },
+            description=class_info['description'],
+            hr_range=class_info['hr_range'],
+            recommendations=class_info['recommendations'],
+            personalized_notes=personalized_notes
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 if __name__ == "__main__":
-    port = int(os.getenv("ML_CLASSIFIER_PORT", 8001))
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
