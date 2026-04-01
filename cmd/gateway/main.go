@@ -34,8 +34,8 @@ type gateway struct {
 
 // ========== Helper Functions ==========
 
-func ptrInt32(v int32) *int32    { return &v }
-func ptrString(v string) *string { return &v }
+func ptrInt32(v int32) *int32       { return &v }
+func ptrString(v string) *string    { return &v }
 func ptrFloat64(v float64) *float64 { return &v }
 func ptrFloat32(v float32) *float32 { return &v }
 
@@ -127,15 +127,15 @@ func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Age              int32    `json:"age"`
-		Gender           string   `json:"gender"`
-		HeightCm         int32    `json:"height_cm"`
-		WeightKg         float64  `json:"weight_kg"`
-		FitnessLevel     string   `json:"fitness_level"`
-		Goals            []string `json:"goals"`
+		Age               int32    `json:"age"`
+		Gender            string   `json:"gender"`
+		HeightCm          int32    `json:"height_cm"`
+		WeightKg          float64  `json:"weight_kg"`
+		FitnessLevel      string   `json:"fitness_level"`
+		Goals             []string `json:"goals"`
 		Contraindications []string `json:"contraindications"`
-		Nutrition        string   `json:"nutrition"`
-		SleepHours       float32  `json:"sleep_hours"`
+		Nutrition         string   `json:"nutrition"`
+		SleepHours        float32  `json:"sleep_hours"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		g.log.Error("Failed to decode update profile request", zap.Error(err))
@@ -468,7 +468,7 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	reqBody, _ := json.Marshal(classifyReq)
-	
+
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Post(g.mlClassifierURL+"/classify", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
@@ -494,13 +494,13 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var req struct {
-		ClassName     string   `json:"training_class"`
-		DurationWeeks int      `json:"duration_weeks"`
-		AvailableDays []int    `json:"available_days"`
+		ClassName     string `json:"training_class"`
+		DurationWeeks int    `json:"duration_weeks"`
+		AvailableDays []int  `json:"available_days"`
 		Preferences   struct {
-			MaxDuration      int      `json:"max_duration"`
+			MaxDuration        int      `json:"max_duration"`
 			AvailableEquipment []string `json:"available_equipment"`
-			PreferredTime    string   `json:"preferred_time"`
+			PreferredTime      string   `json:"preferred_time"`
 		} `json:"preferences"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -543,7 +543,7 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	}
 
 	reqBody, _ := json.Marshal(genReq)
-	
+
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Post(g.mlGeneratorURL+"/generate-plan", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
@@ -554,7 +554,7 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	
+
 	// Сохраняем план в training service
 	var mlResp map[string]interface{}
 	if err := json.Unmarshal(body, &mlResp); err == nil {
@@ -635,7 +635,7 @@ func main() {
 		log.Warn("Using default JWT secret")
 	}
 
-	userConn, err := grpc.Dial(userServiceAddr, 
+	userConn, err := grpc.Dial(userServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
@@ -643,7 +643,7 @@ func main() {
 	}
 	defer userConn.Close()
 
-	biometricConn, err := grpc.Dial(biometricServiceAddr, 
+	biometricConn, err := grpc.Dial(biometricServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
@@ -651,7 +651,7 @@ func main() {
 	}
 	defer biometricConn.Close()
 
-	trainingConn, err := grpc.Dial(trainingServiceAddr, 
+	trainingConn, err := grpc.Dial(trainingServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
 	if err != nil {
@@ -679,18 +679,18 @@ func main() {
 	// Protected routes
 	protected := r.PathPrefix("/api/v1").Subrouter()
 	protected.Use(middleware.AuthMiddleware(jwtSecret, log.Logger))
-	
+
 	protected.HandleFunc("/profile", g.profileHandler).Methods("GET")
 	protected.HandleFunc("/profile", g.updateProfileHandler).Methods("PUT")
-	
+
 	protected.HandleFunc("/biometrics", g.addBiometricRecordHandler).Methods("POST")
 	protected.HandleFunc("/biometrics", g.getBiometricRecordsHandler).Methods("GET")
-	
+
 	protected.HandleFunc("/training/generate", g.generatePlanHandler).Methods("POST")
 	protected.HandleFunc("/training/plans", g.getPlansHandler).Methods("GET")
 	protected.HandleFunc("/training/complete", g.completeWorkoutHandler).Methods("POST")
 	protected.HandleFunc("/training/progress", g.getProgressHandler).Methods("GET")
-	
+
 	protected.HandleFunc("/ml/classify", g.classifyHandler).Methods("POST")
 	protected.HandleFunc("/ml/generate-plan", g.generateMLPlanHandler).Methods("POST")
 
@@ -704,11 +704,11 @@ func main() {
 	handler = middleware.RemoveServerHeader(handler)
 	handler = middleware.SecurityHeaders(handler)
 
-	log.Info("Gateway starting", 
+	log.Info("Gateway starting",
 		zap.String("port", port),
 		zap.String("ml_classifier", mlClassifierURL),
 		zap.String("ml_generator", mlGeneratorURL))
-	
+
 	if err := http.ListenAndServe(":"+port, handler); err != nil {
 		log.Fatal("Failed to start server", zap.Error(err))
 	}

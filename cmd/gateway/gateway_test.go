@@ -9,12 +9,12 @@ import (
 
 func TestHealthHandler(t *testing.T) {
 	g := &gateway{}
-	
+
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
-	
+
 	g.healthHandler(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
@@ -43,7 +43,7 @@ func TestGenerateMLPlanHandler(t *testing.T) {
 // Test timeout handling
 func TestMLServiceTimeout(t *testing.T) {
 	client := &http.Client{Timeout: 5 * time.Second}
-	
+
 	// Test with non-existent service
 	_, err := client.Post("http://localhost:9999/classify", "application/json", nil)
 	if err == nil {
@@ -57,7 +57,7 @@ func TestPtrHelpers(t *testing.T) {
 	if *v32 != 42 {
 		t.Errorf("Expected 42, got %d", *v32)
 	}
-	
+
 	vs := ptrString("test")
 	if *vs != "test" {
 		t.Errorf("Expected 'test', got %s", *vs)
