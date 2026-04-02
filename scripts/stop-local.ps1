@@ -14,9 +14,9 @@ if (Test-Path "scripts/.pids.json") {
     foreach ($proc in $processes.PSObject.Properties) {
         try {
             Stop-Process -Id $proc.Value -Force -ErrorAction SilentlyContinue
-            Write-Host "  ✓ Stopped: $($proc.Name) (PID: $($proc.Value))" -ForegroundColor Green
+            Write-Host "  OK - Stopped: $($proc.Name) (PID: $($proc.Value))" -ForegroundColor Green
         } catch {
-            Write-Host "  ⚠ Not found: $($proc.Name)" -ForegroundColor Yellow
+            Write-Host "  WARN - Not found: $($proc.Name)" -ForegroundColor Yellow
         }
     }
     Remove-Item "scripts/.pids.json" -Force -ErrorAction SilentlyContinue
@@ -27,12 +27,11 @@ if (Test-Path "scripts/.pids.json") {
     $goProcesses = Get-Process -Name "go" -ErrorAction SilentlyContinue
     foreach ($proc in $goProcesses) {
         try {
-            $cmdLine = (Get-WmiObject Win32_Process -Filter "ProcessId = $($proc.Id)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty CommandLine)
-            if ($cmdLine -like "*cmd/*") {
-                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-                Write-Host "  ✓ Stopped Go process: PID $($proc.Id)" -ForegroundColor Green
-            }
-        } catch {}
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            Write-Host "  OK - Stopped Go process: PID $($proc.Id)" -ForegroundColor Green
+        } catch {
+            # Ignore
+        }
     }
     
     # Find Python processes (ML services)
@@ -42,22 +41,23 @@ if (Test-Path "scripts/.pids.json") {
             $cmdLine = (Get-WmiObject Win32_Process -Filter "ProcessId = $($proc.Id)" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty CommandLine)
             if ($cmdLine -like "*ml-*") {
                 Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-                Write-Host "  ✓ Stopped ML process: PID $($proc.Id)" -ForegroundColor Green
+                Write-Host "  OK - Stopped ML process: PID $($proc.Id)" -ForegroundColor Green
             }
-        } catch {}
+        } catch {
+            # Ignore
+        }
     }
 }
 
 # Stop Docker containers
 Write-Host "`n[2/3] Stopping Docker containers..." -ForegroundColor Yellow
 docker-compose -f deployments/docker-compose.yml down 2>&1 | Tee-Object -FilePath "logs/docker-stop.log"
-Write-Host "  ✓ Containers stopped" -ForegroundColor Green
+Write-Host "  OK - Containers stopped" -ForegroundColor Green
 
 # Cleanup
 Write-Host "`n[3/3] Cleaning up..." -ForegroundColor Yellow
 Remove-Item "scripts/.pids.json" -Force -ErrorAction SilentlyContinue
-Remove-Item "logs/*.log" -Force -ErrorAction SilentlyContinue
-Write-Host "  ✓ Cleanup completed" -ForegroundColor Green
+Write-Host "  OK - Cleanup completed" -ForegroundColor Green
 
 Write-Host "`n========================================" -ForegroundColor Green
 Write-Host "   ALL SERVICES STOPPED!" -ForegroundColor Green

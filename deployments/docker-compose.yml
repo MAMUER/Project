@@ -19,19 +19,6 @@ services:
     restart: unless-stopped
     networks:
       - fitness-network
-    deploy:
-      resources:
-        limits:
-          memory: 512M
-          cpus: '0.5'
-        reservations:
-          memory: 256M
-          cpus: '0.25'
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   redis:
     image: redis:7-alpine
@@ -48,18 +35,6 @@ services:
     restart: unless-stopped
     networks:
       - fitness-network
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.25'
-        reservations:
-          memory: 128M
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
@@ -67,6 +42,9 @@ services:
     ports:
       - "5672:5672"
       - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:
@@ -77,19 +55,8 @@ services:
     restart: unless-stopped
     networks:
       - fitness-network
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
+  # ✅ ML сервисы (уже обучены, просто запускаем API)
   ml-classifier:
     build:
       context: ..
@@ -97,23 +64,14 @@ services:
     container_name: fitness-ml-classifier
     ports:
       - "8001:8001"
+    volumes:
+      - ../models:/app/models
+      - ../datasets:/app/datasets
     environment:
       - ML_CLASSIFIER_PORT=8001
     networks:
       - fitness-network
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
   ml-generator:
     build:
@@ -122,73 +80,127 @@ services:
     container_name: fitness-ml-generator
     ports:
       - "8002:8002"
+    volumes:
+      - ../models:/app/models
     environment:
       - ML_GENERATOR_PORT=8002
     networks:
       - fitness-network
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-  nginx-https:
-    image: nginx:alpine
-    container_name: fitness-nginx
+  # ✅ Go микросервисы
+  user-service:
+    build:
+      context: ..
+      dockerfile: cmd/user-service/Dockerfile
+    container_name: fitness-user-service
     ports:
-      - "8443:8443"
-    volumes:
-      - ./deploy/tls/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./deploy/tls/certs:/opt/techip/certs:ro
-      - ../web/static/errors:/usr/share/nginx/html/errors:ro  
+      - "50051:50051"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=fitness
+      - REDIS_HOST=redis
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
     depends_on:
-      - tasks       # если tasks запускается отдельно
-      - auth
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - fitness-network
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
+  biometric-service:
+    build:
+      context: ..
+      dockerfile: cmd/biometric-service/Dockerfile
+    container_name: fitness-biometric-service
+    ports:
+      - "50052:50052"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=fitness
+      - REDIS_HOST=redis
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - fitness-network
+    restart: unless-stopped
+
+  training-service:
+    build:
+      context: ..
+      dockerfile: cmd/training-service/Dockerfile
+    container_name: fitness-training-service
+    ports:
+      - "50053:50053"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=fitness
+      - REDIS_HOST=redis
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+      - ML_CLASSIFIER_URL=http://ml-classifier:8001
+      - ML_GENERATOR_URL=http://ml-generator:8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml-classifier:
+        condition: service_started
+      ml-generator:
+        condition: service_started
+    networks:
+      - fitness-network
+    restart: unless-stopped
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: cmd/gateway/Dockerfile
+    container_name: fitness-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - USER_SERVICE_ADDR=user-service:50051
+      - BIOMETRIC_SERVICE_ADDR=biometric-service:50052
+      - TRAINING_SERVICE_ADDR=training-service:50053
+      - JWT_SECRET=my-super-secret-key-change-in-production-2024
+    depends_on:
+      - user-service
+      - biometric-service
+      - training-service
+    networks:
+      - fitness-network
+    restart: unless-stopped
+
+  # ✅ Nginx Load Balancer (упрощённый)
   nginx-lb:
     image: nginx:alpine
     container_name: fitness-nginx-lb
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
       - ./deploy/lb/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../web/static/errors:/usr/share/nginx/html/errors:ro   
+      - ../web/static/errors:/usr/share/nginx/html/errors:ro
     depends_on:
-      - tasks_1
-      - tasks_2
-      - tasks_3
+      - gateway
     networks:
       - fitness-network
     restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: 64M
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
 networks:
   fitness-network:

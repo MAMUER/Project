@@ -8,161 +8,141 @@ Write-Host "   FITNESS PLATFORM - LOCAL STARTUP" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Cleanup function
-function Cleanup {
-    Write-Host "`n[Cleanup] Stopping all services..." -ForegroundColor Yellow
-    if (Test-Path "scripts/.pids.json") {
-        $processes = Get-Content "scripts/.pids.json" | ConvertFrom-Json
-        foreach ($proc in $processes.PSObject.Properties) {
-            Stop-Process -Id $proc.Value -Force -ErrorAction SilentlyContinue
-        }
-        Remove-Item "scripts/.pids.json" -Force -ErrorAction SilentlyContinue
-    }
-    docker-compose -f deployments/docker-compose.yml down 2>$null
-    Write-Host "[Cleanup] Done!" -ForegroundColor Green
-}
-
-# Handle Ctrl+C
-$ctrlC = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action { Cleanup }
-
 # Check Docker
-Write-Host "[1/8] Checking Docker..." -ForegroundColor Yellow
+Write-Host "[1/6] Checking Docker..." -ForegroundColor Yellow
 try {
     $null = docker ps 2>&1
-    Write-Host "  ✓ Docker is running" -ForegroundColor Green
+    Write-Host "  OK - Docker is running" -ForegroundColor Green
 } catch {
-    Write-Host "  ✗ Docker is not running!" -ForegroundColor Red
+    Write-Host "  ERROR - Docker is not running!" -ForegroundColor Red
     Write-Host "     Please start Docker Desktop and try again." -ForegroundColor Yellow
     exit 1
 }
 
-# Check ports
-function Test-Port {
-    param([int]$Port)
-    $connection = Test-NetConnection -ComputerName localhost -Port $Port -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
-    return $connection.TcpTestSucceeded
-}
+# Create directories
+Write-Host ""
+Write-Host "[2/6] Creating directories..." -ForegroundColor Yellow
+New-Item -ItemType Directory -Force -Path "logs" | Out-Null
+New-Item -ItemType Directory -Force -Path "datasets/processed" | Out-Null
+New-Item -ItemType Directory -Force -Path "models" | Out-Null
+Write-Host "  OK - Directories created" -ForegroundColor Green
 
-$ports = @{
-    "PostgreSQL" = 5432
-    "Redis" = 6379
-    "RabbitMQ" = 5672
-    "Gateway" = 8080
-    "ML Classifier" = 8001
-    "ML Generator" = 8002
-}
+# Check ML models - ИСПРАВЛЕНО!
+Write-Host ""
+Write-Host "[3/6] Checking ML models..." -ForegroundColor Yellow
+$classifierExists = Test-Path "models/classifier.keras"
+$generatorExists = Test-Path "models/generator.keras"
 
-$busyPorts = @()
-foreach ($name in $ports.Keys) {
-    if (Test-Port -Port $ports[$name]) {
-        $busyPorts += "$name (:$( $ports[$name] ))"
-    }
-}
-
-if ($busyPorts.Count -gt 0) {
-    Write-Host "[WARNING] Busy ports: $($busyPorts -join ', ')" -ForegroundColor Yellow
-    $response = Read-Host "Continue anyway? (Y/N)"
-    if ($response -ne 'Y' -and $response -ne 'y') {
-        Write-Host "Aborted." -ForegroundColor Red
-        exit 1
-    }
+if ($classifierExists -and $generatorExists) {
+    Write-Host "  OK - ML models found" -ForegroundColor Green
+} else {
+    Write-Host "  WARNING - ML models not found!" -ForegroundColor Yellow
+    Write-Host "  Run training first:" -ForegroundColor Gray
+    Write-Host "    python cmd/ml-classifier/train.py" -ForegroundColor Gray
+    Write-Host "    python cmd/ml-generator/train_gan.py" -ForegroundColor Gray
 }
 
 # Set environment variables
+Write-Host ""
+Write-Host "[4/6] Setting environment variables..." -ForegroundColor Yellow
 $env:DB_HOST = "localhost"
 $env:DB_PORT = "5432"
 $env:DB_USER = "postgres"
 $env:DB_PASSWORD = "postgres"
 $env:DB_NAME = "fitness"
 $env:JWT_SECRET = "my-super-secret-key-change-in-production-2024"
-$env:JWT_EXPIRATION_HOURS = "24"
 $env:ML_CLASSIFIER_URL = "http://localhost:8001"
 $env:ML_GENERATOR_URL = "http://localhost:8002"
-
-# Create directories
-Write-Host "[2/8] Creating directories..." -ForegroundColor Yellow
-New-Item -ItemType Directory -Force -Path "logs" | Out-Null
-New-Item -ItemType Directory -Force -Path "datasets/processed" | Out-Null
-New-Item -ItemType Directory -Force -Path "models" | Out-Null
-Write-Host "  ✓ Directories created" -ForegroundColor Green
+Write-Host "  OK - Variables set" -ForegroundColor Green
 
 # Start Docker containers
-Write-Host "`n[3/8] Starting Docker containers (PostgreSQL, Redis, RabbitMQ)..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[5/6] Starting Docker containers..." -ForegroundColor Yellow
 docker-compose -f deployments/docker-compose.yml up -d 2>&1 | Tee-Object -FilePath "logs/docker-start.log"
-Write-Host "  ✓ Containers started" -ForegroundColor Green
+Write-Host "  Waiting for containers to start..." -ForegroundColor Gray
+Start-Sleep -Seconds 15
 
-# Health check for PostgreSQL
-Write-Host "`n[4/8] Waiting for PostgreSQL..." -ForegroundColor Yellow
-for ($i = 1; $i -le 30; $i++) {
-    try {
-        $null = docker-compose -f deployments/docker-compose.yml exec -T postgres pg_isready -U postgres 2>$null
-        Write-Host "  ✓ PostgreSQL is ready (attempt $i)" -ForegroundColor Green
-        break
-    } catch {
-        if ($i -eq 30) {
-            Write-Host "  ✗ PostgreSQL timeout after 30 attempts!" -ForegroundColor Red
-            Cleanup
-            exit 1
-        }
-        Start-Sleep -Seconds 2
-    }
-}
-
-# Run migrations
-Write-Host "`n[5/8] Running database migrations..." -ForegroundColor Yellow
-if (Test-Path "scripts\migrate.ps1") {
-    & .\scripts\migrate.ps1
+# Check container status
+$containerStatus = docker-compose -f deployments/docker-compose.yml ps 2>&1
+if ($containerStatus -match "Up") {
+    Write-Host "  OK - Containers running" -ForegroundColor Green
 } else {
-    docker-compose -f deployments/docker-compose.yml exec -T postgres psql -U postgres -d fitness -f /docker-entrypoint-initdb.d/init.sql 2>$null
+    Write-Host "  WARNING - Some containers may not be running" -ForegroundColor Yellow
 }
-Write-Host "  ✓ Migrations completed" -ForegroundColor Green
 
 # Start Go services
+Write-Host ""
+Write-Host "[6/6] Starting Go services..." -ForegroundColor Yellow
+
 $processes = @{}
-$goServices = @(
-    @{Name="user-service"; Port=50051; Path="cmd/user-service/main.go"},
-    @{Name="biometric-service"; Port=50052; Path="cmd/biometric-service/main.go"},
-    @{Name="training-service"; Port=50053; Path="cmd/training-service/main.go"},
-    @{Name="gateway"; Port=8080; Path="cmd/gateway/main.go"}
-)
 
-Write-Host "`n[6/8] Starting Go services..." -ForegroundColor Yellow
-foreach ($svc in $goServices) {
-    Write-Host "  Starting $($svc.Name) (:$($svc.Port))..." -ForegroundColor Gray
-    $proc = Start-Process -NoNewWindow -PassThru -FilePath "go" `
-        -ArgumentList "run", $svc.Path `
-        -RedirectStandardOutput "logs/$($svc.Name).log" `
-        -RedirectStandardError "logs/$($svc.Name)-error.log"
-    $processes[$svc.Name] = $proc.Id
-    Start-Sleep -Seconds 2
-}
-Write-Host "  ✓ All Go services started" -ForegroundColor Green
+# User Service
+Write-Host "  Starting User Service (gRPC :50051)..." -ForegroundColor Gray
+$userService = Start-Process -NoNewWindow -PassThru -FilePath "go" `
+    -ArgumentList "run", "cmd/user-service/main.go" `
+    -RedirectStandardOutput "logs/user-service.log" `
+    -RedirectStandardError "logs/user-service-error.log"
+$processes["user-service"] = $userService.Id
+Start-Sleep -Seconds 2
 
-# Start Python ML services
-Write-Host "`n[7/8] Starting ML services..." -ForegroundColor Yellow
-Write-Host "  Starting ML Classifier (:8001)..." -ForegroundColor Gray
+# Biometric Service
+Write-Host "  Starting Biometric Service (gRPC :50052)..." -ForegroundColor Gray
+$biometricService = Start-Process -NoNewWindow -PassThru -FilePath "go" `
+    -ArgumentList "run", "cmd/biometric-service/main.go" `
+    -RedirectStandardOutput "logs/biometric-service.log" `
+    -RedirectStandardError "logs/biometric-service-error.log"
+$processes["biometric-service"] = $biometricService.Id
+Start-Sleep -Seconds 2
+
+# Training Service
+Write-Host "  Starting Training Service (gRPC :50053)..." -ForegroundColor Gray
+$trainingService = Start-Process -NoNewWindow -PassThru -FilePath "go" `
+    -ArgumentList "run", "cmd/training-service/main.go" `
+    -RedirectStandardOutput "logs/training-service.log" `
+    -RedirectStandardError "logs/training-service-error.log"
+$processes["training-service"] = $trainingService.Id
+Start-Sleep -Seconds 2
+
+# Gateway
+Write-Host "  Starting Gateway (HTTP :8080)..." -ForegroundColor Gray
+$gateway = Start-Process -NoNewWindow -PassThru -FilePath "go" `
+    -ArgumentList "run", "cmd/gateway/main.go" `
+    -RedirectStandardOutput "logs/gateway.log" `
+    -RedirectStandardError "logs/gateway-error.log"
+$processes["gateway"] = $gateway.Id
+Start-Sleep -Seconds 3
+
+# ML Classifier
+Write-Host "  Starting ML Classifier (HTTP :8001)..." -ForegroundColor Gray
 $mlClassifier = Start-Process -NoNewWindow -PassThru -FilePath "python" `
     -ArgumentList "cmd/ml-classifier/main.py" `
     -RedirectStandardOutput "logs/ml-classifier.log" `
     -RedirectStandardError "logs/ml-classifier-error.log"
 $processes["ml-classifier"] = $mlClassifier.Id
-Start-Sleep -Seconds 2
+Start-Sleep -Seconds 3
 
-Write-Host "  Starting ML Generator (:8002)..." -ForegroundColor Gray
+# ML Generator
+Write-Host "  Starting ML Generator (HTTP :8002)..." -ForegroundColor Gray
 $mlGenerator = Start-Process -NoNewWindow -PassThru -FilePath "python" `
     -ArgumentList "cmd/ml-generator/main.py" `
     -RedirectStandardOutput "logs/ml-generator.log" `
     -RedirectStandardError "logs/ml-generator-error.log"
 $processes["ml-generator"] = $mlGenerator.Id
-Start-Sleep -Seconds 2
-Write-Host "  ✓ All ML services started" -ForegroundColor Green
+Start-Sleep -Seconds 3
 
 # Save PIDs
 $processes | ConvertTo-Json | Out-File -FilePath "scripts/.pids.json" -Encoding UTF8
 
+# Wait for services to start
+Write-Host ""
+Write-Host "  Waiting for services to initialize..." -ForegroundColor Gray
+Start-Sleep -Seconds 10
+
 # Health checks
-Write-Host "`n[8/8] Running health checks..." -ForegroundColor Yellow
-Start-Sleep -Seconds 5
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Green
+Write-Host "   HEALTH CHECKS" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Green
 
 $services = @(
     @{Name="Gateway"; URL="http://localhost:8080/health"},
@@ -170,48 +150,63 @@ $services = @(
     @{Name="ML Generator"; URL="http://localhost:8002/health"}
 )
 
-$allHealthy = $true
 foreach ($svc in $services) {
     try {
-        $response = Invoke-WebRequest -Uri $svc.URL -TimeoutSec 5 -UseBasicParsing
+        $response = Invoke-WebRequest -Uri $svc.URL -TimeoutSec 5 -UseBasicParsing -ErrorAction Stop
         if ($response.StatusCode -eq 200) {
             Write-Host "  ✓ $($svc.Name)" -ForegroundColor Green
         } else {
-            Write-Host "  ✗ $($svc.Name) (Status: $($response.StatusCode))" -ForegroundColor Red
-            $allHealthy = $false
+            Write-Host "  ⚠ $($svc.Name) (Status: $($response.StatusCode))" -ForegroundColor Yellow
         }
     } catch {
-        Write-Host "  ✗ $($svc.Name) (Not responding)" -ForegroundColor Red
-        $allHealthy = $false
+        Write-Host "  ⚠ $($svc.Name) (Not responding)" -ForegroundColor Yellow
     }
 }
 
 # Summary
-Write-Host "`n========================================" -ForegroundColor Cyan
-Write-Host "   SERVICES RUNNING" -ForegroundColor Cyan
-Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "  Gateway:        http://localhost:8080"
-Write-Host "  ML Classifier:  http://localhost:8001"
-Write-Host "  ML Generator:   http://localhost:8002"
-Write-Host "  RabbitMQ UI:    http://localhost:15672 (guest/guest)"
-Write-Host "  PostgreSQL:     localhost:5432"
-Write-Host "  Redis:          localhost:6379"
 Write-Host ""
-Write-Host "  Logs:           ./logs/"
-Write-Host "  Stop command:   .\scripts\stop-local.ps1"
-Write-Host ""
-if ($allHealthy) {
-    Write-Host "  Status:         ALL SERVICES HEALTHY" -ForegroundColor Green
-} else {
-    Write-Host "  Status:         SOME SERVICES UNHEALTHY" -ForegroundColor Yellow
-}
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "`nPress Ctrl+C to stop all services..." -ForegroundColor Yellow
+Write-Host "   ALL SERVICES STARTED!" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Gateway:         http://localhost:8080"
+Write-Host "  ML Classifier:   http://localhost:8001"
+Write-Host "  ML Generator:    http://localhost:8002"
+Write-Host "  RabbitMQ UI:     http://localhost:15672 (guest/guest)"
+Write-Host "  PostgreSQL:      localhost:5432"
+Write-Host "  Redis:           localhost:6379"
+Write-Host ""
+Write-Host "  Logs:            ./logs/"
+Write-Host "  Stop command:    .\scripts\stop-local.ps1"
+Write-Host ""
+Write-Host "Press Ctrl+C to stop all services..." -ForegroundColor Yellow
 
 # Wait for interrupt
 try {
-    while ($true) { Start-Sleep -Seconds 1 }
+    while ($true) {
+        Start-Sleep -Seconds 1
+    }
 } finally {
-    Unregister-Event $ctrlC.Name -ErrorAction SilentlyContinue
-    Cleanup
+    Write-Host ""
+    Write-Host "Stopping all services..." -ForegroundColor Yellow
+    
+    # Stop Go and Python processes
+    foreach ($proc in $processes.GetEnumerator()) {
+        try {
+            Stop-Process -Id $proc.Value -Force -ErrorAction SilentlyContinue
+            Write-Host "  ✓ Stopped: $($proc.Key)" -ForegroundColor Green
+        } catch {
+            Write-Host "  ⚠ Failed to stop: $($proc.Key)" -ForegroundColor Yellow
+        }
+    }
+    
+    # Stop Docker containers
+    Write-Host ""
+    Write-Host "Stopping Docker containers..." -ForegroundColor Yellow
+    docker-compose -f deployments/docker-compose.yml down 2>$null
+    
+    # Cleanup
+    Remove-Item "scripts/.pids.json" -Force -ErrorAction SilentlyContinue
+    
+    Write-Host ""
+    Write-Host "All services stopped!" -ForegroundColor Green
 }

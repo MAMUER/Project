@@ -1,103 +1,210 @@
-# scripts/load-test.ps1
-# Load Test Runner for Windows
+# scripts/api-test.ps1
+# API Testing Script — PowerShell FIXED
 
 param(
-    [string]$BaseUrl = "http://localhost:8080",
-    [string]$Duration = "2m",
-    [int]$VUs = 50,
-    [switch]$Help
+    [string]$BASE_URL = "http://localhost:8080"
 )
 
-if ($Help) {
-    Write-Host @"
-========================================
-   FITNESS PLATFORM - LOAD TEST
-========================================
-
-Usage: .\scripts\load-test.ps1 [options]
-
-Options:
-  -BaseUrl    API base URL (default: http://localhost:8080)
-  -Duration   Test duration (default: 2m)
-  -VUs        Virtual users (default: 50)
-  -Help       Show this help
-
-Examples:
-  .\scripts\load-test.ps1
-  .\scripts\load-test.ps1 -Duration 5m -VUs 100
-  .\scripts\load-test.ps1 -BaseUrl http://api.example.com
-
-========================================
-"@
-    exit 0
-}
-
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "   FITNESS PLATFORM - LOAD TEST" -ForegroundColor Cyan
+Write-Host "   FITNESS PLATFORM — API TEST" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "Base URL: $BASE_URL"
 Write-Host ""
 
-# Check k6
-Write-Host "[1/3] Checking k6 installation..." -ForegroundColor Yellow
-try {
-    $k6Version = k6 version 2>&1
-    Write-Host "  ✓ k6 is installed: $k6Version" -ForegroundColor Green
-} catch {
-    Write-Host "  ✗ k6 is not installed!" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Install k6:" -ForegroundColor Yellow
-    Write-Host "  Windows: winget install k6" -ForegroundColor Gray
-    Write-Host "  Or download: https://k6.io/docs/getting-started/installation/" -ForegroundColor Gray
-    exit 1
+$testResults = @{
+    Passed = 0
+    Failed = 0
+}
+$token = $null
+$registrationFailed = $false
+
+function Test-Endpoint {
+    param(
+        [string]$Name,
+        [string]$Method,
+        [string]$Uri,
+        [hashtable]$Headers = @{},
+        [string]$Body = $null,
+        [int]$ExpectedStatus = 200,
+        [int]$TimeoutSec = 10
+    )
+    
+    Write-Host "[$($testResults.Passed + $testResults.Failed + 1)] Testing: $Name..." -ForegroundColor Yellow
+    
+    try {
+        $params = @{
+            Uri = $Uri
+            Method = $Method
+            Headers = $Headers
+            UseBasicParsing = $true
+            TimeoutSec = $TimeoutSec
+        }
+        
+        if ($Body) {
+            $params.Body = $Body
+            $params.ContentType = "application/json"
+        }
+        
+        $response = Invoke-WebRequest @params
+        
+        if ($response.StatusCode -eq $ExpectedStatus) {
+            Write-Host "  ✓ $Name (Status: $($response.StatusCode))" -ForegroundColor Green
+            $testResults.Passed++
+            return $response
+        } else {
+            Write-Host "  ✗ $Name (Expected: $ExpectedStatus, Got: $($response.StatusCode))" -ForegroundColor Red
+            $testResults.Failed++
+            return $null
+        }
+    } catch {
+        Write-Host "  ✗ $Name (Error: $($_.Exception.Message))" -ForegroundColor Red
+        $testResults.Failed++
+        return $null
+    }
 }
 
-# Check if service is running
-Write-Host ""
-Write-Host "[2/3] Checking API availability..." -ForegroundColor Yellow
+# 1. Health check
+Write-Host "`n--- Core Endpoints ---" -ForegroundColor Cyan
+$healthResult = Test-Endpoint -Name "Health Check" -Method GET -Uri "$BASE_URL/health" -TimeoutSec 5
+if ($healthResult) {
+    Write-Host "  Response: $($healthResult.Content)" -ForegroundColor Gray
+}
+
+# 2. Register
+Write-Host "`n[2] Testing: Register..." -ForegroundColor Yellow
+$randomId = Get-Random -Maximum 10000
+$email = "apitest$randomId@example.com"
+
+$registerBody = @{
+    email = $email
+    password = "test123"
+    full_name = "API Test User"
+    role = "client"
+} | ConvertTo-Json
+
+Write-Host "  Email: $email" -ForegroundColor Gray
+
 try {
-    $response = Invoke-WebRequest -Uri "$BaseUrl/health" -TimeoutSec 5 -UseBasicParsing
-    if ($response.StatusCode -eq 200) {
-        Write-Host "  ✓ API is running at $BaseUrl" -ForegroundColor Green
+    $registerResp = Invoke-WebRequest -Uri "$BASE_URL/api/v1/register" `
+        -Method POST -ContentType "application/json" -Body $registerBody `
+        -UseBasicParsing -TimeoutSec 30  # Увеличенный таймаут
+    
+    if ($registerResp.StatusCode -eq 200 -or $registerResp.StatusCode -eq 201) {
+        Write-Host "  ✓ Register (Status: $($registerResp.StatusCode))" -ForegroundColor Green
+        $testResults.Passed++
+        $userData = $registerResp.Content | ConvertFrom-Json
+        Write-Host "  User ID: $($userData.user_id)" -ForegroundColor Gray
     } else {
-        Write-Host "  ✗ API returned status: $($response.StatusCode)" -ForegroundColor Red
-        exit 1
+        Write-Host "  ✗ Register (Status: $($registerResp.StatusCode))" -ForegroundColor Red
+        $testResults.Failed++
+        $registrationFailed = $true
     }
 } catch {
-    Write-Host "  ✗ Cannot connect to $BaseUrl" -ForegroundColor Red
-    Write-Host "  Make sure services are running: .\scripts\run-local.ps1" -ForegroundColor Yellow
+    Write-Host "  ✗ Register (Error: $($_.Exception.Message))" -ForegroundColor Red
+    Write-Host "  Possible causes:" -ForegroundColor Yellow
+    Write-Host "    - User service not running (check: docker-compose ps)" -ForegroundColor Gray
+    Write-Host "    - Database connection failed" -ForegroundColor Gray
+    Write-Host "    - Gateway timeout" -ForegroundColor Gray
+    $testResults.Failed++
+    $registrationFailed = $true
+}
+
+# 3. Login (только если регистрация успешна)
+if (-not $registrationFailed) {
+    Write-Host "`n[3] Testing: Login..." -ForegroundColor Yellow
+    $loginBody = @{
+        email = $email
+        password = "test123"
+    } | ConvertTo-Json
+
+    try {
+        $loginResp = Invoke-WebRequest -Uri "$BASE_URL/api/v1/login" `
+            -Method POST -ContentType "application/json" -Body $loginBody `
+            -UseBasicParsing -TimeoutSec 10
+        
+        if ($loginResp.StatusCode -eq 200) {
+            Write-Host "  ✓ Login (Status: $($loginResp.StatusCode))" -ForegroundColor Green
+            $testResults.Passed++
+            $loginData = $loginResp.Content | ConvertFrom-Json
+            $token = $loginData.access_token
+            Write-Host "  Token: $($token.Substring(0, 50))..." -ForegroundColor Gray
+        } else {
+            Write-Host "  ✗ Login (Status: $($loginResp.StatusCode))" -ForegroundColor Red
+            $testResults.Failed++
+        }
+    } catch {
+        Write-Host "  ✗ Login (Error: $($_.Exception.Message))" -ForegroundColor Red
+        $testResults.Failed++
+    }
+} else {
+    Write-Host "`n  Skipping Login (registration failed)" -ForegroundColor Yellow
+}
+
+# Authenticated tests (только если есть токен)
+if ($token) {
+    $headers = @{
+        "Authorization" = "Bearer $token"
+        "Content-Type" = "application/json"
+    }
+
+    # 4. Get Profile
+    Write-Host "`n--- User Endpoints ---" -ForegroundColor Cyan
+    Test-Endpoint -Name "Get Profile" -Method GET -Uri "$BASE_URL/api/v1/profile" -Headers $headers -TimeoutSec 10
+
+    # 5. Add Biometrics
+    Write-Host "`n[5] Testing: Add Biometrics..." -ForegroundColor Yellow
+    $bioBody = @{
+        metric_type = "heart_rate"
+        value = (70 + (Get-Random -Maximum 30))
+        timestamp = (Get-Date -Format "o")
+        device_type = "test_device"
+    } | ConvertTo-Json
+
+    Test-Endpoint -Name "Add Biometrics" -Method POST -Uri "$BASE_URL/api/v1/biometrics" `
+        -Headers $headers -Body $bioBody -ExpectedStatus 201 -TimeoutSec 10
+
+    # 6. ML Classify
+    Write-Host "`n--- ML Endpoints ---" -ForegroundColor Cyan
+    Test-Endpoint -Name "ML Classify" -Method GET -Uri "$BASE_URL/api/v1/ml/classify" -Headers $headers -TimeoutSec 30
+
+    # 7. ML Generate Plan
+    Write-Host "`n[7] Testing: Generate Plan..." -ForegroundColor Yellow
+    $planBody = @{
+        training_class = "endurance_e1e2"
+        user_profile = @{
+            gender = "male"
+            age = 30
+            fitness_level = "intermediate"
+            goals = @("weight_loss")
+        }
+    } | ConvertTo-Json
+
+    Test-Endpoint -Name "Generate Plan" -Method POST -Uri "$BASE_URL/api/v1/ml/generate-plan" `
+        -Headers $headers -Body $planBody -TimeoutSec 30
+} else {
+    Write-Host "`n  Skipping authenticated tests (no token)" -ForegroundColor Yellow
+}
+
+# Summary
+Write-Host "`n========================================" -ForegroundColor Cyan
+Write-Host "   TEST SUMMARY" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Passed: $($testResults.Passed)" -ForegroundColor $(if ($testResults.Failed -eq 0) { "Green" } else { "Yellow" })
+Write-Host "  Failed: $($testResults.Failed)" -ForegroundColor $(if ($testResults.Failed -eq 0) { "Green" } else { "Red" })
+Write-Host "  Total:  $($testResults.Passed + $testResults.Failed)"
+Write-Host "========================================" -ForegroundColor Cyan
+
+if ($testResults.Failed -eq 0) {
+    Write-Host "`n✓ ALL TESTS PASSED!" -ForegroundColor Green
+    exit 0
+} else {
+    Write-Host "`n✗ SOME TESTS FAILED!" -ForegroundColor Red
+    Write-Host "`nTroubleshooting:" -ForegroundColor Yellow
+    Write-Host "  1. Check service status:" -ForegroundColor Gray
+    Write-Host "     docker-compose -f deployments/docker-compose.yml ps" -ForegroundColor Gray
+    Write-Host "  2. Check failing service logs:" -ForegroundColor Gray
+    Write-Host "     docker-compose logs user-service" -ForegroundColor Gray
+    Write-Host "  3. Restart services:" -ForegroundColor Gray
+    Write-Host "     docker-compose restart" -ForegroundColor Gray
     exit 1
 }
-
-# Run load test
-Write-Host ""
-Write-Host "[3/3] Starting load test..." -ForegroundColor Yellow
-Write-Host "  Base URL: $BaseUrl" -ForegroundColor Gray
-Write-Host "  Duration: $Duration" -ForegroundColor Gray
-Write-Host "  VUs:      $VUs" -ForegroundColor Gray
-Write-Host ""
-
-$env:BASE_URL = $BaseUrl
-
-k6 run `
-    --duration $Duration `
-    --vus $VUs `
-    --out json=logs/load-test-results.json `
-    scripts/load-test/load-test.js
-
-if ($LASTEXITCODE -eq 0) {
-    Write-Host ""
-    Write-Host "========================================" -ForegroundColor Green
-    Write-Host "   LOAD TEST COMPLETED SUCCESSFULLY!" -ForegroundColor Green
-    Write-Host "========================================" -ForegroundColor Green
-    Write-Host ""
-    Write-Host "Results saved to: logs/load-test-results.json" -ForegroundColor Cyan
-    Write-Host ""
-} else {
-    Write-Host ""
-    Write-Host "========================================" -ForegroundColor Red
-    Write-Host "   LOAD TEST COMPLETED WITH ERRORS!" -ForegroundColor Red
-    Write-Host "========================================" -ForegroundColor Red
-    Write-Host ""
-}
-
-exit $LASTEXITCODE

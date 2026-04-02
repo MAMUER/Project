@@ -1,5 +1,5 @@
 # scripts/load-test.ps1
-# Fitness Platform - Load Testing Script for Windows (k6 wrapper)
+# Load Testing Script — ТРЕБУЕТ k6!
 
 param(
     [string]$BASE_URL = "http://localhost:8080",
@@ -8,22 +8,24 @@ param(
 )
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host "   LOAD TESTING (k6)" -ForegroundColor Cyan
+Write-Host "   FITNESS PLATFORM — LOAD TEST" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Base URL: $BASE_URL"
 Write-Host "Duration: $DURATION"
 Write-Host "VUs:      $VUS"
 Write-Host ""
 
-# Check if k6 is installed
+# Check k6
 Write-Host "[1/3] Checking k6 installation..." -ForegroundColor Yellow
 try {
     $k6Version = k6 version 2>&1
     Write-Host "  ✓ k6 is installed: $k6Version" -ForegroundColor Green
 } catch {
     Write-Host "  ✗ k6 is not installed!" -ForegroundColor Red
-    Write-Host "     Install from: https://k6.io/docs/getting-started/installation/" -ForegroundColor Yellow
-    Write-Host "     Windows: winget install k6" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "Install k6 (OPTIONAL for load testing):" -ForegroundColor Yellow
+    Write-Host "  Windows: winget install k6" -ForegroundColor Gray
+    Write-Host "  Or skip load tests and use api-test.ps1 instead" -ForegroundColor Gray
     exit 1
 }
 
