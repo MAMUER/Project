@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 import numpy as np
 import tensorflow as tf
-from tensorflow import keras
+from tensorflow import keras # type: ignore
 import joblib
 import os
 import json
