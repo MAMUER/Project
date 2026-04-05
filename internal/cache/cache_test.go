@@ -1,3 +1,4 @@
+// internal/cache/cache_test.go
 package cache
 
 import (
@@ -12,6 +13,7 @@ import (
 )
 
 func setupTestRedis(t *testing.T) (*Client, *miniredis.Miniredis) {
+	t.Helper()
 	mr, err := miniredis.Run()
 	require.NoError(t, err)
 
@@ -68,8 +70,8 @@ func TestDel(t *testing.T) {
 	defer mr.Close()
 
 	ctx := context.Background()
-	client.Set(ctx, "key1", "val1", 10*time.Second)
-	client.Set(ctx, "key2", "val2", 10*time.Second)
+	_ = client.Set(ctx, "key1", "val1", 10*time.Second)
+	_ = client.Set(ctx, "key2", "val2", 10*time.Second)
 
 	err := client.Del(ctx, "key1", "key2")
 	assert.NoError(t, err)
@@ -99,27 +101,66 @@ func TestSetWithExpiration(t *testing.T) {
 	assert.Error(t, err, "Key should have expired")
 }
 
+// Исправляем тест для bool значений (Redis хранит bool как "1"/"0")
 func TestSetMultipleTypes(t *testing.T) {
-	client, mr := setupTestRedis(t)
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
 	defer mr.Close()
+
+	client, err := NewClient(mr.Addr(), "", 0)
+	require.NoError(t, err)
+	defer func() { _ = client.Close() }() // Игнорируем ошибку в тесте
 
 	ctx := context.Background()
 
 	tests := []struct {
-		name  string
-		key   string
-		value interface{}
+		name     string
+		key      string
+		value    interface{}
+		expected string
 	}{
-		{"string", "str_key", "hello"},
-		{"int", "int_key", 42},
-		{"float", "float_key", 3.14},
-		{"bool", "bool_key", true},
+		{"string", "key1", "val1", "val1"},
+		{"int", "key2", 42, "42"},
+		{"float", "key3", 3.14, "3.14"},
+		{"bool_true", "key4", true, "1"},   // Redis: true -> "1"
+		{"bool_false", "key5", false, "0"}, // Redis: false -> "0"
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := client.Set(ctx, tt.key, tt.value, 10*time.Second)
-			assert.NoError(t, err)
+			require.NoError(t, err)
+
+			val, err := client.Get(ctx, tt.key)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, val)
 		})
 	}
+}
+
+func TestClientClose(t *testing.T) {
+	mr, err := miniredis.Run()
+	require.NoError(t, err)
+
+	client, err := NewClient(mr.Addr(), "", 0)
+	require.NoError(t, err)
+
+	// Close() не возвращает значение, просто вызываем его
+	client.Close() //nolint:errcheck
+
+	// Повторный Close не должен вызывать панику
+	client.Close() //nolint:errcheck
+}
+
+func TestSetWithNilValue(t *testing.T) {
+	client, mr := setupTestRedis(t)
+	defer mr.Close()
+
+	ctx := context.Background()
+	err := client.Set(ctx, "nil_key", nil, 10*time.Second)
+	assert.NoError(t, err)
+
+	val, err := client.Get(ctx, "nil_key")
+	assert.NoError(t, err)
+	assert.Equal(t, "", val)
 }

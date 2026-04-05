@@ -4,7 +4,7 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-.PHONY: proto build run test test-integration test-cover docker-up docker-down clean dev fmt vet
+.PHONY: proto build run test test-integration test-cover docker-up docker-down clean dev fmt vet lint
 
 BIN_DIR := bin
 
@@ -23,7 +23,7 @@ vet:
 # Запуск всех тестов
 test:
 	@echo "Running unit tests..."
-	go test -v -short ./...
+	go test -v ./...
 	@echo "Tests complete."
 
 # Запуск интеграционных тестов (требуют запущенных сервисов)
@@ -39,9 +39,16 @@ test-cover:
 	go tool cover -html=coverage.out -o coverage.html
 	@echo "Coverage report: coverage.html"
 
+# Запуск линтера
+lint:
+	@echo "Running golangci-lint..."
+	golangci-lint run
+	@echo "Lint complete."
+
 # Запуск всех проверок
-check: fmt vet test
+check: fmt vet lint test
 	@echo "All checks passed!"
+
 
 proto:
 	@echo "Generating proto files..."

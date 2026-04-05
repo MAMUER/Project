@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"fmt"
 	"net"
 	"os"
+	"regexp"
 	"strings"
 
 	pb "github.com/MAMUER/Project/api/gen/user"
@@ -27,12 +30,129 @@ type userServer struct {
 	secret string
 }
 
+// sanitizeString очищает строку от потенциально опасных символов
+func sanitizeString(s string) string {
+	// Удаляем HTML-теги и потенциально опасные символы
+	s = strings.TrimSpace(s)
+	s = strings.ReplaceAll(s, "<", "&lt;")
+	s = strings.ReplaceAll(s, ">", "&gt;")
+	s = strings.ReplaceAll(s, `"`, "&quot;")
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	return s
+}
+
+// isValidEmail проверяет формат email
+var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
+
+func isValidEmail(email string) bool {
+	return emailRegex.MatchString(email)
+}
+
+// safeJSONArray безопасно создает JSON массив из строки
+func safeJSONArray(items []string) (string, error) {
+	if len(items) == 0 {
+		return "[]", nil
+	}
+	// Санитизируем каждый элемент
+	sanitized := make([]string, len(items))
+	for i, item := range items {
+		sanitized[i] = sanitizeString(item)
+	}
+	jsonBytes, err := json.Marshal(sanitized)
+	if err != nil {
+		return "[]", fmt.Errorf("failed to marshal JSON array: %w", err)
+	}
+	return string(jsonBytes), nil
+}
+
+// validateRegisterRequest проверяет данные регистрации
+func validateRegisterRequest(req *pb.RegisterRequest) error {
+	if req == nil {
+		return status.Error(codes.InvalidArgument, "request is nil")
+	}
+	if req.Email == "" {
+		return status.Error(codes.InvalidArgument, "email is required")
+	}
+	if !isValidEmail(req.Email) {
+		return status.Error(codes.InvalidArgument, "invalid email format")
+	}
+	if req.Password == "" {
+		return status.Error(codes.InvalidArgument, "password is required")
+	}
+	if len(req.Password) < 8 {
+		return status.Error(codes.InvalidArgument, "password must be at least 8 characters")
+	}
+	if req.FullName == "" {
+		return status.Error(codes.InvalidArgument, "full name is required")
+	}
+	if req.Role == "" {
+		return status.Error(codes.InvalidArgument, "role is required")
+	}
+	validRoles := map[string]bool{"client": true, "admin": true, "doctor": true}
+	if !validRoles[req.Role] {
+		return status.Error(codes.InvalidArgument, "invalid role, must be client, admin, or doctor")
+	}
+	return nil
+}
+
+// validateLoginRequest проверяет данные для входа
+func validateLoginRequest(req *pb.LoginRequest) error {
+	if req == nil {
+		return status.Error(codes.InvalidArgument, "request is nil")
+	}
+	if req.Email == "" {
+		return status.Error(codes.InvalidArgument, "email is required")
+	}
+	if req.Password == "" {
+		return status.Error(codes.InvalidArgument, "password is required")
+	}
+	return nil
+}
+
+// validateProfileUpdate проверяет данные обновления профиля
+func validateProfileUpdate(req *pb.UpdateProfileRequest) error {
+	if req == nil {
+		return status.Error(codes.InvalidArgument, "request is nil")
+	}
+	if req.UserId == "" {
+		return status.Error(codes.InvalidArgument, "user_id is required")
+	}
+	if req.Age != nil && (*req.Age < 0 || *req.Age > 150) {
+		return status.Error(codes.InvalidArgument, "age must be between 0 and 150")
+	}
+	if req.HeightCm != nil && (*req.HeightCm < 50 || *req.HeightCm > 300) {
+		return status.Error(codes.InvalidArgument, "height_cm must be between 50 and 300")
+	}
+	if req.WeightKg != nil && (*req.WeightKg < 1 || *req.WeightKg > 500) {
+		return status.Error(codes.InvalidArgument, "weight_kg must be between 1 and 500")
+	}
+	validFitnessLevels := map[string]bool{"": true, "beginner": true, "intermediate": true, "advanced": true}
+	if req.FitnessLevel != nil && !validFitnessLevels[*req.FitnessLevel] {
+		return status.Error(codes.InvalidArgument, "fitness_level must be beginner, intermediate, or advanced")
+	}
+	validGenders := map[string]bool{"": true, "male": true, "female": true, "other": true}
+	if req.Gender != nil && !validGenders[*req.Gender] {
+		return status.Error(codes.InvalidArgument, "gender must be male, female, or other")
+	}
+	return nil
+}
+
 func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	s.log.Info("Register request", zap.String("email", req.Email))
 
+	// Валидация входных данных
+	if err := validateRegisterRequest(req); err != nil {
+		s.log.Warn("Invalid register request", zap.Error(err))
+		return nil, err
+	}
+
+	// Санитизируем входные данные
+	email := sanitizeString(req.Email)
+	fullName := sanitizeString(req.FullName)
+
 	// Проверка существования пользователя
 	var exists bool
-	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)", req.Email).Scan(&exists)
+	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE email = $1)", email).Scan(&exists)
 	if err != nil {
 		s.log.Error("Database error checking user existence", zap.Error(err))
 		return nil, status.Error(codes.Internal, "database error")
@@ -50,22 +170,22 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 
 	// Создание пользователя
 	userID := uuid.New().String()
-	_, err = s.db.Exec(`
+	_, err = s.db.ExecContext(ctx, `
         INSERT INTO users (id, email, password_hash, full_name, role, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-    `, userID, req.Email, string(hashed), req.FullName, req.Role)
+    `, userID, email, string(hashed), fullName, req.Role)
 	if err != nil {
 		s.log.Error("Failed to create user", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to create user")
 	}
 
 	// Создание пустого профиля
-	_, err = s.db.Exec(`
+	_, err = s.db.ExecContext(ctx, `
         INSERT INTO user_profiles (user_id) VALUES ($1)
     `, userID)
 	if err != nil {
 		// Не критично, но логируем
-		s.log.Error("Failed to create user profile", zap.Error(err))
+		s.log.Warn("Failed to create user profile", zap.Error(err))
 	}
 
 	return &pb.RegisterResponse{
@@ -77,12 +197,19 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 func (s *userServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	s.log.Info("Login request", zap.String("email", req.Email))
 
+	// Валидация входных данных
+	if err := validateLoginRequest(req); err != nil {
+		s.log.Warn("Invalid login request", zap.Error(err))
+		return nil, err
+	}
+
 	var user models.User
-	err := s.db.QueryRow(`
+	err := s.db.QueryRowContext(ctx, `
         SELECT id, email, password_hash, role FROM users WHERE email = $1
     `, req.Email).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role)
 	if err == sql.ErrNoRows {
-		return nil, status.Error(codes.NotFound, "user not found")
+		// Возвращаем Unauthenticated вместо NotFound для безопасности
+		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
 	if err != nil {
 		s.log.Error("Database error during login", zap.Error(err))
@@ -163,14 +290,22 @@ func (s *userServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) 
 }
 
 func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.UserProfile, error) {
-	// Формирование JSON массивов
-	goalsJSON := "[]"
-	if len(req.Goals) > 0 {
-		goalsJSON = `["` + strings.Join(req.Goals, `","`) + `"]`
+	// Валидация входных данных
+	if err := validateProfileUpdate(req); err != nil {
+		s.log.Warn("Invalid profile update request", zap.Error(err))
+		return nil, err
 	}
-	contraindicationsJSON := "[]"
-	if len(req.Contraindications) > 0 {
-		contraindicationsJSON = `["` + strings.Join(req.Contraindications, `","`) + `"]`
+
+	// Безопасное создание JSON массивов
+	goalsJSON, err := safeJSONArray(req.Goals)
+	if err != nil {
+		s.log.Error("Failed to marshal goals", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to process goals")
+	}
+	contraindicationsJSON, err := safeJSONArray(req.Contraindications)
+	if err != nil {
+		s.log.Error("Failed to marshal contraindications", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to process contraindications")
 	}
 
 	query := `
@@ -187,7 +322,7 @@ func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReq
             updated_at = NOW()
     `
 
-	_, err := s.db.Exec(query,
+	_, err = s.db.ExecContext(ctx, query,
 		req.UserId,
 		req.Age, req.Gender, req.HeightCm, req.WeightKg, req.FitnessLevel,
 		goalsJSON, contraindicationsJSON,
@@ -202,9 +337,19 @@ func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReq
 }
 
 func (s *userServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*pb.ListUsersResponse, error) {
-	// Реализация для админов
-	offset := (req.Page - 1) * req.PageSize
-	rows, err := s.db.Query(`
+	// Валидация параметров
+	if req == nil {
+		return nil, status.Error(codes.InvalidArgument, "request is nil")
+	}
+	if req.PageSize <= 0 {
+		return nil, status.Error(codes.InvalidArgument, "page_size must be greater than 0")
+	}
+	if req.Page < 0 {
+		return nil, status.Error(codes.InvalidArgument, "page must be non-negative")
+	}
+
+	offset := req.Page * req.PageSize
+	rows, err := s.db.QueryContext(ctx, `
         SELECT u.id, u.email, u.full_name, u.role, u.created_at, u.updated_at
         FROM users u
         WHERE ($1 = '' OR u.role = $1)
@@ -215,20 +360,34 @@ func (s *userServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*
 		s.log.Error("Failed to list users", zap.Error(err))
 		return nil, status.Error(codes.Internal, "database error")
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			s.log.Warn("Failed to close rows", zap.Error(closeErr))
+		}
+	}()
 
 	var users []*pb.UserProfile
 	for rows.Next() {
 		var user pb.UserProfile
 		if err := rows.Scan(&user.UserId, &user.Email, &user.FullName, &user.Role, &user.CreatedAt, &user.UpdatedAt); err != nil {
 			s.log.Error("Failed to scan user", zap.Error(err))
-			continue
+			return nil, status.Error(codes.Internal, "failed to read user data")
 		}
 		users = append(users, &user)
 	}
 
+	// Проверяем ошибку итерации
+	if err := rows.Err(); err != nil {
+		s.log.Error("Row iteration error", zap.Error(err))
+		return nil, status.Error(codes.Internal, "error reading users")
+	}
+
 	var total int32
-	s.db.QueryRow("SELECT COUNT(*) FROM users WHERE ($1 = '' OR role = $1)", req.Role).Scan(&total)
+	err = s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE ($1 = '' OR role = $1)", req.Role).Scan(&total)
+	if err != nil {
+		s.log.Warn("Failed to count users", zap.Error(err))
+		// Не блокируем ответ, просто логируем
+	}
 
 	return &pb.ListUsersResponse{
 		Users: users,
@@ -238,7 +397,7 @@ func (s *userServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*
 
 func main() {
 	log := logger.New("user-service")
-	defer log.Sync()
+	defer log.Sync() //nolint:errcheck
 
 	port := os.Getenv("USER_SERVICE_PORT")
 	if port == "" {
@@ -258,7 +417,11 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
-	defer database.Close()
+	defer func() {
+		if closeErr := database.Close(); closeErr != nil {
+			log.Error("Failed to close database connection", zap.Error(closeErr))
+		}
+	}()
 
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {

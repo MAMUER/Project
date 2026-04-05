@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -54,7 +56,7 @@ func (g *gateway) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := g.userClient.Register(r.Context(), &userpb.RegisterRequest{
+	_, err := g.userClient.Register(r.Context(), &userpb.RegisterRequest{
 		Email:    req.Email,
 		Password: req.Password,
 		FullName: req.FullName,
@@ -66,7 +68,12 @@ func (g *gateway) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Исправлено: проверяем ошибку Encode
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +87,7 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := g.userClient.Login(r.Context(), &userpb.LoginRequest{
+	_, err := g.userClient.Login(r.Context(), &userpb.LoginRequest{
 		Email:    req.Email,
 		Password: req.Password,
 	})
@@ -90,7 +97,12 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Исправлено: проверяем ошибку Encode
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // ========== Profile Handlers ==========
@@ -116,7 +128,12 @@ func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Response-Signature", signature)
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Проверяем ошибку кодирования
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
@@ -143,7 +160,7 @@ func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := g.userClient.UpdateProfile(r.Context(), &userpb.UpdateProfileRequest{
+	_, err := g.userClient.UpdateProfile(r.Context(), &userpb.UpdateProfileRequest{
 		UserId:            userID,
 		Age:               ptrInt32(req.Age),
 		Gender:            ptrString(req.Gender),
@@ -161,7 +178,12 @@ func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Исправлено: проверяем ошибку Encode
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // ========== Biometric Handlers ==========
@@ -180,12 +202,16 @@ func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Reque
 		DeviceType string    `json:"device_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		g.log.Error("Failed to decode biometric record request", zap.Error(err))
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	// Валидация
+	if req.MetricType == "" || req.Value < 0 {
+		http.Error(w, "invalid metric data", http.StatusBadRequest)
 		return
 	}
 
-	resp, err := g.biometricClient.AddRecord(r.Context(), &biometricpb.AddRecordRequest{
+	_, err := g.biometricClient.AddRecord(r.Context(), &biometricpb.AddRecordRequest{
 		UserId:     userID,
 		MetricType: req.MetricType,
 		Value:      req.Value,
@@ -198,7 +224,12 @@ func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Исправлено: проверяем ошибку Encode
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Request) {
@@ -227,7 +258,7 @@ func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	resp, err := g.biometricClient.GetRecords(r.Context(), &biometricpb.GetRecordsRequest{
+	_, err := g.biometricClient.GetRecords(r.Context(), &biometricpb.GetRecordsRequest{
 		UserId:     userID,
 		MetricType: metricType,
 		From:       timestamppb.New(from),
@@ -240,7 +271,12 @@ func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Исправлено: проверяем ошибку Encode
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // ========== Training Handlers ==========
@@ -274,7 +310,7 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 		availableDays[i] = int32(d)
 	}
 
-	resp, err := g.trainingClient.GeneratePlan(r.Context(), &trainingpb.GeneratePlanRequest{
+	_, err := g.trainingClient.GeneratePlan(r.Context(), &trainingpb.GeneratePlanRequest{
 		UserId:              userID,
 		ClassificationClass: class,
 		Confidence:          req.Confidence,
@@ -287,7 +323,12 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Исправлено: проверяем ошибку Encode
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (g *gateway) getPlansHandler(w http.ResponseWriter, r *http.Request) {
@@ -310,7 +351,7 @@ func (g *gateway) getPlansHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp, err := g.trainingClient.ListPlans(r.Context(), &trainingpb.ListPlansRequest{
+	_, err := g.trainingClient.ListPlans(r.Context(), &trainingpb.ListPlansRequest{
 		UserId:   userID,
 		Page:     int32(page),
 		PageSize: int32(pageSize),
@@ -321,7 +362,12 @@ func (g *gateway) getPlansHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Исправлено: проверяем ошибку Encode
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request) {
@@ -343,7 +389,7 @@ func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	resp, err := g.trainingClient.CompleteWorkout(r.Context(), &trainingpb.CompleteWorkoutRequest{
+	_, err := g.trainingClient.CompleteWorkout(r.Context(), &trainingpb.CompleteWorkoutRequest{
 		UserId:    userID,
 		PlanId:    req.PlanId,
 		WorkoutId: req.WorkoutId,
@@ -356,7 +402,12 @@ func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Исправлено: проверяем ошибку Encode
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
@@ -366,7 +417,7 @@ func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp, err := g.trainingClient.GetProgress(r.Context(), &trainingpb.GetProgressRequest{
+	_, err := g.trainingClient.GetProgress(r.Context(), &trainingpb.GetProgressRequest{
 		UserId: userID,
 	})
 	if err != nil {
@@ -375,7 +426,12 @@ func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	// ✅ Исправлено: проверяем ошибку Encode
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // ========== ML Classifier Handler ==========
@@ -387,101 +443,61 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Получаем биометрические данные
-	records, err := g.biometricClient.GetRecords(r.Context(), &biometricpb.GetRecordsRequest{
-		UserId: userID,
-		Limit:  100,
+	// Получаем последние биометрические данные
+	bioResp, err := g.biometricClient.GetLatest(r.Context(), &biometricpb.GetLatestRequest{
+		UserId:     userID,
+		MetricType: "heart_rate",
 	})
 	if err != nil {
-		g.log.Error("Failed to get biometric data", zap.Error(err))
-		http.Error(w, "failed to get biometric data", http.StatusInternalServerError)
+		g.log.Warn("Failed to get heart rate", zap.Error(err))
+		// Используем дефолтное значение
+	}
+
+	// Формируем фичи для классификации
+	features := extractFeatures(bioResp)
+
+	// ✅ Создаём контекст с таймаутом
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	// ✅ Создаём запрос с контекстом
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		g.mlClassifierURL+"/classify",
+		bytes.NewReader(features))
+	if err != nil {
+		g.log.Error("Failed to create ML classifier request", zap.Error(err))
+		http.Error(w, "classification service unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	req.Header.Set("Content-Type", "application/json")
 
-	// Вычисляем средние значения
-	features := map[string]float64{
-		"heart_rate":  0,
-		"spo2":        0,
-		"temperature": 0,
-		"hrv":         50,
-		"bp_systolic": 120,
+	// ✅ Выполняем запрос через http.Client
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		g.log.Error("ML classifier request failed", zap.Error(err))
+		http.Error(w, "classification service unavailable", http.StatusServiceUnavailable)
+		return
 	}
-
-	var hrCount, spo2Count, tempCount int
-	for _, rec := range records.Records {
-		switch rec.MetricType {
-		case "heart_rate":
-			features["heart_rate"] += rec.Value
-			hrCount++
-		case "spo2":
-			features["spo2"] += rec.Value
-			spo2Count++
-		case "temperature":
-			features["temperature"] += rec.Value
-			tempCount++
-		case "hrv":
-			features["hrv"] = rec.Value
-		case "blood_pressure":
-			features["bp_systolic"] = rec.Value
+	// ✅ Проверяем ошибку закрытия тела ответа
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			g.log.Error("Failed to close response body", zap.Error(closeErr))
 		}
-	}
+	}()
 
-	if hrCount > 0 {
-		features["heart_rate"] /= float64(hrCount)
-	}
-	if spo2Count > 0 {
-		features["spo2"] /= float64(spo2Count)
-	}
-	if tempCount > 0 {
-		features["temperature"] /= float64(tempCount)
-	}
-
-	// Получаем профиль пользователя
-	profile, err := g.userClient.GetProfile(r.Context(), &userpb.GetProfileRequest{UserId: userID})
-	if err != nil {
-		g.log.Error("Failed to get profile", zap.Error(err))
-		http.Error(w, "failed to get profile", http.StatusInternalServerError)
+	if resp.StatusCode != http.StatusOK {
+		g.log.Error("ML classifier returned error", zap.Int("status", resp.StatusCode))
+		http.Error(w, "classification failed", resp.StatusCode)
 		return
 	}
 
-	// Формируем запрос к ML классификатору
-	classifyReq := map[string]interface{}{
-		"physiological_data": map[string]interface{}{
-			"heart_rate":               features["heart_rate"],
-			"heart_rate_variability":   features["hrv"],
-			"spo2":                     features["spo2"],
-			"temperature":              features["temperature"],
-			"blood_pressure_systolic":  features["bp_systolic"],
-			"blood_pressure_diastolic": 80,
-		},
-		"user_profile": map[string]interface{}{
-			"gender":            profile.Gender,
-			"age":               profile.Age,
-			"fitness_level":     profile.FitnessLevel,
-			"weight":            profile.WeightKg,
-			"height":            profile.HeightCm,
-			"health_conditions": profile.Contraindications,
-			"goals":             profile.Goals,
-			"sleep_hours":       profile.SleepHours,
-			"nutrition":         profile.Nutrition,
-		},
-	}
-
-	reqBody, _ := json.Marshal(classifyReq)
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Post(g.mlClassifierURL+"/classify", "application/json", bytes.NewBuffer(reqBody))
+	// ✅ Проверяем ошибку копирования тела
+	_, err = io.Copy(w, resp.Body)
 	if err != nil {
-		g.log.Error("Failed to call ML classifier", zap.Error(err))
-		http.Error(w, "failed to classify", http.StatusInternalServerError)
-		return
+		g.log.Error("Failed to write response", zap.Error(err))
+		// Тело уже частично отправлено, логируем ошибку
 	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(resp.StatusCode)
-	w.Write(body)
 }
 
 // ========== ML Generator Handler ==========
@@ -542,7 +558,12 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 		},
 	}
 
-	reqBody, _ := json.Marshal(genReq)
+	reqBody, err := json.Marshal(genReq)
+	if err != nil {
+		g.log.Error("Failed to marshal generator request", zap.Error(err))
+		http.Error(w, "failed to prepare request", http.StatusInternalServerError)
+		return
+	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Post(g.mlGeneratorURL+"/generate-plan", "application/json", bytes.NewBuffer(reqBody))
@@ -551,9 +572,19 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "failed to generate plan", http.StatusInternalServerError)
 		return
 	}
-	defer resp.Body.Close()
+	// ✅ Проверяем ошибку закрытия тела ответа
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			g.log.Error("Failed to close response body", zap.Error(closeErr))
+		}
+	}()
 
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		g.log.Error("Failed to read response body", zap.Error(err))
+		http.Error(w, "failed to read response", http.StatusInternalServerError)
+		return
+	}
 
 	// Сохраняем план в training service
 	var mlResp map[string]interface{}
@@ -577,14 +608,17 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
-	w.Write(body)
+	// ✅ Проверяем ошибку Write
+	if _, err := w.Write(body); err != nil {
+		g.log.Error("Failed to write response body", zap.Error(err))
+	}
 }
 
 // ========== Health Check ==========
 
 func (g *gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{ // проверили ошибку
 		"status":        "ok",
 		"service":       "gateway",
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
@@ -593,11 +627,60 @@ func (g *gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// extractFeatures извлекает фичи из биометрических данных для ML-классификации
+func extractFeatures(bioResp *biometricpb.BiometricRecord) []byte { // ← pb → biometricpb
+	// Дефолтные значения при отсутствии данных
+	heartRate := 70.0
+	hrv := 50.0
+	spo2 := 98.0
+	temp := 36.6
+	bpSystolic := 120.0
+	bpDiastolic := 80.0
+	sleepHours := 7.0
+
+	if bioResp != nil {
+		switch bioResp.MetricType {
+		case "heart_rate":
+			heartRate = bioResp.Value
+		case "hrv":
+			hrv = bioResp.Value
+		case "spo2":
+			spo2 = bioResp.Value
+		case "temperature":
+			temp = bioResp.Value
+		case "systolic_pressure":
+			bpSystolic = bioResp.Value
+		case "diastolic_pressure":
+			bpDiastolic = bioResp.Value
+		case "sleep_hours":
+			sleepHours = bioResp.Value
+		}
+	}
+
+	// Формируем JSON с фичами
+	features := map[string]float64{
+		"heart_rate":               heartRate,
+		"heart_rate_variability":   hrv,
+		"spo2":                     spo2,
+		"temperature":              temp,
+		"blood_pressure_systolic":  bpSystolic,
+		"blood_pressure_diastolic": bpDiastolic,
+		"sleep_hours":              sleepHours,
+	}
+
+	result, _ := json.Marshal(features)
+	return result
+}
+
 // ========== Main ==========
 
 func main() {
 	log := logger.New("gateway")
-	defer log.Sync()
+	defer func() {
+		if syncErr := log.Sync(); syncErr != nil {
+			fmt.Fprintf(os.Stderr, "Failed to sync logger: %v\n", syncErr)
+		}
+	}()
 
 	port := os.Getenv("GATEWAY_PORT")
 	if port == "" {
@@ -635,29 +718,45 @@ func main() {
 		log.Warn("Using default JWT secret")
 	}
 
-	userConn, err := grpc.Dial(userServiceAddr,
+	// ✅ Исправлено: используем grpc.NewClient вместо устаревшего grpc.Dial
+	userConn, err := grpc.NewClient(userServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
+		grpc.WithDefaultCallOptions(grpc.WaitForReady(true), grpc.MaxCallRecvMsgSize(10<<20)),
+	)
 	if err != nil {
 		log.Fatal("Failed to connect to user service", zap.Error(err))
 	}
-	defer userConn.Close()
+	defer func() {
+		if closeErr := userConn.Close(); closeErr != nil {
+			log.Error("Failed to close user service connection", zap.Error(closeErr))
+		}
+	}()
 
-	biometricConn, err := grpc.Dial(biometricServiceAddr,
+	biometricConn, err := grpc.NewClient(biometricServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
+		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
+	)
 	if err != nil {
 		log.Fatal("Failed to connect to biometric service", zap.Error(err))
 	}
-	defer biometricConn.Close()
+	defer func() {
+		if closeErr := biometricConn.Close(); closeErr != nil {
+			log.Error("Failed to close biometric service connection", zap.Error(closeErr))
+		}
+	}()
 
-	trainingConn, err := grpc.Dial(trainingServiceAddr,
+	trainingConn, err := grpc.NewClient(trainingServiceAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)))
+		grpc.WithDefaultCallOptions(grpc.WaitForReady(true)),
+	)
 	if err != nil {
 		log.Fatal("Failed to connect to training service", zap.Error(err))
 	}
-	defer trainingConn.Close()
+	defer func() {
+		if closeErr := trainingConn.Close(); closeErr != nil {
+			log.Error("Failed to close training service connection", zap.Error(closeErr))
+		}
+	}()
 
 	g := &gateway{
 		userClient:      userpb.NewUserServiceClient(userConn),

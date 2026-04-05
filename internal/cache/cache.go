@@ -10,6 +10,14 @@ type Client struct {
 	rdb *redis.Client
 }
 
+// Добавляем метод Close с проверкой ошибок
+func (c *Client) Close() error {
+	if c.rdb != nil {
+		return c.rdb.Close()
+	}
+	return nil
+}
+
 func NewClient(addr, password string, db int) (*Client, error) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     addr,

@@ -1,0 +1,79 @@
+// internal/validator/biometric.go
+package validator
+
+import (
+	"errors"
+	"fmt"
+
+	pb "github.com/MAMUER/Project/api/gen/biometric"
+)
+
+var (
+	ErrUserIDRequired      = errors.New("user_id is required")
+	ErrMetricTypeRequired  = errors.New("metric_type is required")
+	ErrValueNegative       = errors.New("value cannot be negative")
+	ErrHeartRateOutOfRange = errors.New("heart_rate out of valid range")
+	ErrSpO2OutOfRange      = errors.New("spo2 out of valid range")
+)
+
+type MetricRules struct {
+	Min, Max float64
+	Name     string
+}
+
+var metricRules = map[string]MetricRules{
+	"heart_rate": {30, 220, "heart_rate"},
+	"spo2":       {70, 100, "spo2"},
+	// Easy to extend
+}
+
+// ValidateBiometricRequest проверяет входные данные биометрии
+func ValidateBiometricRequest(req *pb.AddRecordRequest) error {
+	if req == nil {
+		return errors.New("request is nil")
+	}
+
+	// Базовая валидация обязательных полей
+	if req.UserId == "" {
+		return ErrUserIDRequired
+	}
+	if req.MetricType == "" {
+		return ErrMetricTypeRequired
+	}
+	if req.Value < 0 {
+		return ErrValueNegative
+	}
+
+	// Специфичные правила для метрик
+	if rules, ok := metricRules[req.MetricType]; ok {
+		if req.Value < rules.Min || req.Value > rules.Max {
+			return fmt.Errorf("%s out of valid range", rules.Name)
+		}
+	}
+
+	return nil
+}
+
+// ValidateBiometricRecord проверяет отдельную запись без UserId
+// Используется для batch операций, где UserId берётся из родительского запроса
+func ValidateBiometricRecord(req *pb.AddRecordRequest) error {
+	if req == nil {
+		return errors.New("request is nil")
+	}
+
+	if req.MetricType == "" {
+		return ErrMetricTypeRequired
+	}
+	if req.Value < 0 {
+		return ErrValueNegative
+	}
+
+	// Специфичные правила для метрик
+	if rules, ok := metricRules[req.MetricType]; ok {
+		if req.Value < rules.Min || req.Value > rules.Max {
+			return fmt.Errorf("%s out of valid range", rules.Name)
+		}
+	}
+
+	return nil
+}

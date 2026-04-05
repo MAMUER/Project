@@ -13,7 +13,7 @@ import (
 
 func main() {
 	log := logger.New("data-processor")
-	defer log.Sync()
+	defer log.Sync() //nolint:errcheck
 
 	log.Info("Data processor service starting")
 
@@ -29,16 +29,16 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
-	defer database.Close()
+	defer database.Close() //nolint:errcheck
 
 	rabbitURL := os.Getenv("RABBITMQ_URL")
-	var consumer *queue.Consumer
+	var consumer queue.Consumer // ← ИНТЕРФЕЙС
 	if rabbitURL != "" {
-		consumer, err = queue.NewConsumer(rabbitURL, "biometric_events")
+		consumer, err = queue.NewConsumer(rabbitURL, "biometric_events", log.Logger)
 		if err != nil {
 			log.Warn("Failed to connect to RabbitMQ", zap.Error(err))
 		} else {
-			defer consumer.Close()
+			defer func() { _ = consumer.Close() }()
 			log.Info("Connected to RabbitMQ")
 		}
 	}

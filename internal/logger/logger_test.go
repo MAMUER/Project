@@ -12,7 +12,7 @@ import (
 func TestNew(t *testing.T) {
 	log := New("test-service")
 	assert.NotNil(t, log)
-	defer log.Sync()
+	defer log.Sync() //nolint:errcheck
 }
 
 func TestNewWithMultipleServices(t *testing.T) {
@@ -22,7 +22,7 @@ func TestNewWithMultipleServices(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			log := New(name)
 			assert.NotNil(t, log)
-			defer log.Sync()
+			defer log.Sync() //nolint:errcheck
 
 			core, recorded := observer.New(zap.InfoLevel)
 			testLogger := &Logger{Logger: zap.New(core)}

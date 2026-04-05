@@ -82,7 +82,7 @@ func TestNewConnection(t *testing.T) {
 	if err != nil {
 		t.Skip("PostgreSQL not available, skipping test")
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 
 	assert.NotNil(t, db)
 	err = db.Ping()
@@ -118,7 +118,7 @@ func TestConnectionPoolSettings(t *testing.T) {
 	if err != nil {
 		t.Skip("PostgreSQL not available, skipping test")
 	}
-	defer db.Close()
+	defer db.Close() //nolint:errcheck
 
 	assert.Equal(t, 25, db.Stats().MaxOpenConnections)
 	assert.Equal(t, 10, db.Stats().MaxIdleClosed)

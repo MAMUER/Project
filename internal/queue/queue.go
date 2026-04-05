@@ -1,103 +1,227 @@
+// internal/queue/queue.go
 package queue
 
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"sync"
+
+	"github.com/prometheus/client_golang/prometheus"
 	amqp "github.com/rabbitmq/amqp091-go"
+	"go.uber.org/zap"
 )
 
-type Publisher struct {
+var (
+	queueMessagesTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "queue_messages_total",
+			Help: "Total number of messages published to queue",
+		},
+		[]string{"queue", "status"},
+	)
+)
+
+func init() {
+	prometheus.MustRegister(queueMessagesTotal)
+}
+
+// rabbitPublisher — реализация Publisher
+type rabbitPublisher struct {
 	conn    *amqp.Connection
 	channel *amqp.Channel
 	queue   string
+	log     *zap.Logger
+	mu      sync.RWMutex
+	closed  bool
 }
 
-type Consumer struct {
+// rabbitConsumer — реализация Consumer
+type rabbitConsumer struct {
 	conn    *amqp.Connection
 	channel *amqp.Channel
 	queue   string
 	msgs    <-chan amqp.Delivery
+	log     *zap.Logger
+	mu      sync.RWMutex
+	closed  bool
 }
 
-func NewPublisher(url, queue string) (*Publisher, error) {
+// NewPublisher создаёт нового издателя
+func NewPublisher(url, queueName string, logger *zap.Logger) (Publisher, error) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	conn, err := amqp.Dial(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect to RabbitMQ: %w", err)
 	}
+
 	ch, err := conn.Channel()
 	if err != nil {
-		conn.Close()
-		return nil, err
+		_ = conn.Close()
+		return nil, fmt.Errorf("failed to open channel: %w", err)
 	}
-	_, err = ch.QueueDeclare(queue, true, false, false, false, nil)
+
+	_, err = ch.QueueDeclare(queueName, true, false, false, false, nil)
 	if err != nil {
-		ch.Close()
-		conn.Close()
-		return nil, err
+		_ = ch.Close()
+		_ = conn.Close()
+		return nil, fmt.Errorf("failed to declare queue: %w", err)
 	}
-	return &Publisher{conn: conn, channel: ch, queue: queue}, nil
+
+	return &rabbitPublisher{
+		conn:    conn,
+		channel: ch,
+		queue:   queueName,
+		log:     logger,
+	}, nil
 }
 
-func (p *Publisher) Publish(ctx context.Context, event interface{}) error {
+func (p *rabbitPublisher) Publish(ctx context.Context, event interface{}) error {
+	p.mu.RLock()
+	if p.closed || p.channel == nil {
+		p.mu.RUnlock()
+		return fmt.Errorf("publisher is closed")
+	}
+	ch := p.channel
+	p.mu.RUnlock()
+
 	body, err := json.Marshal(event)
 	if err != nil {
-		return err
+		queueMessagesTotal.WithLabelValues(p.queue, "marshal_error").Inc()
+		return fmt.Errorf("failed to marshal event: %w", err)
 	}
-	return p.channel.PublishWithContext(ctx, "", p.queue, false, false,
-		amqp.Publishing{
-			ContentType:  "application/json",
-			Body:         body,
-			DeliveryMode: amqp.Persistent,
-		})
+
+	err = ch.PublishWithContext(ctx, "", p.queue, false, false, amqp.Publishing{
+		ContentType:  "application/json",
+		Body:         body,
+		DeliveryMode: amqp.Persistent,
+	})
+
+	if err != nil {
+		queueMessagesTotal.WithLabelValues(p.queue, "publish_error").Inc()
+		return fmt.Errorf("failed to publish: %w", err)
+	}
+
+	queueMessagesTotal.WithLabelValues(p.queue, "success").Inc()
+	return nil
 }
 
-func (p *Publisher) Close() error {
+func (p *rabbitPublisher) Close() error {
+	p.mu.Lock()
+	if p.closed {
+		p.mu.Unlock()
+		return nil
+	}
+	p.closed = true
+	p.mu.Unlock()
+
+	var errs []error
 	if p.channel != nil {
-		p.channel.Close()
+		if err := p.channel.Close(); err != nil && !isClosedError(err) {
+			errs = append(errs, fmt.Errorf("channel: %w", err))
+		}
 	}
 	if p.conn != nil {
-		return p.conn.Close()
+		if err := p.conn.Close(); err != nil && !isClosedError(err) {
+			errs = append(errs, fmt.Errorf("conn: %w", err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("close errors: %v", errs)
 	}
 	return nil
 }
 
-func NewConsumer(url, queue string) (*Consumer, error) {
+// NewConsumer создаёт нового потребителя
+func NewConsumer(url, queueName string, logger *zap.Logger) (Consumer, error) {
+	if logger == nil {
+		logger = zap.NewNop()
+	}
+
 	conn, err := amqp.Dial(url)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to connect: %w", err)
 	}
+
 	ch, err := conn.Channel()
 	if err != nil {
-		conn.Close()
-		return nil, err
-	}
-	_, err = ch.QueueDeclare(queue, true, false, false, false, nil)
-	if err != nil {
-		ch.Close()
-		conn.Close()
-		return nil, err
+		_ = conn.Close()
+		return nil, fmt.Errorf("failed to open channel: %w", err)
 	}
 
-	msgs, err := ch.Consume(queue, "", false, false, false, false, nil)
+	_, err = ch.QueueDeclare(queueName, true, false, false, false, nil)
 	if err != nil {
-		ch.Close()
-		conn.Close()
-		return nil, err
+		_ = ch.Close()
+		_ = conn.Close()
+		return nil, fmt.Errorf("failed to declare queue: %w", err)
 	}
 
-	return &Consumer{conn: conn, channel: ch, queue: queue, msgs: msgs}, nil
+	if err := ch.Qos(1, 0, false); err != nil {
+		_ = ch.Close()
+		_ = conn.Close()
+		return nil, fmt.Errorf("failed to set QoS: %w", err)
+	}
+
+	msgs, err := ch.Consume(queueName, "", false, false, false, false, nil)
+	if err != nil {
+		_ = ch.Close()
+		_ = conn.Close()
+		return nil, fmt.Errorf("failed to consume: %w", err)
+	}
+
+	return &rabbitConsumer{
+		conn:    conn,
+		channel: ch,
+		queue:   queueName,
+		msgs:    msgs,
+		log:     logger,
+	}, nil
 }
 
-func (c *Consumer) Messages() <-chan amqp.Delivery {
+func (c *rabbitConsumer) Messages() <-chan amqp.Delivery {
 	return c.msgs
 }
 
-func (c *Consumer) Close() error {
+func (c *rabbitConsumer) Ack(tag uint64, multiple bool) error {
+	return c.channel.Ack(tag, multiple)
+}
+
+func (c *rabbitConsumer) Nack(tag uint64, multiple, requeue bool) error {
+	return c.channel.Nack(tag, multiple, requeue)
+}
+
+func (c *rabbitConsumer) Close() error {
+	c.mu.Lock()
+	if c.closed {
+		c.mu.Unlock()
+		return nil
+	}
+	c.closed = true
+	c.mu.Unlock()
+
+	var closeErr error
 	if c.channel != nil {
-		c.channel.Close()
+		if err := c.channel.Close(); err != nil && !isClosedError(err) {
+			c.log.Error("Channel close failed", zap.Error(err))
+			closeErr = err
+		}
 	}
 	if c.conn != nil {
-		return c.conn.Close()
+		if err := c.conn.Close(); err != nil && !isClosedError(err) {
+			c.log.Error("Conn close failed", zap.Error(err))
+			if closeErr == nil {
+				closeErr = err
+			}
+		}
 	}
-	return nil
+	return closeErr
+}
+
+func isClosedError(err error) bool {
+	return err == io.EOF || err == amqp.ErrClosed
 }
