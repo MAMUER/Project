@@ -1,8 +1,0 @@
-{
-  "training-service": 13072,
-  "biometric-service": 22432,
-  "ml-classifier": 19324,
-  "user-service": 5248,
-  "ml-generator": 7516,
-  "gateway": 3500
-}

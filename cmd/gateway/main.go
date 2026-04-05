@@ -105,6 +105,29 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// logoutHandler — принудительная инвалидация сессии
+// Требование #1: Явное указание браузеру на удаление cookies
+// Требование #7: return после отправки заголовков
+func (g *gateway) logoutHandler(w http.ResponseWriter, r *http.Request) {
+	// Требование #1: Заголовки для удаления cookies на клиенте
+	logoutHeaders := middleware.LogoutHeaders()
+	for key, values := range logoutHeaders {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "logged_out"}); err != nil {
+		g.log.Error("Failed to encode logout response", zap.Error(err))
+		// Требование #7: После ошибки — возврат без дальнейшего выполнения
+		return
+	}
+	// Требование #7: Немедленное прекращение выполнения
+}
+
 // ========== Profile Handlers ==========
 
 func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
@@ -714,8 +737,7 @@ func main() {
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		jwtSecret = "default-secret-change-in-production"
-		log.Warn("Using default JWT secret")
+		log.Fatal("JWT_SECRET environment variable is required")
 	}
 
 	// ✅ Исправлено: используем grpc.NewClient вместо устаревшего grpc.Dial
@@ -778,6 +800,9 @@ func main() {
 	// Protected routes
 	protected := r.PathPrefix("/api/v1").Subrouter()
 	protected.Use(middleware.AuthMiddleware(jwtSecret, log.Logger))
+
+	// Требование #1: Logout с инвалидацией сессии
+	protected.HandleFunc("/logout", g.logoutHandler).Methods("POST")
 
 	protected.HandleFunc("/profile", g.profileHandler).Methods("GET")
 	protected.HandleFunc("/profile", g.updateProfileHandler).Methods("PUT")

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package training;
 
-option go_package = "github.com/MAMUER/Project/api/proto/training";
+option go_package = "github.com/MAMUER/Project/api/gen/training";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/struct.proto";

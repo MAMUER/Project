@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"net"
 	"os"
-	"strings"
 	"time"
 
 	pb "github.com/MAMUER/Project/api/gen/training"
 	"github.com/MAMUER/Project/internal/db"
 	"github.com/MAMUER/Project/internal/logger"
 	"github.com/MAMUER/Project/internal/queue"
+	"github.com/MAMUER/Project/internal/sanitize"
+	"github.com/MAMUER/Project/internal/validator"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -29,70 +30,26 @@ type trainingServer struct {
 	rabbitQueue queue.Publisher // ← ИНТЕРФЕЙС
 }
 
-// sanitizeString очищает строку от потенциально опасных символов
-func sanitizeString(s string) string {
-	s = strings.TrimSpace(s)
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	s = strings.ReplaceAll(s, `"`, "&quot;")
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	return s
-}
-
-// validateGeneratePlanRequest проверяет запрос генерации плана
-func validateGeneratePlanRequest(req *pb.GeneratePlanRequest) error {
-	if req == nil {
-		return status.Error(codes.InvalidArgument, "request is nil")
-	}
-	if req.UserId == "" {
-		return status.Error(codes.InvalidArgument, "user_id is required")
-	}
-	if req.DurationWeeks <= 0 {
-		return status.Error(codes.InvalidArgument, "duration_weeks must be greater than 0")
-	}
-	if req.DurationWeeks > 52 {
-		return status.Error(codes.InvalidArgument, "duration_weeks must not exceed 52")
-	}
-	if len(req.AvailableDays) == 0 {
-		return status.Error(codes.InvalidArgument, "available_days is required")
-	}
-	if len(req.AvailableDays) > 7 {
-		return status.Error(codes.InvalidArgument, "available_days must not exceed 7")
-	}
-	return nil
-}
-
-// validateCompleteWorkoutRequest проверяет запрос завершения тренировки
-func validateCompleteWorkoutRequest(req *pb.CompleteWorkoutRequest) error {
-	if req == nil {
-		return status.Error(codes.InvalidArgument, "request is nil")
-	}
-	if req.UserId == "" {
-		return status.Error(codes.InvalidArgument, "user_id is required")
-	}
-	if req.PlanId == "" {
-		return status.Error(codes.InvalidArgument, "plan_id is required")
-	}
-	if req.WorkoutId == "" {
-		return status.Error(codes.InvalidArgument, "workout_id is required")
-	}
-	return nil
-}
-
 func (s *trainingServer) GeneratePlan(ctx context.Context, req *pb.GeneratePlanRequest) (*pb.GeneratePlanResponse, error) {
 	s.log.Info("GeneratePlan",
 		zap.String("user_id", req.UserId),
 		zap.String("class", req.ClassificationClass),
 	)
 
+	// Проверяем отмену контекста
+	if err := ctx.Err(); err != nil {
+		s.log.Warn("Request cancelled", zap.Error(err))
+		return nil, status.Error(codes.Canceled, "request cancelled")
+	}
+
 	// Валидация входных данных
-	if err := validateGeneratePlanRequest(req); err != nil {
+	if err := validator.ValidateGeneratePlanRequest(req); err != nil {
 		s.log.Warn("Invalid generate plan request", zap.Error(err))
 		return nil, err
 	}
 
 	// Санитизируем входные данные
-	classificationClass := sanitizeString(req.ClassificationClass)
+	classificationClass := sanitize.String(req.ClassificationClass)
 
 	planID := uuid.New().String()
 
@@ -192,7 +149,11 @@ func (s *trainingServer) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*
 		return nil, status.Errorf(codes.Internal, "failed to unmarshal plan: %v", err)
 	}
 
-	planDataStruct, _ := structpb.NewStruct(planData)
+	planDataStruct, err := structpb.NewStruct(planData)
+	if err != nil {
+		s.log.Error("Failed to create plan struct", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to process plan data")
+	}
 	plan.PlanData = planDataStruct
 	plan.GeneratedAt = timestamppb.New(generatedAt)
 	plan.StartDate = timestamppb.New(startDate)
@@ -203,21 +164,12 @@ func (s *trainingServer) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*
 
 func (s *trainingServer) ListPlans(ctx context.Context, req *pb.ListPlansRequest) (*pb.ListPlansResponse, error) {
 	// Валидация параметров
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request is nil")
+	if err := validator.ValidateListPlansRequest(req); err != nil {
+		s.log.Warn("Invalid list plans request", zap.Error(err))
+		return nil, err
 	}
 
 	s.log.Debug("ListPlans", zap.String("user_id", req.UserId))
-
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
-	if req.PageSize <= 0 {
-		return nil, status.Error(codes.InvalidArgument, "page_size must be greater than 0")
-	}
-	if req.Page < 0 {
-		return nil, status.Error(codes.InvalidArgument, "page must be non-negative")
-	}
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, user_id, plan_data, generated_at, start_date, end_date, status
@@ -290,13 +242,13 @@ func (s *trainingServer) CompleteWorkout(ctx context.Context, req *pb.CompleteWo
 	)
 
 	// Валидация входных данных
-	if err := validateCompleteWorkoutRequest(req); err != nil {
+	if err := validator.ValidateCompleteWorkoutRequest(req); err != nil {
 		s.log.Warn("Invalid complete workout request", zap.Error(err))
 		return nil, err
 	}
 
 	// Санитизируем feedback
-	feedback := sanitizeString(req.Feedback)
+	feedback := sanitize.String(req.Feedback)
 
 	// Проверяем, есть ли уже запись о выполнении
 	var exists bool
@@ -351,15 +303,12 @@ func (s *trainingServer) CompleteWorkout(ctx context.Context, req *pb.CompleteWo
 }
 
 func (s *trainingServer) GetProgress(ctx context.Context, req *pb.GetProgressRequest) (*pb.GetProgressResponse, error) {
-	if req == nil {
-		return nil, status.Error(codes.InvalidArgument, "request is nil")
+	if err := validator.ValidateGetProgressRequest(req); err != nil {
+		s.log.Warn("Invalid get progress request", zap.Error(err))
+		return nil, err
 	}
 
 	s.log.Debug("GetProgress", zap.String("user_id", req.UserId))
-
-	if req.UserId == "" {
-		return nil, status.Error(codes.InvalidArgument, "user_id is required")
-	}
 
 	var totalWorkouts, completedWorkouts int32
 	err := s.db.QueryRowContext(ctx, `

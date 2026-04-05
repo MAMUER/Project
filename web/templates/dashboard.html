@@ -10,6 +10,8 @@
         <li><a href="/" class="active">Дашборд</a></li>
         <li><a href="/profile">Профиль</a></li>
         <li><a href="/training">Тренировки</a></li>
+        <li><a href="/ml-classify">ML Анализ</a></li>
+        <li><a href="/ml-generate">Генерация</a></li>
         <li><a href="/achievements">Достижения</a></li>
         <li><button id="logoutBtn" class="btn-logout">Выйти</button></li>
     </ul>
@@ -32,14 +34,13 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        if (authToken) {
-            loadDashboard();
-        } else {
-            window.location.href = '/';
-        }
-    });
+document.addEventListener('DOMContentLoaded', () => {
+    if (authToken) {
+        loadDashboard();
+    } else {
+        window.location.href = '/';
+    }
+});
 </script>
 {% endblock %}

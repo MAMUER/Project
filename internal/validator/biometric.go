@@ -33,25 +33,13 @@ func ValidateBiometricRequest(req *pb.AddRecordRequest) error {
 		return errors.New("request is nil")
 	}
 
-	// Базовая валидация обязательных полей
+	// Проверка UserId (дополнительно к общей валидации)
 	if req.UserId == "" {
 		return ErrUserIDRequired
 	}
-	if req.MetricType == "" {
-		return ErrMetricTypeRequired
-	}
-	if req.Value < 0 {
-		return ErrValueNegative
-	}
 
-	// Специфичные правила для метрик
-	if rules, ok := metricRules[req.MetricType]; ok {
-		if req.Value < rules.Min || req.Value > rules.Max {
-			return fmt.Errorf("%s out of valid range", rules.Name)
-		}
-	}
-
-	return nil
+	// Используем общую валидацию записи
+	return ValidateBiometricRecord(req)
 }
 
 // ValidateBiometricRecord проверяет отдельную запись без UserId

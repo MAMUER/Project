@@ -4,16 +4,15 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net"
 	"os"
-	"regexp"
-	"strings"
 
 	pb "github.com/MAMUER/Project/api/gen/user"
 	"github.com/MAMUER/Project/internal/auth"
 	"github.com/MAMUER/Project/internal/db"
 	"github.com/MAMUER/Project/internal/logger"
+	"github.com/MAMUER/Project/internal/sanitize"
+	"github.com/MAMUER/Project/internal/validator"
 	"github.com/MAMUER/Project/pkg/models"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
@@ -23,6 +22,18 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// safeJSONArray безопасно создает JSON массив из уже санитизированных строк
+func safeJSONArray(items []string) (string, error) {
+	if len(items) == 0 {
+		return "[]", nil
+	}
+	jsonBytes, err := json.Marshal(items)
+	if err != nil {
+		return "[]", err
+	}
+	return string(jsonBytes), nil
+}
+
 type userServer struct {
 	pb.UnimplementedUserServiceServer
 	db     *sql.DB
@@ -30,125 +41,18 @@ type userServer struct {
 	secret string
 }
 
-// sanitizeString очищает строку от потенциально опасных символов
-func sanitizeString(s string) string {
-	// Удаляем HTML-теги и потенциально опасные символы
-	s = strings.TrimSpace(s)
-	s = strings.ReplaceAll(s, "<", "&lt;")
-	s = strings.ReplaceAll(s, ">", "&gt;")
-	s = strings.ReplaceAll(s, `"`, "&quot;")
-	s = strings.ReplaceAll(s, `\`, `\\`)
-	return s
-}
-
-// isValidEmail проверяет формат email
-var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$`)
-
-func isValidEmail(email string) bool {
-	return emailRegex.MatchString(email)
-}
-
-// safeJSONArray безопасно создает JSON массив из строки
-func safeJSONArray(items []string) (string, error) {
-	if len(items) == 0 {
-		return "[]", nil
-	}
-	// Санитизируем каждый элемент
-	sanitized := make([]string, len(items))
-	for i, item := range items {
-		sanitized[i] = sanitizeString(item)
-	}
-	jsonBytes, err := json.Marshal(sanitized)
-	if err != nil {
-		return "[]", fmt.Errorf("failed to marshal JSON array: %w", err)
-	}
-	return string(jsonBytes), nil
-}
-
-// validateRegisterRequest проверяет данные регистрации
-func validateRegisterRequest(req *pb.RegisterRequest) error {
-	if req == nil {
-		return status.Error(codes.InvalidArgument, "request is nil")
-	}
-	if req.Email == "" {
-		return status.Error(codes.InvalidArgument, "email is required")
-	}
-	if !isValidEmail(req.Email) {
-		return status.Error(codes.InvalidArgument, "invalid email format")
-	}
-	if req.Password == "" {
-		return status.Error(codes.InvalidArgument, "password is required")
-	}
-	if len(req.Password) < 8 {
-		return status.Error(codes.InvalidArgument, "password must be at least 8 characters")
-	}
-	if req.FullName == "" {
-		return status.Error(codes.InvalidArgument, "full name is required")
-	}
-	if req.Role == "" {
-		return status.Error(codes.InvalidArgument, "role is required")
-	}
-	validRoles := map[string]bool{"client": true, "admin": true, "doctor": true}
-	if !validRoles[req.Role] {
-		return status.Error(codes.InvalidArgument, "invalid role, must be client, admin, or doctor")
-	}
-	return nil
-}
-
-// validateLoginRequest проверяет данные для входа
-func validateLoginRequest(req *pb.LoginRequest) error {
-	if req == nil {
-		return status.Error(codes.InvalidArgument, "request is nil")
-	}
-	if req.Email == "" {
-		return status.Error(codes.InvalidArgument, "email is required")
-	}
-	if req.Password == "" {
-		return status.Error(codes.InvalidArgument, "password is required")
-	}
-	return nil
-}
-
-// validateProfileUpdate проверяет данные обновления профиля
-func validateProfileUpdate(req *pb.UpdateProfileRequest) error {
-	if req == nil {
-		return status.Error(codes.InvalidArgument, "request is nil")
-	}
-	if req.UserId == "" {
-		return status.Error(codes.InvalidArgument, "user_id is required")
-	}
-	if req.Age != nil && (*req.Age < 0 || *req.Age > 150) {
-		return status.Error(codes.InvalidArgument, "age must be between 0 and 150")
-	}
-	if req.HeightCm != nil && (*req.HeightCm < 50 || *req.HeightCm > 300) {
-		return status.Error(codes.InvalidArgument, "height_cm must be between 50 and 300")
-	}
-	if req.WeightKg != nil && (*req.WeightKg < 1 || *req.WeightKg > 500) {
-		return status.Error(codes.InvalidArgument, "weight_kg must be between 1 and 500")
-	}
-	validFitnessLevels := map[string]bool{"": true, "beginner": true, "intermediate": true, "advanced": true}
-	if req.FitnessLevel != nil && !validFitnessLevels[*req.FitnessLevel] {
-		return status.Error(codes.InvalidArgument, "fitness_level must be beginner, intermediate, or advanced")
-	}
-	validGenders := map[string]bool{"": true, "male": true, "female": true, "other": true}
-	if req.Gender != nil && !validGenders[*req.Gender] {
-		return status.Error(codes.InvalidArgument, "gender must be male, female, or other")
-	}
-	return nil
-}
-
 func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	s.log.Info("Register request", zap.String("email", req.Email))
 
 	// Валидация входных данных
-	if err := validateRegisterRequest(req); err != nil {
+	if err := validator.ValidateRegisterRequest(req); err != nil {
 		s.log.Warn("Invalid register request", zap.Error(err))
 		return nil, err
 	}
 
 	// Санитизируем входные данные
-	email := sanitizeString(req.Email)
-	fullName := sanitizeString(req.FullName)
+	email := sanitize.String(req.Email)
+	fullName := sanitize.String(req.FullName)
 
 	// Проверка существования пользователя
 	var exists bool
@@ -184,8 +88,9 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
         INSERT INTO user_profiles (user_id) VALUES ($1)
     `, userID)
 	if err != nil {
-		// Не критично, но логируем
-		s.log.Warn("Failed to create user profile", zap.Error(err))
+		s.log.Warn("Failed to create user profile, user will need to complete profile manually",
+			zap.Error(err),
+			zap.String("user_id", userID))
 	}
 
 	return &pb.RegisterResponse{
@@ -198,7 +103,7 @@ func (s *userServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 	s.log.Info("Login request", zap.String("email", req.Email))
 
 	// Валидация входных данных
-	if err := validateLoginRequest(req); err != nil {
+	if err := validator.ValidateLoginRequest(req); err != nil {
 		s.log.Warn("Invalid login request", zap.Error(err))
 		return nil, err
 	}
@@ -291,18 +196,18 @@ func (s *userServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) 
 
 func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest) (*pb.UserProfile, error) {
 	// Валидация входных данных
-	if err := validateProfileUpdate(req); err != nil {
+	if err := validator.ValidateProfileUpdate(req); err != nil {
 		s.log.Warn("Invalid profile update request", zap.Error(err))
 		return nil, err
 	}
 
-	// Безопасное создание JSON массивов
-	goalsJSON, err := safeJSONArray(req.Goals)
+	// Безопасное создание JSON массивов с санитизацией
+	goalsJSON, err := safeJSONArray(sanitize.Strings(req.Goals))
 	if err != nil {
 		s.log.Error("Failed to marshal goals", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to process goals")
 	}
-	contraindicationsJSON, err := safeJSONArray(req.Contraindications)
+	contraindicationsJSON, err := safeJSONArray(sanitize.Strings(req.Contraindications))
 	if err != nil {
 		s.log.Error("Failed to marshal contraindications", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to process contraindications")
@@ -425,8 +330,7 @@ func main() {
 
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "default-secret-change-in-production"
-		log.Warn("Using default JWT secret", zap.String("secret", secret))
+		log.Fatal("JWT_SECRET environment variable is required")
 	}
 
 	lis, err := net.Listen("tcp", ":"+port)

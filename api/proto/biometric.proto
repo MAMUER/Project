@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package biometric;
 
-option go_package = "github.com/MAMUER/Project/api/proto/biometric";
+option go_package = "github.com/MAMUER/Project/api/gen/biometric";
 
 import "google/protobuf/timestamp.proto";
 

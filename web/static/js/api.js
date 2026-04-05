@@ -112,3 +112,14 @@ async function getProgress() {
 async function getAchievements() {
     return apiRequest('/achievements');
 }
+
+// Logout — требование #1: серверная инвалидация сессии
+async function logout() {
+    try {
+        await apiRequest('/logout', { method: 'POST' });
+    } catch (error) {
+        console.warn('Logout request failed, clearing token anyway:', error);
+    } finally {
+        setAuthToken(null);
+    }
+}

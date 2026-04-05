@@ -89,17 +89,15 @@ func (s *biometricServer) BatchAddRecords(ctx context.Context, req *pb.BatchAddR
 		}
 	}
 
-	// ✅ Объявляем tx ПЕРЕД defer
+	// Начинаем транзакцию
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		s.log.Error("Failed to begin transaction", zap.Error(err))
 		return nil, status.Error(codes.Internal, "database error")
 	}
 	defer func() {
-		if p := recover(); p != nil {
-			_ = tx.Rollback()
-			panic(p)
-		}
+		// Rollback безопасен если транзакция уже закоммичена
+		_ = tx.Rollback()
 	}()
 
 	const query = `INSERT INTO biometric_data (id, user_id, metric_type, value, timestamp, device_type, created_at) 
@@ -169,11 +167,10 @@ func (s *biometricServer) GetRecords(ctx context.Context, req *pb.GetRecordsRequ
 	for rows.Next() {
 		var record pb.BiometricRecord
 		var timestamp, createdAt time.Time
-		err := rows.Scan(&record.Id, &record.UserId, &record.MetricType, &record.Value,
-			&timestamp, &record.DeviceType, &createdAt)
-		if err != nil {
-			s.log.Warn("Failed to scan row", zap.Error(err))
-			continue // Пропускаем проблемную запись, продолжаем обработку
+		if err := rows.Scan(&record.Id, &record.UserId, &record.MetricType, &record.Value,
+			&timestamp, &record.DeviceType, &createdAt); err != nil {
+			s.log.Error("Failed to scan row", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to read biometric data")
 		}
 		record.Timestamp = timestamppb.New(timestamp)
 		record.CreatedAt = timestamppb.New(createdAt)

@@ -1,0 +1,63 @@
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.vs
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+*.exe
+*.test
+*.out
+bin/
+
+# Docker
+Dockerfile
+docker-compose*.yml
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+
+# ML models and datasets (large files)
+models/
+datasets/
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+venv_ml/
+.venv/
+
+# Kubernetes
+configs/k8s/
+
+# CI/CD
+.github/
+
+# Tests
+*_test.go

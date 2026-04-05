@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package ml;
 
-option go_package = "github.com/MAMUER/Project/api/proto/ml";
+option go_package = "github.com/MAMUER/Project/api/gen/ml";
 
 service MLService {
     rpc Classify(ClassifyRequest) returns (ClassifyResponse);

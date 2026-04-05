@@ -2,84 +2,7 @@
 
 {% block title %}Генерация Плана - Fitness Platform{% endblock %}
 
-{% block head %}
-<style>
-.form-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-    gap: 1rem;
-    margin: 1rem 0;
-}
-
-.form-group {
-    display: flex;
-    flex-direction: column;
-}
-
-.form-group label {
-    margin-bottom: 0.5rem;
-    font-weight: 600;
-}
-
-.form-group input,
-.form-group select {
-    padding: 0.75rem;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    font-size: 1rem;
-}
-
-.checkbox-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 1rem;
-    margin: 1rem 0;
-}
-
-.checkbox-group label {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.plan-preview {
-    background: #f8f9fa;
-    padding: 1.5rem;
-    border-radius: 8px;
-    margin-top: 1rem;
-}
-
-.exercise-list {
-    list-style: none;
-    padding: 0;
-}
-
-.exercise-list li {
-    padding: 0.5rem 0;
-    border-bottom: 1px solid #eee;
-}
-
-.weekly-schedule {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
-    margin-top: 1rem;
-}
-
-.day-card {
-    background: white;
-    padding: 0.5rem;
-    border-radius: 4px;
-    text-align: center;
-    font-size: 0.9rem;
-}
-
-.day-card.rest {
-    background: #f0f0f0;
-    color: #666;
-}
-</style>
-{% endblock %}
+{% block head %}{% endblock %}
 
 {% block content %}
 <nav class="navbar">
@@ -174,128 +97,15 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/ml.js"></script>
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     if (!authToken) {
         window.location.href = '/';
         return;
     }
-    
-    document.getElementById('planForm').addEventListener('submit', generatePlan);
+    const form = document.getElementById('planForm');
+    if (form) form.addEventListener('submit', generatePlan);
 });
-
-async function generatePlan(e) {
-    e.preventDefault();
-    
-    const btn = e.target.querySelector('button[type="submit"]');
-    btn.disabled = true;
-    btn.textContent = '⏳ Генерация...';
-    
-    const days = Array.from(document.querySelectorAll('input[name="days"]:checked'))
-        .map(cb => parseInt(cb.value));
-    
-    const equipment = Array.from(document.querySelectorAll('input[name="equipment"]:checked'))
-        .map(cb => cb.value)
-        .filter(v => v !== 'none');
-    
-    const requestData = {
-        training_class: document.getElementById('trainingClass').value,
-        duration_weeks: parseInt(document.getElementById('durationWeeks').value),
-        available_days: days,
-        preferences: {
-            max_duration: parseInt(document.getElementById('maxDuration').value),
-            available_equipment: equipment,
-            preferred_time: document.getElementById('preferredTime').value
-        }
-    };
-    
-    try {
-        const response = await fetch('/api/v1/ml/generate-plan', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
-            body: JSON.stringify(requestData)
-        });
-        
-        const plan = await response.json();
-        displayPlan(plan);
-        
-    } catch (error) {
-        alert('Ошибка генерации: ' + error.message);
-    } finally {
-        btn.disabled = false;
-        btn.textContent = '✨ Сгенерировать План';
-    }
-}
-
-function displayPlan(plan) {
-    const planResult = document.getElementById('planResult');
-    const planContent = document.getElementById('planContent');
-    
-    planResult.style.display = 'block';
-    planContent.innerHTML = `
-        <div class="plan-preview">
-            <h3>${plan.training_type_ru || plan.training_type}</h3>
-            <div class="plan-stats">
-                <span>⏱️ ${plan.duration_minutes} мин</span>
-                <span>📊 Интенсивность: ${(plan.intensity * 100).toFixed(0)}%</span>
-                <span>📅 ${plan.weekly_frequency} раз/неделю</span>
-            </div>
-            
-            <h4>Структура Тренировки:</h4>
-            <ul class="exercise-list">
-                ${plan.session_structure?.map(ex => `
-                    <li>
-                        <strong>${ex.name}</strong> - ${ex.duration_minutes} мин 
-                        (интенсивность: ${(ex.intensity * 100).toFixed(0)}%)
-                    </li>
-                `).join('') || '<li>Стандартная структура тренировки</li>'}
-            </ul>
-            
-            <h4>Упражнения:</h4>
-            <p>${plan.exercises?.join(', ') || 'Бег, велосипед, плавание'}</p>
-            
-            <h4>Расписание на неделю:</h4>
-            <div class="weekly-schedule">
-                ${Object.entries(plan.weekly_schedule || {}).map(([day, activity]) => `
-                    <div class="day-card ${activity === 'rest' ? 'rest' : ''}">
-                        <strong>${getDayName(day)}</strong><br>
-                        ${activity === 'rest' ? 'Отдых' : activity}
-                    </div>
-                `).join('')}
-            </div>
-            
-            ${plan.notes?.length > 0 ? `
-                <div class="personalized-notes">
-                    <h4>⚠️ Персональные Рекомендации:</h4>
-                    <ul>
-                        ${plan.notes.map(note => `<li>${note}</li>`).join('')}
-                    </ul>
-                </div>
-            ` : ''}
-            
-            <button onclick="savePlan()" class="btn-primary">
-                💾 Сохранить План
-            </button>
-        </div>
-    `;
-    
-    planResult.scrollIntoView({ behavior: 'smooth' });
-}
-
-function getDayName(day) {
-    const days = {
-        'monday': 'Пн', 'tuesday': 'Вт', 'wednesday': 'Ср',
-        'thursday': 'Чт', 'friday': 'Пт', 'saturday': 'Сб', 'sunday': 'Вс'
-    };
-    return days[day] || day;
-}
-
-async function savePlan() {
-    alert('План сохранён! Переходим к тренировкам...');
-    window.location.href = '/training';
-}
 </script>
 {% endblock %}

@@ -10,6 +10,8 @@
         <li><a href="/">Дашборд</a></li>
         <li><a href="/profile" class="active">Профиль</a></li>
         <li><a href="/training">Тренировки</a></li>
+        <li><a href="/ml-classify">ML Анализ</a></li>
+        <li><a href="/ml-generate">Генерация</a></li>
         <li><a href="/achievements">Достижения</a></li>
         <li><button id="logoutBtn" class="btn-logout">Выйти</button></li>
     </ul>
@@ -33,6 +35,8 @@
             <option value="intermediate">Средний</option>
             <option value="advanced">Продвинутый</option>
         </select>
+        <input type="text" id="profileNutrition" placeholder="Питание">
+        <input type="number" id="profileSleepHours" placeholder="Часы сна" step="0.5" min="0" max="24">
         <div class="checkbox-group">
             <label>Цели:</label>
             <label><input type="checkbox" value="weight_loss"> Похудение</label>

@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     fitness_level VARCHAR(50),
     goals TEXT[],
     contraindications TEXT[],
+    nutrition TEXT,
+    sleep_hours REAL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );

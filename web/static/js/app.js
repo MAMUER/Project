@@ -110,10 +110,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // Выход
+    // Выход — требование #1: серверная инвалидация сессии
     if (logoutBtn) {
-        logoutBtn.addEventListener('click', () => {
-            setAuthToken(null);
+        logoutBtn.addEventListener('click', async () => {
+            await logout();
             window.location.reload();
         });
     }
@@ -176,7 +176,9 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('profileHeight').value = profile.height_cm || '';
             document.getElementById('profileWeight').value = profile.weight_kg || '';
             document.getElementById('profileFitnessLevel').value = profile.fitness_level || '';
-            
+            document.getElementById('profileNutrition').value = profile.nutrition || '';
+            document.getElementById('profileSleepHours').value = profile.sleep_hours || '';
+
             const goalsCheckboxes = document.querySelectorAll('#profileForm input[type="checkbox"]');
             if (profile.goals) {
                 goalsCheckboxes.forEach(cb => {
@@ -197,11 +199,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 .map(cb => cb.value);
             
             const profileData = {
-                age: parseInt(document.getElementById('profileAge').value) || 0,
-                gender: document.getElementById('profileGender').value,
-                height_cm: parseInt(document.getElementById('profileHeight').value) || 0,
-                weight_kg: parseFloat(document.getElementById('profileWeight').value) || 0,
-                fitness_level: document.getElementById('profileFitnessLevel').value,
+                age: parseInt(document.getElementById('profileAge').value) || null,
+                gender: document.getElementById('profileGender').value || null,
+                height_cm: parseInt(document.getElementById('profileHeight').value) || null,
+                weight_kg: parseFloat(document.getElementById('profileWeight').value) || null,
+                fitness_level: document.getElementById('profileFitnessLevel').value || null,
+                nutrition: document.getElementById('profileNutrition').value || null,
+                sleep_hours: parseFloat(document.getElementById('profileSleepHours').value) || null,
                 goals: goals
             };
             
