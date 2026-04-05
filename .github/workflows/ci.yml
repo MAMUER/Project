@@ -83,9 +83,9 @@ jobs:
       - name: Get short SHA
         id: sha
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      - name: Build and push all images
+      - name: Build and push Go images
         run: |
-          services="user-service biometric-service training-service gateway ml-classifier ml-generator"
+          services="user-service biometric-service training-service gateway"
           for svc in $services; do
             echo "Building $svc with tag ${{ steps.sha.outputs.short_sha }}..."
             docker build \
@@ -97,6 +97,39 @@ jobs:
             docker push ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/$svc:latest
             echo "✅ $svc pushed"
           done
+      - name: Build and push ML images (if models exist)
+        run: |
+          # ML classifier — собираем только если модели присутствуют
+          if [ -f "models/classifier.keras" ] && [ -f "models/scaler.pkl" ]; then
+            echo "Building ml-classifier (models found)..."
+            docker build \
+              -t ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/ml-classifier:${{ steps.sha.outputs.short_sha }} \
+              -t ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/ml-classifier:latest \
+              -f cmd/ml-classifier/Dockerfile \
+              .
+            docker push ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/ml-classifier:${{ steps.sha.outputs.short_sha }}
+            docker push ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/ml-classifier:latest
+            echo "✅ ml-classifier pushed"
+          else
+            echo "⚠️  Skipping ml-classifier — models/classifier.keras or models/scaler.pkl not found"
+            echo "   Run 'python cmd/ml-classifier/train.py' locally and commit models to build ML image"
+          fi
+
+          # ML generator — собираем только если модель присутствует
+          if [ -f "models/generator.h5" ] || [ -f "models/generator.keras" ]; then
+            echo "Building ml-generator (model found)..."
+            docker build \
+              -t ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/ml-generator:${{ steps.sha.outputs.short_sha }} \
+              -t ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/ml-generator:latest \
+              -f cmd/ml-generator/Dockerfile \
+              .
+            docker push ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/ml-generator:${{ steps.sha.outputs.short_sha }}
+            docker push ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/ml-generator:latest
+            echo "✅ ml-generator pushed"
+          else
+            echo "⚠️  Skipping ml-generator — models/generator not found"
+            echo "   Run 'python cmd/ml-generator/train_gan.py' locally and commit model to build ML image"
+          fi
 
   deploy:
     name: Deploy to VPS
@@ -197,9 +230,20 @@ jobs:
         run: |
           ssh -o StrictHostKeyChecking=accept-new ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
             cd /opt/techip
+
+            # Скачаем основные сервисы (обязательные)
+            docker-compose pull user-service biometric-service training-service gateway
+
+            # Попробуем скачать ML образы — если их нет, пропустим
+            ML_SERVICES="user-service biometric-service training-service gateway"
+            docker-compose pull ml-classifier 2>/dev/null && ML_SERVICES="$ML_SERVICES ml-classifier" || echo "⚠️  Skipping ml-classifier — image not in registry"
+            docker-compose pull ml-generator 2>/dev/null && ML_SERVICES="$ML_SERVICES ml-generator" || echo "⚠️  Skipping ml-generator — image not in registry"
+
+            # Остановим старые контейнеры
             docker-compose down 2>/dev/null || true
-            docker-compose pull
-            docker-compose up -d
+
+            # Запустим только доступные сервисы
+            docker-compose up -d $ML_SERVICES
             sleep 20
             docker-compose ps
           '

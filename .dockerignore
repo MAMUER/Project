@@ -1,3 +1,9 @@
+# ==========================================
+# Fitness Platform - Docker Ignore
+# ==========================================
+# Исключает файлы из Docker build context.
+# НЕ влияет на ML-сервисы (у них свой .dockerignore).
+
 # Git
 .git
 .gitignore
@@ -13,26 +19,23 @@
 .DS_Store
 Thumbs.db
 
-# Go
+# Go — локальные артефакты (собираем внутри Docker)
 *.exe
 *.test
 *.out
 bin/
 
-# Docker
-Dockerfile
-docker-compose*.yml
-
 # Logs
 logs/
 *.log
 
-# Environment
+# Environment — секреты в образе = уязвимость!
 .env
 .env.local
 
-# ML models and datasets (large files)
-models/
+# ML models и датасеты — большие файлы
+# models/ НЕ исключён из корневого .dockerignore, т.к. ML Dockerfile
+# нуждается в COPY models/. CI пропускает ML-сборку если файлов нет.
 datasets/
 
 # Documentation
@@ -45,7 +48,7 @@ tmp/
 temp/
 *.tmp
 
-# Python
+# Python — не нужен в Go-образах
 __pycache__/
 *.pyc
 *.pyo
@@ -53,7 +56,7 @@ venv/
 venv_ml/
 .venv/
 
-# Kubernetes
+# Kubernetes — манифесты не нужны в контейнере
 configs/k8s/
 
 # CI/CD
