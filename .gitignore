@@ -49,6 +49,7 @@ temp/
 *.crt
 *.key
 *.pem
+deploy/tls/certs/
 
 # Minikube
 .minikube/
@@ -93,3 +94,8 @@ configs\k8s\secrets.yaml
 configs\config.dev.yaml
 
 docs
+scripts/run-local.ps1
+scripts/run-local.bat
+scripts/stop-local.bat
+scripts/stop-local.ps1
+scripts/test_body.json

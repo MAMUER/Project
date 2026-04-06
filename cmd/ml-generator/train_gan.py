@@ -1,19 +1,20 @@
 # cmd/ml-generator/train_gan.py
 """
-Training script for GAN-based Training Plan Generator - FULL VERSION
+Training script for GAN-based Training Plan Generator - Keras 3 compatible
 """
 import os
 import sys
 import json
 import numpy as np
 from datetime import datetime
-import tensorflow as tf
-from tensorflow import keras
-from tensorflow.keras import layers, models
+import keras
+from keras import layers, models
 import matplotlib.pyplot as plt
 
-# Suppress warnings
+os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+import tensorflow as tf
 tf.get_logger().setLevel('ERROR')
 
 # Constants

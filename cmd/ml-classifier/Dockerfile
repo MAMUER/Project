@@ -14,6 +14,8 @@ COPY cmd/ml-classifier/train.py .
 RUN mkdir -p /app/models
 
 # Копирование моделей из корневой директории
+# ВАЖНО: этот Dockerfile собирается ТОЛЬКО когда модели существуют.
+# CI пропускает эту сборку если models/classifier.keras отсутствует.
 COPY models/classifier.keras /app/models/classifier.keras
 COPY models/scaler.pkl /app/models/scaler.pkl
 

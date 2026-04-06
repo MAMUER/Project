@@ -4,7 +4,22 @@ ifneq (,$(wildcard ./.env))
     export
 endif
 
-.PHONY: proto build run test test-integration test-cover docker-up docker-down clean dev fmt vet lint
+.PHONY: proto build run test test-integration test-cover docker-up docker-down clean dev fmt vet lint certs
+
+# ... (existing targets)
+
+# Generate self-signed TLS certificates for local development
+certs:
+	@echo "Generating self-signed TLS certificates..."
+	@powershell -Command "if (!(Test-Path 'deploy/tls/certs')) { New-Item -ItemType Directory -Path 'deploy/tls/certs' -Force }"
+	openssl req -x509 -nodes -days 365 \
+		-newkey rsa:2048 \
+		-keyout deploy/tls/certs/server.key \
+		-out deploy/tls/certs/server.crt \
+		-subj "/C=RU/ST=Moscow/L=Moscow/O=FitnessPlatform/CN=localhost" \
+		-addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
+	@echo "Certificates generated in deploy/tls/certs/"
+	@echo "NOTE: These are self-signed — browsers will show a warning."
 
 BIN_DIR := bin
 

@@ -1,6 +1,6 @@
 # cmd/ml-classifier/train.py
 """
-Training script for ML Classifier - FIXED v2.1
+Training script for ML Classifier - Keras 3 compatible
 """
 import os
 import sys
@@ -12,13 +12,15 @@ from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import classification_report, confusion_matrix
 from sklearn.utils.class_weight import compute_class_weight
-import tensorflow as tf
-from tensorflow import keras # type: ignore
-from tensorflow.keras import layers, models, callbacks # type: ignore
+import keras
+from keras import layers, models, callbacks
 import joblib
 import matplotlib.pyplot as plt
 
+os.environ['KERAS_BACKEND'] = 'tensorflow'
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+import tensorflow as tf
 tf.get_logger().setLevel('ERROR')
 
 TRAINING_CLASSES = {
@@ -126,15 +128,15 @@ def train_model():
     class_weight_dict = dict(enumerate(class_weights))
     print(f"Веса классов: {class_weight_dict}")
     
-    early_stop = callbacks.EarlyStopping(monitor='val_loss', patience=25, restore_best_weights=True, verbose=1)
-    reduce_lr = callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=10, min_lr=1e-6, verbose=1)
+    early_stop = callbacks.EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True, verbose=1)
+    reduce_lr = callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.5, patience=3, min_lr=1e-6, verbose=1)
     checkpoint = callbacks.ModelCheckpoint('../../models/classifier.keras', monitor='val_accuracy', save_best_only=True, verbose=1)
-    
+
     print("\n[5/5] Обучение...")
     history = model.fit(
         X_train_scaled, y_train,
         validation_data=(X_test_scaled, y_test),
-        epochs=50,
+        epochs=10,
         batch_size=256,
         class_weight=class_weight_dict,
         callbacks=[early_stop, reduce_lr, checkpoint],

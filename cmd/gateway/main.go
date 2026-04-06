@@ -20,7 +20,9 @@ import (
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -40,6 +42,39 @@ func ptrInt32(v int32) *int32       { return &v }
 func ptrString(v string) *string    { return &v }
 func ptrFloat64(v float64) *float64 { return &v }
 func ptrFloat32(v float32) *float32 { return &v }
+
+// grpcToHTTPStatus maps gRPC error codes to HTTP status codes.
+// Returns the mapped HTTP status code and a user-friendly message.
+func grpcToHTTPStatus(err error) (int, string) {
+	if err == nil {
+		return http.StatusOK, ""
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		return http.StatusInternalServerError, "internal server error"
+	}
+	msg := st.Message()
+	switch st.Code() {
+	case codes.InvalidArgument:
+		return http.StatusBadRequest, msg
+	case codes.AlreadyExists:
+		return http.StatusConflict, msg
+	case codes.NotFound:
+		return http.StatusNotFound, msg
+	case codes.Unauthenticated:
+		return http.StatusUnauthorized, msg
+	case codes.PermissionDenied:
+		return http.StatusForbidden, msg
+	case codes.DeadlineExceeded:
+		return http.StatusGatewayTimeout, msg
+	case codes.Unavailable:
+		return http.StatusServiceUnavailable, msg
+	case codes.Internal:
+		return http.StatusInternalServerError, msg
+	default:
+		return http.StatusInternalServerError, msg
+	}
+}
 
 // ========== Auth Handlers ==========
 
@@ -63,8 +98,9 @@ func (g *gateway) registerHandler(w http.ResponseWriter, r *http.Request) {
 		Role:     req.Role,
 	})
 	if err != nil {
+		httpCode, errMsg := grpcToHTTPStatus(err)
 		g.log.Error("Register failed", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
@@ -87,18 +123,23 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, err := g.userClient.Login(r.Context(), &userpb.LoginRequest{
+	resp, err := g.userClient.Login(r.Context(), &userpb.LoginRequest{
 		Email:    req.Email,
 		Password: req.Password,
 	})
 	if err != nil {
+		httpCode, errMsg := grpcToHTTPStatus(err)
 		g.log.Error("Login failed", zap.Error(err), zap.String("email", req.Email))
-		http.Error(w, err.Error(), http.StatusUnauthorized)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
-	// ✅ Исправлено: проверяем ошибку Encode
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":       "ok",
+		"access_token": resp.GetAccessToken(),
+		"token_type":   resp.GetTokenType(),
+		"expires_in":   resp.GetExpiresIn(),
+	}); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -142,7 +183,8 @@ func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		g.log.Error("Failed to get profile", zap.Error(err), zap.String("user_id", userID))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
@@ -197,7 +239,8 @@ func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		g.log.Error("Failed to update profile", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
@@ -243,12 +286,13 @@ func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Reque
 	})
 	if err != nil {
 		g.log.Error("Failed to add biometric record", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
-	// ✅ Исправлено: проверяем ошибку Encode
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "created"}); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -290,7 +334,8 @@ func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Requ
 	})
 	if err != nil {
 		g.log.Error("Failed to get biometric records", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
@@ -342,7 +387,8 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		g.log.Error("Failed to generate plan", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
@@ -381,7 +427,8 @@ func (g *gateway) getPlansHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		g.log.Error("Failed to get plans", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
@@ -421,7 +468,8 @@ func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request)
 	})
 	if err != nil {
 		g.log.Error("Failed to complete workout", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
@@ -445,7 +493,8 @@ func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		g.log.Error("Failed to get progress", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
@@ -476,17 +525,18 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 		// Используем дефолтное значение
 	}
 
-	// Формируем фичи для классификации
-	features := extractFeatures(bioResp)
+	// Формируем данные для классификации в формате ML сервиса
+	mlPayload := extractMLPayload(bioResp)
 
 	// ✅ Создаём контекст с таймаутом
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
 	// ✅ Создаём запрос с контекстом
+	reqBody, _ := json.Marshal(mlPayload)
 	req, err := http.NewRequestWithContext(ctx, "POST",
 		g.mlClassifierURL+"/classify",
-		bytes.NewReader(features))
+		bytes.NewReader(reqBody))
 	if err != nil {
 		g.log.Error("Failed to create ML classifier request", zap.Error(err))
 		http.Error(w, "classification service unavailable", http.StatusServiceUnavailable)
@@ -552,7 +602,8 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	profile, err := g.userClient.GetProfile(r.Context(), &userpb.GetProfileRequest{UserId: userID})
 	if err != nil {
 		g.log.Error("Failed to get profile", zap.Error(err))
-		http.Error(w, "failed to get profile", http.StatusInternalServerError)
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
 		return
 	}
 
@@ -625,7 +676,10 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 			AvailableDays:       availableDays,
 		})
 		if err != nil {
+			httpCode, errMsg := grpcToHTTPStatus(err)
 			g.log.Warn("Failed to save plan to training service", zap.Error(err))
+			http.Error(w, errMsg, httpCode)
+			return
 		}
 	}
 
@@ -651,7 +705,7 @@ func (g *gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // extractFeatures извлекает фичи из биометрических данных для ML-классификации
-func extractFeatures(bioResp *biometricpb.BiometricRecord) []byte { // ← pb → biometricpb
+func extractMLPayload(bioResp *biometricpb.BiometricRecord) map[string]interface{} {
 	// Дефолтные значения при отсутствии данных
 	heartRate := 70.0
 	hrv := 50.0
@@ -680,19 +734,17 @@ func extractFeatures(bioResp *biometricpb.BiometricRecord) []byte { // ← pb �
 		}
 	}
 
-	// Формируем JSON с фичами
-	features := map[string]float64{
-		"heart_rate":               heartRate,
-		"heart_rate_variability":   hrv,
-		"spo2":                     spo2,
-		"temperature":              temp,
-		"blood_pressure_systolic":  bpSystolic,
-		"blood_pressure_diastolic": bpDiastolic,
-		"sleep_hours":              sleepHours,
+	return map[string]interface{}{
+		"physiological_data": map[string]float64{
+			"heart_rate":               heartRate,
+			"heart_rate_variability":   hrv,
+			"spo2":                     spo2,
+			"temperature":              temp,
+			"blood_pressure_systolic":  bpSystolic,
+			"blood_pressure_diastolic": bpDiastolic,
+			"sleep_hours":              sleepHours,
+		},
 	}
-
-	result, _ := json.Marshal(features)
-	return result
 }
 
 // ========== Main ==========
@@ -823,10 +875,9 @@ func main() {
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./web/")))
 
 	// Middleware
+	// Security headers (CSP, HSTS, etc.) are handled by nginx — no duplication here
 	handler := middleware.RequestID(r)
 	handler = middleware.RateLimit(handler)
-	handler = middleware.RemoveServerHeader(handler)
-	handler = middleware.SecurityHeaders(handler)
 
 	log.Info("Gateway starting",
 		zap.String("port", port),

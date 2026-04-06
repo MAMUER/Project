@@ -7,8 +7,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras
+import keras  # standalone Keras 3 (via KERAS_BACKEND=tensorflow)
 import os
 import json
 
@@ -106,7 +105,7 @@ def load_generator():
     """Load trained generator model"""
     global generator
     
-    model_path = '../../models/generator.h5'
+    model_path = '/app/models/generator.h5'
     
     if os.path.exists(model_path):
         generator = keras.models.load_model(model_path)

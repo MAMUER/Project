@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:-fitness}
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ../scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
@@ -24,7 +24,7 @@ services:
     image: redis:7-alpine
     container_name: fitness-redis
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -40,8 +40,8 @@ services:
     image: rabbitmq:3.13-management-alpine
     container_name: fitness-rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "${RABBITMQ_PORT:-5672}:5672"
+      - "${RABBITMQ_MGMT_PORT:-15672}:15672"
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
@@ -63,12 +63,12 @@ services:
       dockerfile: cmd/ml-classifier/Dockerfile
     container_name: fitness-ml-classifier
     ports:
-      - "8001:8001"
+      - "${ML_CLASSIFIER_PORT:-8001}:8001"
     volumes:
       - ../models:/app/models
       - ../datasets:/app/datasets
     environment:
-      - ML_CLASSIFIER_PORT=8001
+      - KERAS_BACKEND=tensorflow
     networks:
       - fitness-network
     restart: unless-stopped
@@ -79,11 +79,11 @@ services:
       dockerfile: cmd/ml-generator/Dockerfile
     container_name: fitness-ml-generator
     ports:
-      - "8002:8002"
+      - "${ML_GENERATOR_PORT:-8002}:8002"
     volumes:
       - ../models:/app/models
     environment:
-      - ML_GENERATOR_PORT=8002
+      - KERAS_BACKEND=tensorflow
     networks:
       - fitness-network
     restart: unless-stopped
@@ -95,13 +95,15 @@ services:
       dockerfile: cmd/user-service/Dockerfile
     container_name: fitness-user-service
     ports:
-      - "50051:50051"
+      - "${USER_SERVICE_PORT:-50051}:50051"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - DB_NAME=${DB_NAME:-fitness}
+      - DB_SSLMODE=disable
+      - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - REDIS_HOST=redis
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
     depends_on:
@@ -119,13 +121,14 @@ services:
       dockerfile: cmd/biometric-service/Dockerfile
     container_name: fitness-biometric-service
     ports:
-      - "50052:50052"
+      - "${BIOMETRIC_SERVICE_PORT:-50052}:50052"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - DB_NAME=${DB_NAME:-fitness}
+      - DB_SSLMODE=disable
       - REDIS_HOST=redis
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
     depends_on:
@@ -143,13 +146,14 @@ services:
       dockerfile: cmd/training-service/Dockerfile
     container_name: fitness-training-service
     ports:
-      - "50053:50053"
+      - "${TRAINING_SERVICE_PORT:-50053}:50053"
     environment:
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=${DB_USER:-postgres}
       - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
       - DB_NAME=${DB_NAME:-fitness}
+      - DB_SSLMODE=disable
       - REDIS_HOST=redis
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
       - ML_CLASSIFIER_URL=http://ml-classifier:8001
@@ -173,28 +177,34 @@ services:
       dockerfile: cmd/gateway/Dockerfile
     container_name: fitness-gateway
     ports:
-      - "8080:8080"
+      - "${GATEWAY_PORT:-8080}:8080"
     environment:
       - USER_SERVICE_ADDR=user-service:50051
       - BIOMETRIC_SERVICE_ADDR=biometric-service:50052
       - TRAINING_SERVICE_ADDR=training-service:50053
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
+      - ML_CLASSIFIER_URL=http://ml-classifier:8001
+      - ML_GENERATOR_URL=http://ml-generator:8002
     depends_on:
       - user-service
       - biometric-service
       - training-service
+      - ml-classifier
+      - ml-generator
     networks:
       - fitness-network
     restart: unless-stopped
 
-  # ✅ Nginx Load Balancer (упрощённый)
+  # Nginx Load Balancer — full-featured
+  # SSL termination + rate limiting + security headers + custom error pages
   nginx-lb:
     image: nginx:alpine
     container_name: fitness-nginx-lb
     ports:
-      - "8081:8080"
+      - "${NGINX_HTTPS_PORT:-8443}:8443"
     volumes:
-      - ./deploy/lb/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../deploy/lb/default.conf:/etc/nginx/conf.d/default.conf:ro
+      - ../deploy/tls/certs:/etc/nginx/certs:ro
       - ../web/static/errors:/usr/share/nginx/html/errors:ro
     depends_on:
       - gateway

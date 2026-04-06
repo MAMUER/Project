@@ -1,3 +1,6 @@
+# syntax=docker/dockerfile:1
+
+# ========== Builder stage ==========
 FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates
@@ -7,11 +10,18 @@ WORKDIR /app
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY . .
+COPY cmd/biometric-service/ ./cmd/biometric-service/
+COPY internal/ ./internal/
+COPY pkg/ ./pkg/
+COPY api/ ./api/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/biometric-service ./cmd/biometric-service
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s" \
+    -o /app/bin/biometric-service \
+    ./cmd/biometric-service
 
-FROM alpine:latest
+# ========== Runtime stage ==========
+FROM alpine:3.21
 
 RUN apk --no-cache add ca-certificates tzdata
 
@@ -26,4 +36,4 @@ USER appuser
 
 EXPOSE 50052
 
-CMD ["./biometric-service"]
+ENTRYPOINT ["./biometric-service"]

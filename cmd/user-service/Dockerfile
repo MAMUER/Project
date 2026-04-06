@@ -1,20 +1,34 @@
+# syntax=docker/dockerfile:1
+
+# ========== Builder stage ==========
 FROM golang:1.25-alpine AS builder
 
 RUN apk add --no-cache git ca-certificates
 
 WORKDIR /app
 
+# Кэшируем загрузку зависимостей
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY . .
+# Копируем только нужный код
+COPY cmd/user-service/ ./cmd/user-service/
+COPY internal/ ./internal/
+COPY pkg/ ./pkg/
+COPY api/ ./api/
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/bin/user-service ./cmd/user-service
+# Собираем статический бинарник
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags="-w -s" \
+    -o /app/bin/user-service \
+    ./cmd/user-service
 
-FROM alpine:latest
+# ========== Runtime stage ==========
+FROM alpine:3.21
 
 RUN apk --no-cache add ca-certificates tzdata
 
+# Создаём непривилегированного пользователя
 RUN addgroup -g 1001 -S appgroup && \
     adduser -u 1001 -S appuser -G appgroup
 
@@ -26,4 +40,4 @@ USER appuser
 
 EXPOSE 50051
 
-CMD ["./user-service"]
+ENTRYPOINT ["./user-service"]

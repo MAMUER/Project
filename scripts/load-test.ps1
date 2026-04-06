@@ -2,7 +2,7 @@
 # Load Testing Script — ТРЕБУЕТ k6!
 
 param(
-    [string]$BASE_URL = "http://localhost:8080",
+    [string]$BASE_URL = "https://localhost:8443",
     [string]$DURATION = "2m",
     [int]$VUS = 50
 )

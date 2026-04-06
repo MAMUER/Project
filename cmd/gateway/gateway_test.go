@@ -120,7 +120,7 @@ func TestGateway_RegisterHandler(t *testing.T) {
 			},
 			mockResponse:   nil,
 			mockError:      status.Error(codes.AlreadyExists, "email already exists"),
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus: http.StatusConflict,
 		},
 	}
 
@@ -202,7 +202,7 @@ func TestGateway_GetBiometricRecordsHandler(t *testing.T) {
 			contextUserID:  "user-123",
 			mockResponse:   nil,
 			mockError:      status.Error(codes.NotFound, "user not found"),
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus: http.StatusNotFound,
 		},
 	}
 
@@ -311,15 +311,25 @@ func TestExtractFeatures_Comprehensive(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := extractFeatures(tt.bioResp)
+			result := extractMLPayload(tt.bioResp)
 
-			var features map[string]float64
-			err := json.Unmarshal(result, &features)
-			require.NoError(t, err)
+			// Extract physiological_data from the nested structure
+			physData, ok := result["physiological_data"].(map[string]float64)
+			if !ok {
+				// Try with interface{} values and convert
+				physDataMap, ok := result["physiological_data"].(map[string]interface{})
+				require.True(t, ok, "physiological_data should be a map")
+				physData = make(map[string]float64)
+				for k, v := range physDataMap {
+					if f, ok := v.(float64); ok {
+						physData[k] = f
+					}
+				}
+			}
 
 			for key, expectedValue := range tt.expectedValues {
-				assert.Contains(t, features, key)
-				assert.InDelta(t, expectedValue, features[key], 0.001,
+				assert.Contains(t, physData, key)
+				assert.InDelta(t, expectedValue, physData[key], 0.001,
 					"Value mismatch for key %s", key)
 			}
 		})

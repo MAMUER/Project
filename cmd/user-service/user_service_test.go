@@ -325,7 +325,7 @@ func TestUserServer_GetProfile(t *testing.T) {
 					}).AddRow(
 						"user-123", "test@example.com", "Test User", "client",
 						30, "male", 180, 75.5, "intermediate",
-						`["weight_loss"]`, `[]`, now, now,
+						"{weight_loss}", "{}", now, now,
 					))
 			},
 			wantCode: codes.OK,
@@ -417,7 +417,7 @@ func TestUserServer_UpdateProfile(t *testing.T) {
 					}).AddRow(
 						"user-123", "test@example.com", "Test User", "client",
 						31, "male", 180, 74.0, "advanced",
-						`["muscle_gain"]`, `[]`, now, now,
+						"{muscle_gain}", "{}", now, now,
 					))
 			},
 			wantCode: codes.OK,

@@ -7,8 +7,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 import numpy as np
-import tensorflow as tf
-from tensorflow import keras # type: ignore
+import keras  # standalone Keras 3 (via KERAS_BACKEND=tensorflow)
 import joblib
 import os
 import json
@@ -127,8 +126,8 @@ def load_models():
     """Load trained models"""
     global model, scaler
     
-    model_path = '../../models/classifier.keras'
-    scaler_path = '../../models/scaler.pkl'
+    model_path = '/app/models/classifier.keras'
+    scaler_path = '/app/models/scaler.pkl'
     
     if os.path.exists(model_path):
         model = keras.models.load_model(model_path)

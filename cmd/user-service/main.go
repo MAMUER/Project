@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net"
 	"os"
 
@@ -15,24 +14,13 @@ import (
 	"github.com/MAMUER/Project/internal/validator"
 	"github.com/MAMUER/Project/pkg/models"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"go.uber.org/zap"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
-
-// safeJSONArray безопасно создает JSON массив из уже санитизированных строк
-func safeJSONArray(items []string) (string, error) {
-	if len(items) == 0 {
-		return "[]", nil
-	}
-	jsonBytes, err := json.Marshal(items)
-	if err != nil {
-		return "[]", err
-	}
-	return string(jsonBytes), nil
-}
 
 type userServer struct {
 	pb.UnimplementedUserServiceServer
@@ -150,13 +138,12 @@ func (s *userServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) 
 	var heightCm sql.NullInt32
 	var weightKg sql.NullFloat64
 	var fitnessLevel sql.NullString
-	var goals, contraindications string
 
 	err := s.db.QueryRow(`
         SELECT u.id, u.email, u.full_name, u.role,
                p.age, p.gender, p.height_cm, p.weight_kg, p.fitness_level,
-               COALESCE(p.goals::text, '[]') as goals,
-               COALESCE(p.contraindications::text, '[]') as contraindications,
+               p.goals,
+               p.contraindications,
                u.created_at, u.updated_at
         FROM users u
         LEFT JOIN user_profiles p ON u.id = p.user_id
@@ -164,7 +151,7 @@ func (s *userServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) 
     `, req.UserId).Scan(
 		&profile.UserId, &profile.Email, &profile.FullName, &profile.Role,
 		&age, &gender, &heightCm, &weightKg, &fitnessLevel,
-		&goals, &contraindications,
+		pq.Array(&profile.Goals), pq.Array(&profile.Contraindications),
 		&profile.CreatedAt, &profile.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
@@ -201,18 +188,6 @@ func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReq
 		return nil, err
 	}
 
-	// Безопасное создание JSON массивов с санитизацией
-	goalsJSON, err := safeJSONArray(sanitize.Strings(req.Goals))
-	if err != nil {
-		s.log.Error("Failed to marshal goals", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to process goals")
-	}
-	contraindicationsJSON, err := safeJSONArray(sanitize.Strings(req.Contraindications))
-	if err != nil {
-		s.log.Error("Failed to marshal contraindications", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to process contraindications")
-	}
-
 	query := `
         INSERT INTO user_profiles (user_id, age, gender, height_cm, weight_kg, fitness_level, goals, contraindications, updated_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
@@ -227,10 +202,10 @@ func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReq
             updated_at = NOW()
     `
 
-	_, err = s.db.ExecContext(ctx, query,
+	_, err := s.db.ExecContext(ctx, query,
 		req.UserId,
 		req.Age, req.Gender, req.HeightCm, req.WeightKg, req.FitnessLevel,
-		goalsJSON, contraindicationsJSON,
+		pq.Array(req.Goals), pq.Array(req.Contraindications),
 	)
 	if err != nil {
 		s.log.Error("Failed to update profile", zap.Error(err), zap.String("user_id", req.UserId))

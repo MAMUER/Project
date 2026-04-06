@@ -20,7 +20,7 @@ export const options = {
     },
 };
 
-const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+const BASE_URL = __ENV.BASE_URL || 'https://localhost:8443';
 const TEST_USER = {
     email: 'loadtest@example.com',
     password: 'LoadTest123!',
