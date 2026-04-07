@@ -77,6 +77,15 @@ func TestUserServer_Register(t *testing.T) {
 					).
 					WillReturnResult(sqlmock.NewResult(0, 1))
 
+				// Insert email verification token (expires_at and used are in SQL)
+				mock.ExpectExec(`INSERT INTO email_verifications`).
+					WithArgs(
+						sqlmock.AnyArg(), // user_id
+						"test@example.com",
+						sqlmock.AnyArg(), // token
+					).
+					WillReturnResult(sqlmock.NewResult(0, 1))
+
 				// Insert profile
 				mock.ExpectExec(regexp.QuoteMeta("INSERT INTO user_profiles (user_id) VALUES ($1)")).
 					WithArgs(sqlmock.AnyArg()).
@@ -210,6 +219,9 @@ func TestUserServer_Login(t *testing.T) {
 				Password: "securepass123",
 			},
 			mockFn: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT email_confirmed FROM users WHERE email = \$1`).
+					WithArgs("test@example.com").
+					WillReturnRows(sqlmock.NewRows([]string{"email_confirmed"}).AddRow(true))
 				mock.ExpectQuery(regexp.QuoteMeta("SELECT id, email, password_hash, role FROM users WHERE email = $1")).
 					WithArgs("test@example.com").
 					WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash", "role"}).
@@ -224,7 +236,7 @@ func TestUserServer_Login(t *testing.T) {
 				Password: "somepassword",
 			},
 			mockFn: func(mock sqlmock.Sqlmock) {
-				mock.ExpectQuery(regexp.QuoteMeta("SELECT id, email, password_hash, role FROM users WHERE email = $1")).
+				mock.ExpectQuery(`SELECT email_confirmed FROM users WHERE email = \$1`).
 					WithArgs("unknown@example.com").
 					WillReturnError(sql.ErrNoRows)
 			},
@@ -238,6 +250,9 @@ func TestUserServer_Login(t *testing.T) {
 				Password: "wrongpassword",
 			},
 			mockFn: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT email_confirmed FROM users WHERE email = \$1`).
+					WithArgs("test@example.com").
+					WillReturnRows(sqlmock.NewRows([]string{"email_confirmed"}).AddRow(true))
 				mock.ExpectQuery(regexp.QuoteMeta("SELECT id, email, password_hash, role FROM users WHERE email = $1")).
 					WithArgs("test@example.com").
 					WillReturnRows(sqlmock.NewRows([]string{"id", "email", "password_hash", "role"}).
@@ -700,4 +715,99 @@ func TestValidateLoginRequest(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ========== Email Confirmation Tests ==========
+
+func TestUserServer_ConfirmEmail(t *testing.T) {
+	tests := []struct {
+		name       string
+		req        *pb.ConfirmEmailRequest
+		mockFn     func(mock sqlmock.Sqlmock)
+		wantCode   codes.Code
+		wantErrMsg string
+	}{
+		{
+			name: "valid confirmation",
+			req:  &pb.ConfirmEmailRequest{Token: "abc123"},
+			mockFn: func(mock sqlmock.Sqlmock) {
+				now := time.Now()
+				mock.ExpectQuery(`SELECT user_id, email, used, expires_at FROM email_verifications WHERE token = \$1`).
+					WithArgs("abc123").
+					WillReturnRows(sqlmock.NewRows([]string{"user_id", "email", "used", "expires_at"}).
+						AddRow("user-123", "test@example.com", false, now.Add(24*time.Hour)))
+				mock.ExpectExec(`UPDATE email_verifications SET used = true WHERE token = \$1`).
+					WithArgs("abc123").
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectExec(`UPDATE users SET email_confirmed = true WHERE id = \$1`).
+					WithArgs("user-123").
+					WillReturnResult(sqlmock.NewResult(0, 1))
+			},
+			wantCode: codes.OK,
+		},
+		{
+			name: "token not found",
+			req:  &pb.ConfirmEmailRequest{Token: "invalid"},
+			mockFn: func(mock sqlmock.Sqlmock) {
+				mock.ExpectQuery(`SELECT user_id, email, used, expires_at FROM email_verifications WHERE token = \$1`).
+					WithArgs("invalid").
+					WillReturnError(sql.ErrNoRows)
+			},
+			wantCode:   codes.InvalidArgument,
+			wantErrMsg: "invalid verification token",
+		},
+		{
+			name:       "empty token",
+			req:        &pb.ConfirmEmailRequest{Token: ""},
+			mockFn:     func(mock sqlmock.Sqlmock) {},
+			wantCode:   codes.InvalidArgument,
+			wantErrMsg: "token is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv, mock, cleanup := newTestServer(t)
+			defer cleanup()
+			tt.mockFn(mock)
+
+			resp, err := srv.ConfirmEmail(context.Background(), tt.req)
+
+			if tt.wantCode == codes.OK {
+				assert.NoError(t, err)
+				assert.NotNil(t, resp)
+				assert.NotEmpty(t, resp.UserId)
+			} else {
+				assert.Error(t, err)
+				st, ok := status.FromError(err)
+				require.True(t, ok)
+				assert.Equal(t, tt.wantCode, st.Code())
+				if tt.wantErrMsg != "" {
+					assert.Contains(t, st.Message(), tt.wantErrMsg)
+				}
+			}
+			assert.NoError(t, mock.ExpectationsWereMet())
+		})
+	}
+}
+
+func TestUserServer_Login_UnconfirmedEmail(t *testing.T) {
+	srv, mock, cleanup := newTestServer(t)
+	defer cleanup()
+
+	mock.ExpectQuery(`SELECT email_confirmed FROM users WHERE email = \$1`).
+		WithArgs("test@example.com").
+		WillReturnRows(sqlmock.NewRows([]string{"email_confirmed"}).AddRow(false))
+
+	_, err := srv.Login(context.Background(), &pb.LoginRequest{
+		Email:    "test@example.com",
+		Password: "securepass123",
+	})
+
+	require.Error(t, err)
+	st, ok := status.FromError(err)
+	require.True(t, ok)
+	assert.Equal(t, codes.Unauthenticated, st.Code())
+	assert.Contains(t, st.Message(), "not confirmed")
+	assert.NoError(t, mock.ExpectationsWereMet())
 }

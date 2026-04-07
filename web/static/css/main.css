@@ -188,6 +188,77 @@ body {
 
 .auth-error.hidden { display: none; }
 
+.auth-success {
+    background: rgba(48, 209, 88, 0.15);
+    color: var(--green);
+    padding: 12px 16px;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    text-align: center;
+    max-width: 340px;
+    margin-top: 4px;
+}
+
+.auth-success.hidden { display: none; }
+
+/* Verification screen */
+.verify-icon {
+    font-size: 64px;
+    text-align: center;
+    margin-bottom: 16px;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.verify-text {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 15px;
+    margin-bottom: 8px;
+}
+
+.verify-text strong {
+    color: var(--text-primary);
+    word-break: break-all;
+}
+
+.verify-hint {
+    text-align: center;
+    font-size: 13px;
+    color: var(--orange);
+    margin: 12px 0 8px;
+}
+
+.verify-token-box {
+    background: var(--bg-input);
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    word-break: break-all;
+    cursor: pointer;
+    text-align: center;
+    color: var(--teal);
+    transition: background 0.2s;
+    user-select: all;
+}
+
+.verify-token-box:active {
+    background: #48484a;
+}
+
+#verifyToken {
+    width: 100%;
+    padding: 14px;
+    background: var(--bg-input);
+    border: 2px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    font-size: 15px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    outline: none;
+    margin-top: 8px;
+}
+
 /* ===== Buttons ===== */
 .btn-primary {
     width: 100%;

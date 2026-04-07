@@ -110,6 +110,8 @@ services:
       context: ..
       dockerfile: cmd/user-service/Dockerfile
     container_name: fitness-user-service
+    env_file:
+      - ../.env
     ports:
       - "${USER_SERVICE_PORT:-50051}:50051"
     environment:
@@ -122,11 +124,33 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - REDIS_HOST=redis
       - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER required}:${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS required}@rabbitmq:5672/
+      # SMTP — берётся из .env файла
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@fitpulse.app}
+      - SMTP_TLS=${SMTP_TLS:-false}
+      - EMAIL_DAILY_LIMIT=${EMAIL_DAILY_LIMIT:-100}
+      - EMAIL_SKIP_DOMAINS=${EMAIL_SKIP_DOMAINS:-}
+      - BASE_URL=http://localhost:8443
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - fitness-network
+    restart: unless-stopped
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: fitness-mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      - MP_MAX_MESSAGES=5000
     networks:
       - fitness-network
     restart: unless-stopped
@@ -218,6 +242,8 @@ services:
     container_name: fitness-gateway
     ports:
       - "${GATEWAY_PORT:-8080}:8080"
+    volumes:
+      - ../web:/app/web:ro
     environment:
       - USER_SERVICE_ADDR=user-service:50051
       - BIOMETRIC_SERVICE_ADDR=biometric-service:50052

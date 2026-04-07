@@ -153,7 +153,27 @@ Sec "1. AUTH"
 Write-Host "Email: $TestEmail" -ForegroundColor DarkGray
 
 $rb = @{email=$TestEmail;password="TestPass123!";full_name="API Test User";role="client"} | ConvertTo-Json
-Test-EP -Name "Register" -Method POST -Path "/api/v1/register" -Body $rb -ExpSt 200
+$rr = Test-EP -Name "Register" -Method POST -Path "/api/v1/register" -Body $rb -ExpSt 200
+
+# Extract verification token from registration response (dev mode)
+$verifyToken = ""
+if ($rr.StatusCode -eq 200 -and $rr.Content) {
+    try {
+        $rj = $rr.Content | ConvertFrom-Json
+        if ($rj.message) {
+            if ($rj.message -match "token \(dev only\):\s*([a-f0-9]+)") {
+                $verifyToken = $Matches[1]
+                Write-Host "  Verification token captured" -ForegroundColor DarkGray
+            }
+        }
+    } catch {}
+}
+
+# Confirm email before login
+if ($verifyToken) {
+    $confirmBody = @{token=$verifyToken} | ConvertTo-Json
+    Test-EP -Name "Confirm Email" -Method POST -Path "/api/v1/auth/confirm" -Body $confirmBody -ExpSt 200
+}
 
 Test-EP -Name "Register (dup)" -Method POST -Path "/api/v1/register" -Body $rb -ExpSt 409
 Test-EP -Name "Register (bad email)" -Method POST -Path "/api/v1/register" -Body (@{email="bad";password="TestPass123!";full_name="B";role="c"}|ConvertTo-Json) -ExpSt 400

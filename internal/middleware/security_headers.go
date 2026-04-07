@@ -39,7 +39,7 @@ func SecurityHeaders(next http.Handler) http.Handler {
 		// Требование #12: Строгая Content Security Policy
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; "+
-				"script-src 'self'; "+
+				"script-src 'self' https://cdn.jsdelivr.net; "+
 				"style-src 'self' 'unsafe-inline'; "+
 				"img-src 'self' data:; "+
 				"font-src 'self'; "+

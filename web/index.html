@@ -20,7 +20,7 @@
                     <p>Ваш персональный AI-тренер</p>
                 </div>
 
-                <div id="loginForm" class="auth-form">
+                <form id="loginForm" class="auth-form" novalidate>
                     <div class="field">
                         <input type="email" id="loginEmail" placeholder="Email" autocomplete="email" required maxlength="254" inputmode="email">
                         <div class="field-error" id="loginEmailError"></div>
@@ -32,9 +32,9 @@
                     <div class="auth-error hidden" id="loginError"></div>
                     <button type="submit" class="btn-primary" id="loginBtn">Войти</button>
                     <p class="auth-switch">Нет аккаунта? <a href="#" id="toRegister">Создать</a></p>
-                </div>
+                </form>
 
-                <div id="registerForm" class="auth-form hidden">
+                <form id="registerForm" class="auth-form hidden" novalidate>
                     <div class="field">
                         <input type="text" id="regName" placeholder="Имя" autocomplete="name" required maxlength="100" minlength="2" pattern="[A-Za-zА-Яа-яЁё\s\-]+">
                         <div class="field-error" id="regNameError"></div>
@@ -56,7 +56,24 @@
                     <div class="auth-error hidden" id="registerError"></div>
                     <button type="submit" class="btn-primary" id="registerBtn" disabled>Создать аккаунт</button>
                     <p class="auth-switch">Уже есть? <a href="#" id="toLogin">Войти</a></p>
-                </div>
+                </form>
+
+                <form id="verifyForm" class="auth-form hidden" novalidate>
+                    <div class="verify-icon">📧</div>
+                    <h2>Проверьте почту</h2>
+                    <p class="verify-text">Мы отправили письмо на <strong id="verifyEmail"></strong></p>
+                    <p class="verify-text">Перейдите по ссылке из письма, чтобы подтвердить email и войти.</p>
+                    <div class="verify-token-section hidden" id="devTokenSection">
+                        <p class="verify-hint">🔧 Режим разработки — скопируйте токен:</p>
+                        <div class="verify-token-box" id="devToken" onclick="copyToken()"></div>
+                        <p class="verify-hint">Или вставьте токен ниже:</p>
+                        <input type="text" id="verifyToken" placeholder="Токен из письма">
+                        <button type="submit" class="btn-primary" id="confirmBtn">Подтвердить email</button>
+                    </div>
+                    <div class="auth-error hidden" id="confirmError"></div>
+                    <div class="auth-success hidden" id="confirmSuccess">✅ Email подтверждён!</div>
+                    <p class="auth-switch"><a href="#" id="backToLogin">← Вернуться ко входу</a></p>
+                </form>
 
                 <div id="authError" class="auth-error hidden"></div>
             </div>

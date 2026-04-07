@@ -298,7 +298,7 @@ const file_ml_proto_rawDesc = "" +
 	"\tplan_data\x18\x02 \x01(\fR\bplanData2y\n" +
 	"\tMLService\x125\n" +
 	"\bClassify\x12\x13.ml.ClassifyRequest\x1a\x14.ml.ClassifyResponse\x125\n" +
-	"\bGenerate\x12\x13.ml.GenerateRequest\x1a\x14.ml.GenerateResponseB(Z&github.com/MAMUER/Project/api/proto/mlb\x06proto3"
+	"\bGenerate\x12\x13.ml.GenerateRequest\x1a\x14.ml.GenerateResponseB&Z$github.com/MAMUER/Project/api/gen/mlb\x06proto3"
 
 var (
 	file_ml_proto_rawDescOnce sync.Once

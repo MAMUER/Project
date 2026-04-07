@@ -8,9 +8,23 @@ CREATE TABLE IF NOT EXISTS users (
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(255),
     role VARCHAR(50) NOT NULL DEFAULT 'client',
+    email_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Токены подтверждения email
+CREATE TABLE IF NOT EXISTS email_verifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_token ON email_verifications(token);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_user ON email_verifications(user_id);
 
 -- Таблица профилей
 CREATE TABLE IF NOT EXISTS user_profiles (
@@ -101,3 +115,29 @@ INSERT INTO achievements (id, name, description, criteria) VALUES
     (gen_random_uuid(), 'Сто дней', '100 дней активности', '{"type": "active_days", "threshold": 100}'),
     (gen_random_uuid(), 'Мастер спорта', '1000 завершенных тренировок', '{"type": "workout_count", "threshold": 1000}')
 ON CONFLICT DO NOTHING;
+
+-- ==========================================
+-- Миграции: добавление email verification
+-- ==========================================
+
+-- Добавляем колонку email_confirmed (если ещё нет)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='email_confirmed') THEN
+        ALTER TABLE users ADD COLUMN email_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+    END IF;
+END $$;
+
+-- Создаём таблицу email_verifications (если ещё нет)
+CREATE TABLE IF NOT EXISTS email_verifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email VARCHAR(255) NOT NULL,
+    token VARCHAR(255) UNIQUE NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verifications_token ON email_verifications(token);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_user ON email_verifications(user_id);

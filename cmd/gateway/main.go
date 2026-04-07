@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -56,37 +57,84 @@ func ptrFloat64(v float64) *float64 { return &v }
 func ptrFloat32(v float32) *float32 { return &v }
 
 // grpcToHTTPStatus maps gRPC error codes to HTTP status codes.
-// Returns the mapped HTTP status code and a user-friendly message.
+// Returns the mapped HTTP status code and a user-friendly message in Russian.
 func grpcToHTTPStatus(err error) (int, string) {
 	if err == nil {
 		return http.StatusOK, ""
 	}
 	st, ok := status.FromError(err)
 	if !ok {
-		return http.StatusInternalServerError, "internal server error"
+		return http.StatusInternalServerError, "Внутренняя ошибка сервера"
 	}
 	msg := st.Message()
+	// Переводим технические сообщения на русский
 	switch st.Code() {
 	case codes.InvalidArgument:
-		return http.StatusBadRequest, msg
+		return http.StatusBadRequest, translateError(msg)
 	case codes.AlreadyExists:
-		return http.StatusConflict, msg
+		return http.StatusConflict, translateError(msg)
 	case codes.NotFound:
-		return http.StatusNotFound, msg
+		return http.StatusNotFound, "Не найдено"
 	case codes.Unauthenticated:
-		return http.StatusUnauthorized, msg
+		return http.StatusUnauthorized, "Неверные учётные данные"
 	case codes.PermissionDenied:
 		// Требование #4: Никогда не возвращаем 403 — заменяем на 404
-		return http.StatusNotFound, "not found"
+		return http.StatusNotFound, "Не найдено"
 	case codes.DeadlineExceeded:
-		return http.StatusGatewayTimeout, msg
+		return http.StatusGatewayTimeout, "Превышено время ожидания"
 	case codes.Unavailable:
-		return http.StatusServiceUnavailable, msg
+		return http.StatusServiceUnavailable, "Сервис временно недоступен"
 	case codes.Internal:
-		return http.StatusInternalServerError, msg
+		return http.StatusInternalServerError, "Внутренняя ошибка сервера"
 	default:
-		return http.StatusInternalServerError, msg
+		return http.StatusInternalServerError, translateError(msg)
 	}
+}
+
+// translateError converts technical error messages to user-friendly Russian
+func translateError(msg string) string {
+	// gRPC error patterns from validators and services
+	translations := map[string]string{
+		"email is required":             "Укажите email",
+		"password is required":          "Укажите пароль",
+		"full name is required":         "Укажите имя",
+		"invalid role":                  "Недопустимая роль",
+		"invalid email format":          "Некорректный формат email",
+		"password must be at least":     "Пароль должен быть не менее 8 символов",
+		"user_id is required":           "Необходима авторизация",
+		"age must be between":           "Возраст должен быть от 0 до 150",
+		"height_cm must be between":     "Рост должен быть от 50 до 300 см",
+		"weight_kg must be between":     "Вес должен быть от 1 до 500 кг",
+		"fitness_level must be":         "Выберите уровень подготовки",
+		"user not found":                "Пользователь не найден",
+		"email already exists":          "Этот email уже зарегистрирован",
+		"invalid credentials":           "Неверный email или пароль",
+		"user already exists":           "Этот email уже зарегистрирован",
+		"value cannot be negative":      "Значение не может быть отрицательным",
+		"metric_type is required":       "Укажите тип метрики",
+		"invalid metric data":           "Некорректные данные метрики",
+		"heart_rate out of valid range": "Пульс вне допустимого диапазона (30–220)",
+		"spo2 out of valid range":       "SpO₂ вне допустимого диапазона (70–100)",
+		"metric_type not found":         "Тип метрики не найден",
+	}
+	for pattern, translated := range translations {
+		if containsIgnoreCase(msg, pattern) {
+			return translated
+		}
+	}
+	// Если не нашли перевод — возвращаем как есть
+	return msg
+}
+
+func containsIgnoreCase(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			len(s) > len(substr) &&
+				containsSubstringIgnoreCase(s, substr))
+}
+
+func containsSubstringIgnoreCase(s, substr string) bool {
+	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
 }
 
 // ========== Auth Handlers ==========
@@ -100,11 +148,11 @@ func (g *gateway) registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		g.log.Error("Failed to decode register request", zap.Error(err))
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
 		return
 	}
 
-	_, err := g.userClient.Register(r.Context(), &userpb.RegisterRequest{
+	resp, err := g.userClient.Register(r.Context(), &userpb.RegisterRequest{
 		Email:    req.Email,
 		Password: req.Password,
 		FullName: req.FullName,
@@ -117,10 +165,14 @@ func (g *gateway) registerHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ Исправлено: проверяем ошибку Encode
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+	// Return registration result including verification token (dev mode)
+	response := map[string]interface{}{"status": "ok"}
+	if resp.GetMessage() != "" {
+		response["message"] = resp.GetMessage()
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -132,7 +184,7 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		g.log.Error("Failed to decode login request", zap.Error(err))
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
 		return
 	}
 
@@ -143,6 +195,11 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpCode, errMsg := grpcToHTTPStatus(err)
 		g.log.Error("Login failed", zap.Error(err), zap.String("email", req.Email))
+		// Требование #3: Обработка ошибки неподтверждённого email
+		if httpCode == http.StatusUnauthorized && strings.Contains(errMsg, "Email not confirmed") {
+			http.Error(w, "Email не подтверждён. Проверьте вашу почту.", httpCode)
+			return
+		}
 		http.Error(w, errMsg, httpCode)
 		return
 	}
@@ -160,7 +217,7 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(loginResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -188,12 +245,105 @@ func (g *gateway) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Требование #7: Немедленное прекращение выполнения
 }
 
+// confirmEmailHandler handles email confirmation via token.
+func (g *gateway) confirmEmailHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token string `json:"token"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		g.log.Error("Failed to decode confirm email request", zap.Error(err))
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
+		return
+	}
+
+	if req.Token == "" {
+		http.Error(w, "Укажите токен подтверждения", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := g.userClient.ConfirmEmail(r.Context(), &userpb.ConfirmEmailRequest{Token: req.Token})
+	if err != nil {
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		g.log.Error("Confirm email failed", zap.Error(err))
+		http.Error(w, errMsg, httpCode)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"message": "Email confirmed. You can now log in.",
+		"user_id": resp.GetUserId(),
+	}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
+		return
+	}
+}
+
+// emailConfirmPageHandler serves the email confirmation page from a template file.
+// The user lands here when clicking the link in the verification email.
+func (g *gateway) emailConfirmPageHandler(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+
+	// Load template from web/templates/confirm.html
+	tmplPath := "./web/templates/confirm.html"
+	tmplBytes, err := os.ReadFile(tmplPath)
+	if err != nil {
+		g.log.Warn("Failed to load confirm template, using fallback", zap.Error(err))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if token == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			if _, err := fmt.Fprint(w, "<html><body style='background:#0d1117;color:#c9d1d9;font-family:system-ui;'><div style='text-align:center;padding:40px;'><h1 style='color:#f85149;'>Ошибка</h1><p>Токен не найден</p></div></body></html>"); err != nil {
+				g.log.Error("Failed to write fallback response", zap.Error(err))
+			}
+			return
+		}
+		if _, err := fmt.Fprintf(w, "<html><body style='background:#0d1117;color:#c9d1d9;font-family:system-ui;'><div style='text-align:center;padding:40px;'><h1>Подтверждение email</h1><p>Токен: %s</p></div></body></html>", token); err != nil {
+			g.log.Error("Failed to write fallback response", zap.Error(err))
+		}
+		return
+	}
+
+	tmplText := string(tmplBytes)
+	tmplText = strings.Replace(tmplText, "{{ .Token }}", token, 1)
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if _, err := fmt.Fprint(w, tmplText); err != nil {
+		g.log.Error("Failed to write confirm page", zap.Error(err))
+	}
+}
+
+// checkVerificationStatusHandler checks if a user's email is confirmed.
+func (g *gateway) checkVerificationStatusHandler(w http.ResponseWriter, r *http.Request) {
+	email := r.URL.Query().Get("email")
+	if email == "" {
+		http.Error(w, "Укажите email", http.StatusBadRequest)
+		return
+	}
+
+	// Query user profile by email — we use GetProfile which requires user_id,
+	// but since we only have email, we need to search via the user service.
+	// The gateway doesn't have a GetUserByEmail RPC, so we return a not found
+	// if we can't resolve the user. For now, we check if the user exists
+	// by attempting a profile lookup. In production, add a GetUserByEmail RPC.
+	// As a workaround, we return email_confirmed: false for unknown emails.
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"email_confirmed": false,
+		"email":           email,
+	}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
+		return
+	}
+}
+
 // ========== Profile Handlers ==========
 
 func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -218,7 +368,7 @@ func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(profileResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -226,7 +376,7 @@ func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -243,7 +393,7 @@ func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		g.log.Error("Failed to decode update profile request", zap.Error(err))
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
 		return
 	}
 
@@ -269,7 +419,7 @@ func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	// ✅ Исправлено: проверяем ошибку Encode
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -299,26 +449,26 @@ func (g *gateway) verifyUserRole(ctx context.Context, userID, requiredRole strin
 func (g *gateway) deleteProfileHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "Не найдено", http.StatusNotFound)
 		return
 	}
 
 	if !g.verifyUserRole(r.Context(), userID, "user") {
 		g.log.Warn("Role verification failed for profile deletion", zap.String("user_id", userID))
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "Не найдено", http.StatusNotFound)
 		return
 	}
 
 	// Delete profile directly from database
 	if g.db == nil {
 		g.log.Error("Database not available for profile deletion")
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "Не найдено", http.StatusNotFound)
 		return
 	}
 	_, err := g.db.ExecContext(r.Context(), "DELETE FROM users WHERE id = $1", userID)
 	if err != nil {
 		g.log.Error("Failed to delete profile", zap.Error(err), zap.String("user_id", userID))
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "Не найдено", http.StatusNotFound)
 		return
 	}
 
@@ -332,7 +482,7 @@ func (g *gateway) deleteProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "deleted"}); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -341,19 +491,19 @@ func (g *gateway) deleteProfileHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) adminListUsersHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "Не найдено", http.StatusNotFound)
 		return
 	}
 
 	if !g.verifyUserRole(r.Context(), userID, "admin") {
 		g.log.Warn("Non-admin attempted to access user list", zap.String("user_id", userID))
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "Не найдено", http.StatusNotFound)
 		return
 	}
 
 	if g.db == nil {
 		g.log.Error("Database not available for user listing")
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "Не найдено", http.StatusNotFound)
 		return
 	}
 
@@ -376,7 +526,7 @@ func (g *gateway) adminListUsersHandler(w http.ResponseWriter, r *http.Request) 
 		pageSize, offset)
 	if err != nil {
 		g.log.Error("Failed to query users", zap.Error(err))
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "Не найдено", http.StatusNotFound)
 		return
 	}
 	defer func() {
@@ -397,14 +547,14 @@ func (g *gateway) adminListUsersHandler(w http.ResponseWriter, r *http.Request) 
 		var u userInfo
 		if scanErr := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.CreatedAt); scanErr != nil {
 			g.log.Error("Failed to scan user row", zap.Error(scanErr))
-			http.Error(w, "not found", http.StatusNotFound)
+			http.Error(w, "Не найдено", http.StatusNotFound)
 			return
 		}
 		users = append(users, u)
 	}
 	if scanErr := rows.Err(); scanErr != nil {
 		g.log.Error("Rows iteration error", zap.Error(scanErr))
-		http.Error(w, "not found", http.StatusNotFound)
+		http.Error(w, "Не найдено", http.StatusNotFound)
 		return
 	}
 
@@ -415,7 +565,7 @@ func (g *gateway) adminListUsersHandler(w http.ResponseWriter, r *http.Request) 
 
 	if err := json.NewEncoder(w).Encode(adminResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -425,7 +575,7 @@ func (g *gateway) adminListUsersHandler(w http.ResponseWriter, r *http.Request) 
 func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -436,12 +586,12 @@ func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Reque
 		DeviceType string    `json:"device_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		http.Error(w, "Некорректное тело запроса", http.StatusBadRequest)
 		return
 	}
 	// Валидация
 	if req.MetricType == "" || req.Value < 0 {
-		http.Error(w, "invalid metric data", http.StatusBadRequest)
+		http.Error(w, "Некорректные данные метрики", http.StatusBadRequest)
 		return
 	}
 
@@ -462,7 +612,7 @@ func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "created"}); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -470,7 +620,7 @@ func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Reque
 func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -515,7 +665,7 @@ func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Requ
 
 	if err := json.NewEncoder(w).Encode(bioResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -525,7 +675,7 @@ func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Requ
 func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -537,7 +687,7 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		g.log.Error("Failed to decode generate plan request", zap.Error(err))
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
 		return
 	}
 
@@ -573,7 +723,7 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(planResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -581,7 +731,7 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) getPlansHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -618,7 +768,7 @@ func (g *gateway) getPlansHandler(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewEncoder(w).Encode(plansResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -626,7 +776,7 @@ func (g *gateway) getPlansHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -638,7 +788,7 @@ func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request)
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		g.log.Error("Failed to decode complete workout request", zap.Error(err))
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
 		return
 	}
 
@@ -659,7 +809,7 @@ func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request)
 	// ✅ Исправлено: проверяем ошибку Encode
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -667,7 +817,7 @@ func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request)
 func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -684,7 +834,7 @@ func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
 	// ✅ Исправлено: проверяем ошибку Encode
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 }
@@ -694,7 +844,7 @@ func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -726,7 +876,7 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 		bytes.NewReader(reqBody))
 	if err != nil {
 		g.log.Error("Failed to create ML classifier request", zap.Error(err))
-		http.Error(w, "classification service unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -735,7 +885,7 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 	resp, err := client.Do(req)
 	if err != nil {
 		g.log.Error("ML classifier request failed", zap.Error(err))
-		http.Error(w, "classification service unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 	defer func() {
@@ -746,7 +896,7 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 
 	if resp.StatusCode != http.StatusOK {
 		g.log.Error("ML classifier returned error", zap.Int("status", resp.StatusCode))
-		http.Error(w, "classification failed", resp.StatusCode)
+		http.Error(w, "Ошибка классификации", resp.StatusCode)
 		return
 	}
 
@@ -766,7 +916,7 @@ func (g *gateway) handleAsyncClassify(w http.ResponseWriter, r *http.Request, ml
 	})
 	if err != nil {
 		g.log.Error("Failed to marshal classify job", zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 
@@ -781,7 +931,7 @@ func (g *gateway) handleAsyncClassify(w http.ResponseWriter, r *http.Request, ml
 		})
 	if err != nil {
 		g.log.Error("Failed to publish classify job to RabbitMQ", zap.Error(err))
-		http.Error(w, "job queue unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -800,7 +950,7 @@ func (g *gateway) classifyStatusHandler(w http.ResponseWriter, r *http.Request) 
 	vars := mux.Vars(r)
 	jobID := vars["job_id"]
 	if jobID == "" {
-		http.Error(w, "job_id required", http.StatusBadRequest)
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
 		return
 	}
 
@@ -822,7 +972,7 @@ func (g *gateway) classifyStatusHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	if err != nil {
 		g.log.Error("Failed to get job result from Redis", zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 
@@ -839,7 +989,7 @@ func (g *gateway) classifyStatusHandler(w http.ResponseWriter, r *http.Request) 
 func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, "Необходима авторизация", http.StatusUnauthorized)
 		return
 	}
 
@@ -855,7 +1005,7 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		g.log.Error("Failed to decode generate ML plan request", zap.Error(err))
-		http.Error(w, "invalid request", http.StatusBadRequest)
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
 		return
 	}
 
@@ -916,7 +1066,7 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	reqBody, err := json.Marshal(genReq)
 	if err != nil {
 		g.log.Error("Failed to marshal generator request", zap.Error(err))
-		http.Error(w, "failed to prepare request", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования запроса", http.StatusInternalServerError)
 		return
 	}
 
@@ -924,7 +1074,7 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	resp, err := client.Post(g.mlGeneratorURL+"/generate-plan", "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
 		g.log.Error("Failed to call ML generator", zap.Error(err))
-		http.Error(w, "failed to generate plan", http.StatusInternalServerError)
+		http.Error(w, "Ошибка обращения к ML-генератору", http.StatusInternalServerError)
 		return
 	}
 	defer func() {
@@ -936,7 +1086,7 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		g.log.Error("Failed to read response body", zap.Error(err))
-		http.Error(w, "failed to read response", http.StatusInternalServerError)
+		http.Error(w, "Ошибка чтения ответа", http.StatusInternalServerError)
 		return
 	}
 
@@ -987,7 +1137,7 @@ func (g *gateway) handleAsyncGeneratePlan(w http.ResponseWriter, r *http.Request
 	})
 	if err != nil {
 		g.log.Error("Failed to marshal generate-plan job", zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 
@@ -1002,7 +1152,7 @@ func (g *gateway) handleAsyncGeneratePlan(w http.ResponseWriter, r *http.Request
 		})
 	if err != nil {
 		g.log.Error("Failed to publish generate-plan job to RabbitMQ", zap.Error(err))
-		http.Error(w, "job queue unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -1021,7 +1171,7 @@ func (g *gateway) generatePlanStatusHandler(w http.ResponseWriter, r *http.Reque
 	vars := mux.Vars(r)
 	jobID := vars["job_id"]
 	if jobID == "" {
-		http.Error(w, "job_id required", http.StatusBadRequest)
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
 		return
 	}
 
@@ -1042,7 +1192,7 @@ func (g *gateway) generatePlanStatusHandler(w http.ResponseWriter, r *http.Reque
 	}
 	if err != nil {
 		g.log.Error("Failed to get job result from Redis", zap.Error(err))
-		http.Error(w, "internal error", http.StatusInternalServerError)
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
 		return
 	}
 
@@ -1114,14 +1264,14 @@ func extractMLPayload(bioResp *biometricpb.BiometricRecord) map[string]interface
 // deviceRegisterHandler proxies device registration to device-connector
 func (g *gateway) deviceRegisterHandler(w http.ResponseWriter, r *http.Request) {
 	if g.deviceConnectorURL == "" {
-		http.Error(w, "device connector service not configured", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		g.log.Error("Failed to read request body", zap.Error(err))
-		http.Error(w, "failed to read request", http.StatusBadRequest)
+		http.Error(w, "Ошибка чтения ответа", http.StatusBadRequest)
 		return
 	}
 
@@ -1133,7 +1283,7 @@ func (g *gateway) deviceRegisterHandler(w http.ResponseWriter, r *http.Request) 
 		bytes.NewReader(body))
 	if err != nil {
 		g.log.Error("Failed to create device register request", zap.Error(err))
-		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -1142,7 +1292,7 @@ func (g *gateway) deviceRegisterHandler(w http.ResponseWriter, r *http.Request) 
 	resp, err := client.Do(req)
 	if err != nil {
 		g.log.Error("Device connector unreachable", zap.Error(err))
-		http.Error(w, "device connector service unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 	defer func() {
@@ -1161,7 +1311,7 @@ func (g *gateway) deviceRegisterHandler(w http.ResponseWriter, r *http.Request) 
 // deviceIngestHandler proxies data ingestion to device-connector
 func (g *gateway) deviceIngestHandler(w http.ResponseWriter, r *http.Request) {
 	if g.deviceConnectorURL == "" {
-		http.Error(w, "device connector service not configured", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -1171,7 +1321,7 @@ func (g *gateway) deviceIngestHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		g.log.Error("Failed to read request body", zap.Error(err))
-		http.Error(w, "failed to read request", http.StatusBadRequest)
+		http.Error(w, "Ошибка чтения ответа", http.StatusBadRequest)
 		return
 	}
 
@@ -1183,7 +1333,7 @@ func (g *gateway) deviceIngestHandler(w http.ResponseWriter, r *http.Request) {
 		bytes.NewReader(body))
 	if err != nil {
 		g.log.Error("Failed to create device ingest request", zap.Error(err))
-		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -1192,7 +1342,7 @@ func (g *gateway) deviceIngestHandler(w http.ResponseWriter, r *http.Request) {
 	resp, err := client.Do(req)
 	if err != nil {
 		g.log.Error("Device connector unreachable", zap.Error(err))
-		http.Error(w, "device connector service unavailable", http.StatusServiceUnavailable)
+		http.Error(w, "ML-сервис временно недоступен", http.StatusServiceUnavailable)
 		return
 	}
 	defer func() {
@@ -1403,7 +1553,12 @@ func main() {
 	// Public routes
 	r.HandleFunc("/api/v1/register", g.registerHandler).Methods("POST")
 	r.HandleFunc("/api/v1/login", g.loginHandler).Methods("POST")
+	r.HandleFunc("/api/v1/auth/confirm", g.confirmEmailHandler).Methods("POST")
+	r.HandleFunc("/api/v1/auth/verify-status", g.checkVerificationStatusHandler).Methods("GET")
 	r.HandleFunc("/health", g.healthHandler).Methods("GET")
+
+	// Email confirmation page (GET /confirm?token=xxx)
+	r.HandleFunc("/confirm", g.emailConfirmPageHandler).Methods("GET")
 
 	// Device connector routes (device token auth, not JWT)
 	r.HandleFunc("/api/v1/devices/register", g.deviceRegisterHandler).Methods("POST")

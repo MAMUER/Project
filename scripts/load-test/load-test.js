@@ -22,19 +22,37 @@ export const options = {
 };
 
 const BASE_URL = __ENV.BASE_URL || 'https://localhost:8443';
+// Unique email per test run to avoid stale email_confirmed=false from previous runs
+const RUN_ID = Math.random().toString(36).substring(2, 8);
 const TEST_USER = {
-    email: 'loadtest@example.com',
+    email: `loadtest-${RUN_ID}@example.com`,
     password: 'LoadTest123!',
     full_name: 'Load Test User',
     role: 'client'
 };
 
 export function setup() {
-    // Регистрация тестового пользователя
+    // Регистрация тестового пользователя (уникальный email каждый раз)
     const registerRes = http.post(`${BASE_URL}/api/v1/register`, JSON.stringify(TEST_USER), {
         headers: { 'Content-Type': 'application/json' },
     });
-    check(registerRes, { 'register success': (r) => r.status === 200 || r.status === 409 });
+    check(registerRes, { 'register success': (r) => r.status === 200 });
+
+    // Извлекаем токен подтверждения (dev mode)
+    let verifyToken = null;
+    const regData = registerRes.json();
+    if (regData && regData.message) {
+        const match = regData.message.match(/token \(dev only\):\s*([a-f0-9]+)/);
+        if (match) verifyToken = match[1];
+    }
+
+    // Подтверждаем email
+    if (verifyToken) {
+        const confirmRes = http.post(`${BASE_URL}/api/v1/auth/confirm`, JSON.stringify({ token: verifyToken }), {
+            headers: { 'Content-Type': 'application/json' },
+        });
+        check(confirmRes, { 'email confirmed': (r) => r.status === 200 });
+    }
 
     // Логин
     const loginRes = http.post(`${BASE_URL}/api/v1/login`, JSON.stringify({

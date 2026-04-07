@@ -142,6 +142,102 @@ func (x *RegisterResponse) GetMessage() string {
 	return ""
 }
 
+type ConfirmEmailRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Token         string                 `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfirmEmailRequest) Reset() {
+	*x = ConfirmEmailRequest{}
+	mi := &file_user_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfirmEmailRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfirmEmailRequest) ProtoMessage() {}
+
+func (x *ConfirmEmailRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfirmEmailRequest.ProtoReflect.Descriptor instead.
+func (*ConfirmEmailRequest) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ConfirmEmailRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+type ConfirmEmailResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	UserId        string                 `protobuf:"bytes,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"`
+	Message       string                 `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ConfirmEmailResponse) Reset() {
+	*x = ConfirmEmailResponse{}
+	mi := &file_user_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ConfirmEmailResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ConfirmEmailResponse) ProtoMessage() {}
+
+func (x *ConfirmEmailResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ConfirmEmailResponse.ProtoReflect.Descriptor instead.
+func (*ConfirmEmailResponse) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ConfirmEmailResponse) GetUserId() string {
+	if x != nil {
+		return x.UserId
+	}
+	return ""
+}
+
+func (x *ConfirmEmailResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
 type LoginRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Email         string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
@@ -152,7 +248,7 @@ type LoginRequest struct {
 
 func (x *LoginRequest) Reset() {
 	*x = LoginRequest{}
-	mi := &file_user_proto_msgTypes[2]
+	mi := &file_user_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -164,7 +260,7 @@ func (x *LoginRequest) String() string {
 func (*LoginRequest) ProtoMessage() {}
 
 func (x *LoginRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[2]
+	mi := &file_user_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -177,7 +273,7 @@ func (x *LoginRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginRequest.ProtoReflect.Descriptor instead.
 func (*LoginRequest) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{2}
+	return file_user_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *LoginRequest) GetEmail() string {
@@ -207,7 +303,7 @@ type LoginResponse struct {
 
 func (x *LoginResponse) Reset() {
 	*x = LoginResponse{}
-	mi := &file_user_proto_msgTypes[3]
+	mi := &file_user_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -219,7 +315,7 @@ func (x *LoginResponse) String() string {
 func (*LoginResponse) ProtoMessage() {}
 
 func (x *LoginResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[3]
+	mi := &file_user_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -232,7 +328,7 @@ func (x *LoginResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LoginResponse.ProtoReflect.Descriptor instead.
 func (*LoginResponse) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{3}
+	return file_user_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *LoginResponse) GetAccessToken() string {
@@ -279,7 +375,7 @@ type GetProfileRequest struct {
 
 func (x *GetProfileRequest) Reset() {
 	*x = GetProfileRequest{}
-	mi := &file_user_proto_msgTypes[4]
+	mi := &file_user_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -291,7 +387,7 @@ func (x *GetProfileRequest) String() string {
 func (*GetProfileRequest) ProtoMessage() {}
 
 func (x *GetProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[4]
+	mi := &file_user_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -304,7 +400,7 @@ func (x *GetProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetProfileRequest.ProtoReflect.Descriptor instead.
 func (*GetProfileRequest) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{4}
+	return file_user_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetProfileRequest) GetUserId() string {
@@ -333,7 +429,7 @@ type UpdateProfileRequest struct {
 
 func (x *UpdateProfileRequest) Reset() {
 	*x = UpdateProfileRequest{}
-	mi := &file_user_proto_msgTypes[5]
+	mi := &file_user_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -345,7 +441,7 @@ func (x *UpdateProfileRequest) String() string {
 func (*UpdateProfileRequest) ProtoMessage() {}
 
 func (x *UpdateProfileRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[5]
+	mi := &file_user_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -358,7 +454,7 @@ func (x *UpdateProfileRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateProfileRequest.ProtoReflect.Descriptor instead.
 func (*UpdateProfileRequest) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{5}
+	return file_user_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *UpdateProfileRequest) GetUserId() string {
@@ -438,24 +534,25 @@ type UserProfile struct {
 	Email             string                 `protobuf:"bytes,2,opt,name=email,proto3" json:"email,omitempty"`
 	FullName          string                 `protobuf:"bytes,3,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
 	Role              string                 `protobuf:"bytes,4,opt,name=role,proto3" json:"role,omitempty"`
-	Age               int32                  `protobuf:"varint,5,opt,name=age,proto3" json:"age,omitempty"`
-	Gender            string                 `protobuf:"bytes,6,opt,name=gender,proto3" json:"gender,omitempty"`
-	HeightCm          int32                  `protobuf:"varint,7,opt,name=height_cm,json=heightCm,proto3" json:"height_cm,omitempty"`
-	WeightKg          float64                `protobuf:"fixed64,8,opt,name=weight_kg,json=weightKg,proto3" json:"weight_kg,omitempty"`
-	FitnessLevel      string                 `protobuf:"bytes,9,opt,name=fitness_level,json=fitnessLevel,proto3" json:"fitness_level,omitempty"`
-	Goals             []string               `protobuf:"bytes,10,rep,name=goals,proto3" json:"goals,omitempty"`
-	Contraindications []string               `protobuf:"bytes,11,rep,name=contraindications,proto3" json:"contraindications,omitempty"`
-	CreatedAt         string                 `protobuf:"bytes,12,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
-	UpdatedAt         string                 `protobuf:"bytes,13,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
-	Nutrition         string                 `protobuf:"bytes,14,opt,name=nutrition,proto3" json:"nutrition,omitempty"`                       // ← НОВОЕ
-	SleepHours        float32                `protobuf:"fixed32,15,opt,name=sleep_hours,json=sleepHours,proto3" json:"sleep_hours,omitempty"` // ← НОВОЕ
+	EmailConfirmed    bool                   `protobuf:"varint,5,opt,name=email_confirmed,json=emailConfirmed,proto3" json:"email_confirmed,omitempty"` // ← НОВОЕ
+	Age               int32                  `protobuf:"varint,6,opt,name=age,proto3" json:"age,omitempty"`
+	Gender            string                 `protobuf:"bytes,7,opt,name=gender,proto3" json:"gender,omitempty"`
+	HeightCm          int32                  `protobuf:"varint,8,opt,name=height_cm,json=heightCm,proto3" json:"height_cm,omitempty"`
+	WeightKg          float64                `protobuf:"fixed64,9,opt,name=weight_kg,json=weightKg,proto3" json:"weight_kg,omitempty"`
+	FitnessLevel      string                 `protobuf:"bytes,10,opt,name=fitness_level,json=fitnessLevel,proto3" json:"fitness_level,omitempty"`
+	Goals             []string               `protobuf:"bytes,11,rep,name=goals,proto3" json:"goals,omitempty"`
+	Contraindications []string               `protobuf:"bytes,12,rep,name=contraindications,proto3" json:"contraindications,omitempty"`
+	CreatedAt         string                 `protobuf:"bytes,13,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt         string                 `protobuf:"bytes,14,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Nutrition         string                 `protobuf:"bytes,15,opt,name=nutrition,proto3" json:"nutrition,omitempty"`
+	SleepHours        float32                `protobuf:"fixed32,16,opt,name=sleep_hours,json=sleepHours,proto3" json:"sleep_hours,omitempty"`
 	unknownFields     protoimpl.UnknownFields
 	sizeCache         protoimpl.SizeCache
 }
 
 func (x *UserProfile) Reset() {
 	*x = UserProfile{}
-	mi := &file_user_proto_msgTypes[6]
+	mi := &file_user_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -467,7 +564,7 @@ func (x *UserProfile) String() string {
 func (*UserProfile) ProtoMessage() {}
 
 func (x *UserProfile) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[6]
+	mi := &file_user_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -480,7 +577,7 @@ func (x *UserProfile) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UserProfile.ProtoReflect.Descriptor instead.
 func (*UserProfile) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{6}
+	return file_user_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UserProfile) GetUserId() string {
@@ -509,6 +606,13 @@ func (x *UserProfile) GetRole() string {
 		return x.Role
 	}
 	return ""
+}
+
+func (x *UserProfile) GetEmailConfirmed() bool {
+	if x != nil {
+		return x.EmailConfirmed
+	}
+	return false
 }
 
 func (x *UserProfile) GetAge() int32 {
@@ -599,7 +703,7 @@ type ListUsersRequest struct {
 
 func (x *ListUsersRequest) Reset() {
 	*x = ListUsersRequest{}
-	mi := &file_user_proto_msgTypes[7]
+	mi := &file_user_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -611,7 +715,7 @@ func (x *ListUsersRequest) String() string {
 func (*ListUsersRequest) ProtoMessage() {}
 
 func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[7]
+	mi := &file_user_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -624,7 +728,7 @@ func (x *ListUsersRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersRequest.ProtoReflect.Descriptor instead.
 func (*ListUsersRequest) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{7}
+	return file_user_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *ListUsersRequest) GetPage() int32 {
@@ -658,7 +762,7 @@ type ListUsersResponse struct {
 
 func (x *ListUsersResponse) Reset() {
 	*x = ListUsersResponse{}
-	mi := &file_user_proto_msgTypes[8]
+	mi := &file_user_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -670,7 +774,7 @@ func (x *ListUsersResponse) String() string {
 func (*ListUsersResponse) ProtoMessage() {}
 
 func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_user_proto_msgTypes[8]
+	mi := &file_user_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -683,7 +787,7 @@ func (x *ListUsersResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListUsersResponse.ProtoReflect.Descriptor instead.
 func (*ListUsersResponse) Descriptor() ([]byte, []int) {
-	return file_user_proto_rawDescGZIP(), []int{8}
+	return file_user_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *ListUsersResponse) GetUsers() []*UserProfile {
@@ -712,6 +816,11 @@ const file_user_proto_rawDesc = "" +
 	"\tfull_name\x18\x03 \x01(\tR\bfullName\x12\x12\n" +
 	"\x04role\x18\x04 \x01(\tR\x04role\"E\n" +
 	"\x10RegisterResponse\x12\x17\n" +
+	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"+\n" +
+	"\x13ConfirmEmailRequest\x12\x14\n" +
+	"\x05token\x18\x01 \x01(\tR\x05token\"I\n" +
+	"\x14ConfirmEmailResponse\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\"@\n" +
 	"\fLoginRequest\x12\x14\n" +
@@ -749,26 +858,27 @@ const file_user_proto_rawDesc = "" +
 	"\x0e_fitness_levelB\f\n" +
 	"\n" +
 	"_nutritionB\x0e\n" +
-	"\f_sleep_hours\"\xb7\x03\n" +
+	"\f_sleep_hours\"\xe0\x03\n" +
 	"\vUserProfile\x12\x17\n" +
 	"\auser_id\x18\x01 \x01(\tR\x06userId\x12\x14\n" +
 	"\x05email\x18\x02 \x01(\tR\x05email\x12\x1b\n" +
 	"\tfull_name\x18\x03 \x01(\tR\bfullName\x12\x12\n" +
-	"\x04role\x18\x04 \x01(\tR\x04role\x12\x10\n" +
-	"\x03age\x18\x05 \x01(\x05R\x03age\x12\x16\n" +
-	"\x06gender\x18\x06 \x01(\tR\x06gender\x12\x1b\n" +
-	"\theight_cm\x18\a \x01(\x05R\bheightCm\x12\x1b\n" +
-	"\tweight_kg\x18\b \x01(\x01R\bweightKg\x12#\n" +
-	"\rfitness_level\x18\t \x01(\tR\ffitnessLevel\x12\x14\n" +
-	"\x05goals\x18\n" +
-	" \x03(\tR\x05goals\x12,\n" +
-	"\x11contraindications\x18\v \x03(\tR\x11contraindications\x12\x1d\n" +
+	"\x04role\x18\x04 \x01(\tR\x04role\x12'\n" +
+	"\x0femail_confirmed\x18\x05 \x01(\bR\x0eemailConfirmed\x12\x10\n" +
+	"\x03age\x18\x06 \x01(\x05R\x03age\x12\x16\n" +
+	"\x06gender\x18\a \x01(\tR\x06gender\x12\x1b\n" +
+	"\theight_cm\x18\b \x01(\x05R\bheightCm\x12\x1b\n" +
+	"\tweight_kg\x18\t \x01(\x01R\bweightKg\x12#\n" +
+	"\rfitness_level\x18\n" +
+	" \x01(\tR\ffitnessLevel\x12\x14\n" +
+	"\x05goals\x18\v \x03(\tR\x05goals\x12,\n" +
+	"\x11contraindications\x18\f \x03(\tR\x11contraindications\x12\x1d\n" +
 	"\n" +
-	"created_at\x18\f \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"created_at\x18\r \x01(\tR\tcreatedAt\x12\x1d\n" +
 	"\n" +
-	"updated_at\x18\r \x01(\tR\tupdatedAt\x12\x1c\n" +
-	"\tnutrition\x18\x0e \x01(\tR\tnutrition\x12\x1f\n" +
-	"\vsleep_hours\x18\x0f \x01(\x02R\n" +
+	"updated_at\x18\x0e \x01(\tR\tupdatedAt\x12\x1c\n" +
+	"\tnutrition\x18\x0f \x01(\tR\tnutrition\x12\x1f\n" +
+	"\vsleep_hours\x18\x10 \x01(\x02R\n" +
 	"sleepHours\"W\n" +
 	"\x10ListUsersRequest\x12\x12\n" +
 	"\x04page\x18\x01 \x01(\x05R\x04page\x12\x1b\n" +
@@ -776,9 +886,10 @@ const file_user_proto_rawDesc = "" +
 	"\x04role\x18\x03 \x01(\tR\x04role\"R\n" +
 	"\x11ListUsersResponse\x12'\n" +
 	"\x05users\x18\x01 \x03(\v2\x11.user.UserProfileR\x05users\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total2\xb2\x02\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total2\xf9\x02\n" +
 	"\vUserService\x129\n" +
-	"\bRegister\x12\x15.user.RegisterRequest\x1a\x16.user.RegisterResponse\x120\n" +
+	"\bRegister\x12\x15.user.RegisterRequest\x1a\x16.user.RegisterResponse\x12E\n" +
+	"\fConfirmEmail\x12\x19.user.ConfirmEmailRequest\x1a\x1a.user.ConfirmEmailResponse\x120\n" +
 	"\x05Login\x12\x12.user.LoginRequest\x1a\x13.user.LoginResponse\x128\n" +
 	"\n" +
 	"GetProfile\x12\x17.user.GetProfileRequest\x1a\x11.user.UserProfile\x12>\n" +
@@ -797,35 +908,39 @@ func file_user_proto_rawDescGZIP() []byte {
 	return file_user_proto_rawDescData
 }
 
-var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_user_proto_goTypes = []any{
 	(*RegisterRequest)(nil),      // 0: user.RegisterRequest
 	(*RegisterResponse)(nil),     // 1: user.RegisterResponse
-	(*LoginRequest)(nil),         // 2: user.LoginRequest
-	(*LoginResponse)(nil),        // 3: user.LoginResponse
-	(*GetProfileRequest)(nil),    // 4: user.GetProfileRequest
-	(*UpdateProfileRequest)(nil), // 5: user.UpdateProfileRequest
-	(*UserProfile)(nil),          // 6: user.UserProfile
-	(*ListUsersRequest)(nil),     // 7: user.ListUsersRequest
-	(*ListUsersResponse)(nil),    // 8: user.ListUsersResponse
+	(*ConfirmEmailRequest)(nil),  // 2: user.ConfirmEmailRequest
+	(*ConfirmEmailResponse)(nil), // 3: user.ConfirmEmailResponse
+	(*LoginRequest)(nil),         // 4: user.LoginRequest
+	(*LoginResponse)(nil),        // 5: user.LoginResponse
+	(*GetProfileRequest)(nil),    // 6: user.GetProfileRequest
+	(*UpdateProfileRequest)(nil), // 7: user.UpdateProfileRequest
+	(*UserProfile)(nil),          // 8: user.UserProfile
+	(*ListUsersRequest)(nil),     // 9: user.ListUsersRequest
+	(*ListUsersResponse)(nil),    // 10: user.ListUsersResponse
 }
 var file_user_proto_depIdxs = []int32{
-	6, // 0: user.ListUsersResponse.users:type_name -> user.UserProfile
-	0, // 1: user.UserService.Register:input_type -> user.RegisterRequest
-	2, // 2: user.UserService.Login:input_type -> user.LoginRequest
-	4, // 3: user.UserService.GetProfile:input_type -> user.GetProfileRequest
-	5, // 4: user.UserService.UpdateProfile:input_type -> user.UpdateProfileRequest
-	7, // 5: user.UserService.ListUsers:input_type -> user.ListUsersRequest
-	1, // 6: user.UserService.Register:output_type -> user.RegisterResponse
-	3, // 7: user.UserService.Login:output_type -> user.LoginResponse
-	6, // 8: user.UserService.GetProfile:output_type -> user.UserProfile
-	6, // 9: user.UserService.UpdateProfile:output_type -> user.UserProfile
-	8, // 10: user.UserService.ListUsers:output_type -> user.ListUsersResponse
-	6, // [6:11] is the sub-list for method output_type
-	1, // [1:6] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	8,  // 0: user.ListUsersResponse.users:type_name -> user.UserProfile
+	0,  // 1: user.UserService.Register:input_type -> user.RegisterRequest
+	2,  // 2: user.UserService.ConfirmEmail:input_type -> user.ConfirmEmailRequest
+	4,  // 3: user.UserService.Login:input_type -> user.LoginRequest
+	6,  // 4: user.UserService.GetProfile:input_type -> user.GetProfileRequest
+	7,  // 5: user.UserService.UpdateProfile:input_type -> user.UpdateProfileRequest
+	9,  // 6: user.UserService.ListUsers:input_type -> user.ListUsersRequest
+	1,  // 7: user.UserService.Register:output_type -> user.RegisterResponse
+	3,  // 8: user.UserService.ConfirmEmail:output_type -> user.ConfirmEmailResponse
+	5,  // 9: user.UserService.Login:output_type -> user.LoginResponse
+	8,  // 10: user.UserService.GetProfile:output_type -> user.UserProfile
+	8,  // 11: user.UserService.UpdateProfile:output_type -> user.UserProfile
+	10, // 12: user.UserService.ListUsers:output_type -> user.ListUsersResponse
+	7,  // [7:13] is the sub-list for method output_type
+	1,  // [1:7] is the sub-list for method input_type
+	1,  // [1:1] is the sub-list for extension type_name
+	1,  // [1:1] is the sub-list for extension extendee
+	0,  // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_user_proto_init() }
@@ -833,14 +948,14 @@ func file_user_proto_init() {
 	if File_user_proto != nil {
 		return
 	}
-	file_user_proto_msgTypes[5].OneofWrappers = []any{}
+	file_user_proto_msgTypes[7].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_proto_rawDesc), len(file_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   9,
+			NumMessages:   11,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

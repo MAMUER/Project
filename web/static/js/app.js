@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('[APP] Loaded');
+
     // ===== State =====
     const state = {
         currentView: 'dashboard',
@@ -10,7 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainScreen = document.getElementById('mainScreen');
     const loginForm = document.getElementById('loginForm');
     const registerForm = document.getElementById('registerForm');
-    const authError = document.getElementById('authError');
+    const verifyForm = document.getElementById('verifyForm');
     const pageTitle = document.getElementById('pageTitle');
 
     const viewTitles = {
@@ -23,12 +25,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== Init =====
     function init() {
+        console.log('[APP] Init, authToken:', authToken ? 'present' : 'null');
         if (authToken) {
             showMainApp();
         } else {
             showAuthScreen();
         }
-
         bindEvents();
     }
 
@@ -36,6 +38,63 @@ document.addEventListener('DOMContentLoaded', () => {
         authScreen.classList.add('active');
         mainScreen.classList.remove('active');
         mainScreen.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        registerForm.classList.add('hidden');
+        if (verifyForm) verifyForm.classList.add('hidden');
+        clearErrors();
+        console.log('[APP] Auth screen shown');
+    }
+
+    function showVerification(email, message, userId) {
+        console.log('[APP] Show verification for:', email);
+        loginForm.classList.add('hidden');
+        registerForm.classList.add('hidden');
+        if (verifyForm) verifyForm.classList.remove('hidden');
+
+        document.getElementById('verifyEmail').textContent = email;
+
+        // Show dev token if present in message
+        const tokenMatch = message.match(/token \(dev only\):\s*([a-f0-9]+)/i);
+        const devSection = document.getElementById('devTokenSection');
+        if (tokenMatch && devSection) {
+            devSection.classList.remove('hidden');
+            document.getElementById('devToken').textContent = tokenMatch[1];
+        } else if (devSection) {
+            devSection.classList.add('hidden');
+        }
+
+        // Reset confirm state
+        const confirmErr = document.getElementById('confirmError');
+        const confirmOk = document.getElementById('confirmSuccess');
+        if (confirmErr) { confirmErr.textContent = ''; confirmErr.classList.add('hidden'); }
+        if (confirmOk) confirmOk.classList.add('hidden');
+        const tokenInput = document.getElementById('verifyToken');
+        if (tokenInput) tokenInput.value = '';
+    }
+
+    function copyToken() {
+        const token = document.getElementById('devToken')?.textContent;
+        if (token) {
+            navigator.clipboard.writeText(token).then(() => {
+                showToast('Токен скопирован!', 'success');
+            });
+        }
+    }
+    window.copyToken = copyToken;
+
+    async function confirmEmail(token) {
+        console.log('[AUTH] Confirming email with token:', token);
+        const response = await fetch('/api/v1/auth/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.message || data.error || 'Ошибка подтверждения');
+        }
+        return data;
     }
 
     function showMainApp() {
@@ -43,13 +102,14 @@ document.addEventListener('DOMContentLoaded', () => {
         mainScreen.classList.add('active');
         mainScreen.classList.remove('hidden');
         switchView('dashboard');
+        console.log('[APP] Main app shown');
     }
 
     // ===== Validation =====
     const validators = {
         email: (v) => {
             if (!v) return 'Введите email';
-            if (v.length > 254) return 'Email слишком длинный (макс. 254 символа)';
+            if (v.length > 254) return 'Email слишком длинный';
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return 'Некорректный формат email';
             return '';
         },
@@ -70,17 +130,18 @@ document.addEventListener('DOMContentLoaded', () => {
         },
         name: (v) => {
             if (!v) return 'Введите имя';
-            if (v.length < 2) return 'Имя слишком короткое (мин. 2 символа)';
-            if (v.length > 100) return 'Имя слишком длинное (макс. 100 символов)';
-            if (!/^[A-Za-zА-Яа-яЁё\s\-]+$/.test(v)) return 'Имя может содержать только буквы';
+            if (v.length < 2) return 'Минимум 2 символа';
+            if (v.length > 100) return 'Максимум 100 символов';
+            if (!/^[A-Za-zА-Яа-яЁё\s\-]+$/.test(v)) return 'Только буквы';
             return '';
         },
     };
 
     function setFieldError(input, errorEl, msg) {
+        if (!input) return;
         input.classList.toggle('invalid', !!msg);
         input.classList.toggle('valid', !msg && input.value.length > 0);
-        if (errorEl) errorEl.textContent = msg;
+        if (errorEl) errorEl.textContent = msg || '';
     }
 
     function updatePasswordHint(result) {
@@ -95,7 +156,6 @@ document.addEventListener('DOMContentLoaded', () => {
             hintLower: result.checks.lower,
             hintDigit: result.checks.digit,
         };
-
         for (const [id, pass] of Object.entries(items)) {
             const el = document.getElementById(id);
             if (el) {
@@ -103,141 +163,197 @@ document.addEventListener('DOMContentLoaded', () => {
                 el.textContent = (pass ? '✓ ' : '✗ ') + el.textContent.slice(2);
             }
         }
-
         const btn = document.getElementById('registerBtn');
         if (btn) btn.disabled = !!result.error;
     }
 
     // ===== Events =====
     function bindEvents() {
-        // --- Login validation ---
+        // --- Fields ---
         const loginEmail = document.getElementById('loginEmail');
         const loginPassword = document.getElementById('loginPassword');
         const loginEmailErr = document.getElementById('loginEmailError');
         const loginPassErr = document.getElementById('loginPasswordError');
-        const loginErr = document.getElementById('loginError');
+        const loginErrEl = document.getElementById('loginError');
 
-        loginEmail?.addEventListener('input', () => {
-            const err = validators.email(loginEmail.value);
-            setFieldError(loginEmail, loginEmailErr, err);
-            loginErr?.classList.add('hidden');
-        });
-
-        loginPassword?.addEventListener('input', () => {
-            const err = validators.loginPassword(loginPassword.value);
-            setFieldError(loginPassword, loginPassErr, err);
-            loginErr?.classList.add('hidden');
-        });
-
-        // --- Registration validation ---
         const regName = document.getElementById('regName');
         const regEmail = document.getElementById('regEmail');
         const regPassword = document.getElementById('regPassword');
         const regNameErr = document.getElementById('regNameError');
         const regEmailErr = document.getElementById('regEmailError');
         const regPassErr = document.getElementById('regPasswordError');
-        const regErr = document.getElementById('registerError');
+        const regErrEl = document.getElementById('registerError');
 
-        regName?.addEventListener('input', () => {
-            const err = validators.name(regName.value);
-            setFieldError(regName, regNameErr, err);
-            regErr?.classList.add('hidden');
+        console.log('[APP] Elements:', { loginForm: !!loginForm, registerForm: !!registerForm, loginEmail: !!loginEmail });
+
+        // Login field validation
+        if (loginEmail) loginEmail.addEventListener('input', () => {
+            setFieldError(loginEmail, loginEmailErr, validators.email(loginEmail.value));
+            if (loginErrEl) loginErrEl.classList.add('hidden');
+        });
+        if (loginPassword) loginPassword.addEventListener('input', () => {
+            setFieldError(loginPassword, loginPassErr, validators.loginPassword(loginPassword.value));
+            if (loginErrEl) loginErrEl.classList.add('hidden');
         });
 
-        regEmail?.addEventListener('input', () => {
-            const err = validators.email(regEmail.value);
-            setFieldError(regEmail, regEmailErr, err);
-            regErr?.classList.add('hidden');
+        // Register field validation
+        if (regName) regName.addEventListener('input', () => {
+            setFieldError(regName, regNameErr, validators.name(regName.value));
+            if (regErrEl) regErrEl.classList.add('hidden');
         });
-
-        regPassword?.addEventListener('input', () => {
+        if (regEmail) regEmail.addEventListener('input', () => {
+            setFieldError(regEmail, regEmailErr, validators.email(regEmail.value));
+            if (regErrEl) regErrEl.classList.add('hidden');
+        });
+        if (regPassword) regPassword.addEventListener('input', () => {
             const result = validators.password(regPassword.value);
             const err = typeof result === 'object' ? result.error : result;
             setFieldError(regPassword, regPassErr, err);
             updatePasswordHint(typeof result === 'object' ? result : null);
-            regErr?.classList.add('hidden');
+            if (regErrEl) regErrEl.classList.add('hidden');
         });
 
         // Auth toggle
         document.getElementById('toRegister')?.addEventListener('click', e => {
             e.preventDefault();
+            console.log('[APP] Switch to register');
             loginForm.classList.add('hidden');
             registerForm.classList.remove('hidden');
-            hideAllAuthErrors();
+            clearErrors();
         });
-
         document.getElementById('toLogin')?.addEventListener('click', e => {
             e.preventDefault();
+            console.log('[APP] Switch to login');
             registerForm.classList.add('hidden');
             loginForm.classList.remove('hidden');
-            hideAllAuthErrors();
+            if (verifyForm) verifyForm.classList.add('hidden');
+            clearErrors();
         });
 
-        // Login submit
-        loginForm.addEventListener('submit', async e => {
+        // Back to login from verify screen
+        document.getElementById('backToLogin')?.addEventListener('click', e => {
             e.preventDefault();
-            const email = loginEmail.value.trim();
-            const password = loginPassword.value;
+            console.log('[APP] Back to login from verify');
+            loginForm.classList.remove('hidden');
+            if (verifyForm) verifyForm.classList.add('hidden');
+            clearErrors();
+        });
 
-            const emailErr = validators.email(email);
-            const passErr = validators.loginPassword(password);
-            setFieldError(loginEmail, loginEmailErr, emailErr);
-            setFieldError(loginPassword, loginPassErr, passErr);
+        // Confirm email
+        document.getElementById('confirmBtn')?.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const token = document.getElementById('verifyToken').value.trim();
+            const confirmErr = document.getElementById('confirmError');
+            const confirmOk = document.getElementById('confirmSuccess');
+            const btn = document.getElementById('confirmBtn');
 
-            if (emailErr || passErr) {
-                if (loginErr) { loginErr.textContent = 'Проверьте введённые данные'; loginErr.classList.remove('hidden'); }
+            if (!token) {
+                if (confirmErr) { confirmErr.textContent = 'Вставьте токен'; confirmErr.classList.remove('hidden'); }
                 return;
             }
 
+            if (btn) { btn.disabled = true; btn.textContent = 'Подтверждение...'; }
+            if (confirmErr) confirmErr.classList.add('hidden');
+            if (confirmOk) confirmOk.classList.add('hidden');
+
             try {
-                const data = await login(email, password);
-                if (data.access_token) {
-                    setAuthToken(data.access_token);
-                    showMainApp();
+                await confirmEmail(token);
+                if (confirmOk) confirmOk.classList.remove('hidden');
+                showToast('Email подтверждён! Теперь войдите.', 'success');
+                setTimeout(() => {
+                    loginForm.classList.remove('hidden');
+                    if (verifyForm) verifyForm.classList.add('hidden');
+                }, 2000);
+            } catch (err) {
+                if (confirmErr) { confirmErr.textContent = err.message; confirmErr.classList.remove('hidden'); }
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = 'Подтвердить email'; }
+            }
+        });
+
+        // ===== LOGIN SUBMIT =====
+        if (loginForm) {
+            loginForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                console.log('[LOGIN] Submit!');
+                const email = loginEmail.value.trim();
+                const password = loginPassword.value;
+
+                const emailErr = validators.email(email);
+                const passErr = validators.loginPassword(password);
+                setFieldError(loginEmail, loginEmailErr, emailErr);
+                setFieldError(loginPassword, loginPassErr, passErr);
+
+                if (emailErr || passErr) {
+                    console.log('[LOGIN] Validation failed');
+                    if (loginErrEl) { loginErrEl.textContent = 'Проверьте введённые данные'; loginErrEl.classList.remove('hidden'); }
+                    return;
                 }
-            } catch (err) {
-                if (loginErr) { loginErr.textContent = err.message || 'Неверный email или пароль'; loginErr.classList.remove('hidden'); }
-            }
-        });
 
-        // Register submit
-        registerForm.addEventListener('submit', async e => {
-            e.preventDefault();
-            const name = regName.value.trim();
-            const email = regEmail.value.trim();
-            const password = regPassword.value;
+                const btn = document.getElementById('loginBtn');
+                if (btn) { btn.disabled = true; btn.textContent = 'Вход...'; }
 
-            const nameErr = validators.name(name);
-            const emailErr = validators.email(email);
-            const passResult = validators.password(password);
-            const passErr = typeof passResult === 'object' ? passResult.error : passResult;
+                try {
+                    console.log('[LOGIN] Calling API for:', email);
+                    const data = await login(email, password);
+                    console.log('[LOGIN] Got response:', data);
+                    if (data && data.access_token) {
+                        setAuthToken(data.access_token);
+                        showMainApp();
+                    } else {
+                        throw new Error('Сервер не вернул токен');
+                    }
+                } catch (err) {
+                    console.error('[LOGIN] Error:', err);
+                    if (loginErrEl) { loginErrEl.textContent = err.message; loginErrEl.classList.remove('hidden'); }
+                } finally {
+                    if (btn) { btn.disabled = false; btn.textContent = 'Войти'; }
+                }
+            });
+        }
 
-            setFieldError(regName, regNameErr, nameErr);
-            setFieldError(regEmail, regEmailErr, emailErr);
-            setFieldError(regPassword, regPassErr, passErr);
+        // ===== REGISTER SUBMIT =====
+        if (registerForm) {
+            registerForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                console.log('[REGISTER] Submit!');
+                const name = regName.value.trim();
+                const email = regEmail.value.trim();
+                const password = regPassword.value;
 
-            if (nameErr || emailErr || passErr) {
-                if (regErr) { regErr.textContent = 'Проверьте введённые данные'; regErr.classList.remove('hidden'); }
-                return;
-            }
+                const nameErr = validators.name(name);
+                const emailErr = validators.email(email);
+                const passResult = validators.password(password);
+                const passErr = typeof passResult === 'object' ? passResult.error : passResult;
 
-            try {
-                await register(email, password, name);
-                if (regErr) { regErr.textContent = '✅ Аккаунт создан! Теперь войдите.'; regErr.classList.remove('hidden'); }
-                registerForm.classList.add('hidden');
-                loginForm.classList.remove('hidden');
-                // Reset form
-                regName.value = '';
-                regEmail.value = '';
-                regPassword.value = '';
-                [regName, regEmail, regPassword].forEach(el => {
-                    el.classList.remove('valid', 'invalid');
-                });
-                updatePasswordHint(null);
-            } catch (err) {
-                if (regErr) { regErr.textContent = err.message || 'Ошибка регистрации'; regErr.classList.remove('hidden'); }
-            }
-        });
+                setFieldError(regName, regNameErr, nameErr);
+                setFieldError(regEmail, regEmailErr, emailErr);
+                setFieldError(regPassword, regPassErr, passErr);
+
+                if (nameErr || emailErr || passErr) {
+                    console.log('[REGISTER] Validation failed');
+                    if (regErrEl) { regErrEl.textContent = 'Проверьте введённые данные'; regErrEl.classList.remove('hidden'); }
+                    return;
+                }
+
+                const btn = document.getElementById('registerBtn');
+                if (btn) { btn.disabled = true; btn.textContent = 'Создание...'; }
+
+                try {
+                    console.log('[REGISTER] Calling API for:', email, name);
+                    const data = await register(email, password, name);
+                    console.log('[REGISTER] Got response:', data);
+
+                    // Show verification screen
+                    showVerification(email, data.message || '', data.user_id);
+                } catch (err) {
+                    console.error('[REGISTER] Error:', err);
+                    if (regErrEl) { regErrEl.textContent = err.message; regErrEl.classList.remove('hidden'); regErrEl.style.color = ''; }
+                } finally {
+                    if (btn) { btn.disabled = false; btn.textContent = 'Создать аккаунт'; }
+                }
+            });
+        }
 
         // Logout
         document.getElementById('logoutBtn')?.addEventListener('click', async () => {
@@ -246,15 +362,12 @@ document.addEventListener('DOMContentLoaded', () => {
             showAuthScreen();
         });
 
-        // Tab bar navigation
+        // Tab bar
         document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', () => {
-                const view = tab.dataset.view;
-                switchView(view);
-            });
+            tab.addEventListener('click', () => switchView(tab.dataset.view));
         });
 
-        // Generate plan buttons
+        // Generate plan
         document.getElementById('generatePlanBtn')?.addEventListener('click', generatePlan);
         document.getElementById('dashGenerateBtn')?.addEventListener('click', generatePlan);
 
@@ -265,24 +378,30 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('profileForm')?.addEventListener('submit', saveProfile);
     }
 
+    function clearErrors() {
+        ['loginError', 'registerError', 'authError'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.textContent = ''; el.classList.add('hidden'); el.style.color = ''; }
+        });
+        ['loginEmailError', 'loginPasswordError', 'regNameError', 'regEmailError', 'regPasswordError'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = '';
+        });
+    }
+
     // ===== Navigation =====
     function switchView(viewName) {
         state.currentView = viewName;
-
-        // Update views
         document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
         const targetView = document.getElementById(`${viewName}View`);
         if (targetView) targetView.classList.add('active');
 
-        // Update tabs
         document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         const activeTab = document.querySelector(`.tab[data-view="${viewName}"]`);
         if (activeTab) activeTab.classList.add('active');
 
-        // Update title
         pageTitle.textContent = viewTitles[viewName] || 'FitPulse';
 
-        // Load data
         if (viewName === 'dashboard') loadDashboard();
         if (viewName === 'profile') loadProfile();
         if (viewName === 'training') loadTrainingPlans();
@@ -292,31 +411,21 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== Dashboard =====
     async function loadDashboard() {
         try {
-            // Load biometrics in parallel
             const [hrData, spo2Data] = await Promise.allSettled([
                 getBiometricRecords('heart_rate', null, null, 10),
                 getBiometricRecords('spo2', null, null, 5),
             ]);
-
-            // Heart Rate
             if (hrData.status === 'fulfilled' && hrData.value.records?.length > 0) {
-                const latest = hrData.value.records[0];
-                document.getElementById('hrValue').textContent = Math.round(latest.value);
+                document.getElementById('hrValue').textContent = Math.round(hrData.value.records[0].value);
             }
-
-            // SpO2
             if (spo2Data.status === 'fulfilled' && spo2Data.value.records?.length > 0) {
-                const latest = spo2Data.value.records[0];
-                document.getElementById('spo2Value').textContent = Math.round(latest.value);
+                document.getElementById('spo2Value').textContent = Math.round(spo2Data.value.records[0].value);
             }
 
             // Chart
             if (hrData.status === 'fulfilled' && hrData.value.records?.length > 1) {
                 const records = hrData.value.records.slice(0, 20).reverse();
-                const labels = records.map(r => {
-                    const d = new Date(r.timestamp);
-                    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-                });
+                const labels = records.map(r => new Date(r.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }));
                 const values = records.map(r => r.value);
 
                 if (state.heartChart) state.heartChart.destroy();
@@ -327,18 +436,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         data: {
                             labels,
                             datasets: [{
-                                data: values,
-                                borderColor: '#ff375f',
-                                backgroundColor: 'rgba(255, 55, 95, 0.1)',
-                                fill: true,
-                                tension: 0.4,
-                                pointRadius: 0,
-                                borderWidth: 2.5,
+                                data: values, borderColor: '#ff375f', backgroundColor: 'rgba(255,55,95,0.1)',
+                                fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2.5,
                             }]
                         },
                         options: {
-                            responsive: true,
-                            maintainAspectRatio: false,
+                            responsive: true, maintainAspectRatio: false,
                             plugins: { legend: { display: false } },
                             scales: {
                                 x: { display: true, grid: { display: false }, ticks: { color: '#636366', maxTicksLimit: 6, font: { size: 11 } } },
@@ -361,7 +464,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 document.getElementById('aiRecommendation').textContent = 'Нужно больше данных';
                 document.getElementById('aiDescription').textContent = 'Добавьте биометрические данные для AI-анализа';
             }
-
         } catch (err) {
             console.error('Dashboard load failed:', err);
         }
@@ -372,7 +474,6 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const profile = await getProfile();
             const p = profile.profile || profile;
-
             document.getElementById('profName').value = p.full_name || '';
             document.getElementById('profAge').value = p.age || '';
             document.getElementById('profGender').value = p.gender || '';
@@ -381,7 +482,6 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('profFitness').value = p.fitness_level || '';
             document.getElementById('profNutrition').value = p.nutrition || '';
             document.getElementById('profSleep').value = p.sleep_hours || '';
-
             document.querySelectorAll('.goal-chip input[type="checkbox"]').forEach(cb => {
                 cb.checked = p.goals?.includes(cb.value) || false;
             });
@@ -393,7 +493,6 @@ document.addEventListener('DOMContentLoaded', () => {
     async function saveProfile(e) {
         e.preventDefault();
         const goals = Array.from(document.querySelectorAll('.goal-chip input:checked')).map(cb => cb.value);
-
         const data = {
             age: parseInt(document.getElementById('profAge').value) || null,
             gender: document.getElementById('profGender').value || null,
@@ -404,7 +503,6 @@ document.addEventListener('DOMContentLoaded', () => {
             sleep_hours: parseFloat(document.getElementById('profSleep').value) || null,
             goals,
         };
-
         try {
             await updateProfile(data);
             showToast('Профиль сохранён', 'success');
@@ -419,32 +517,17 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await getTrainingPlans();
             const container = document.getElementById('plansList');
             const plans = data.plans || [];
-
             if (plans.length > 0) {
                 container.innerHTML = plans.map(plan => {
                     const date = new Date(plan.generated_at).toLocaleDateString('ru-RU');
-                    return `
-                        <div class="plan-card">
-                            <h4>📋 Программа от ${date}</h4>
-                            <div class="plan-meta">
-                                <span>Статус: ${plan.status}</span>
-                                <span>${plan.classification_class || '—'}</span>
-                            </div>
-                        </div>
-                    `;
+                    return `<div class="plan-card"><h4>📋 Программа от ${date}</h4>
+                        <div class="plan-meta"><span>Статус: ${plan.status}</span><span>${plan.classification_class || '—'}</span></div></div>`;
                 }).join('');
             } else {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">🏃</div>
-                        <h3>Нет активных программ</h3>
-                        <p>AI создаст персональный план на основе ваших данных</p>
-                    </div>
-                `;
+                container.innerHTML = `<div class="empty-state"><div class="empty-icon">🏃</div>
+                    <h3>Нет активных программ</h3><p>AI создаст персональный план</p></div>`;
             }
-        } catch (err) {
-            console.error('Training plans load failed:', err);
-        }
+        } catch (err) { console.error('Training plans load failed:', err); }
     }
 
     async function generatePlan() {
@@ -452,14 +535,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showToast('Генерация плана...', 'success');
             const result = await apiRequest('/ml/generate-plan', {
                 method: 'POST',
-                body: JSON.stringify({
-                    training_class: 'endurance_e1e2',
-                    duration_weeks: 4,
-                    available_days: [1, 3, 5],
-                    preferences: { max_duration: 60 }
-                })
+                body: JSON.stringify({ training_class: 'endurance_e1e2', duration_weeks: 4, available_days: [1, 3, 5], preferences: { max_duration: 60 } })
             });
-
             if (result.training_type) {
                 showToast(`✅ ${result.training_type_ru || result.training_type}`, 'success');
                 if (state.currentView === 'training') loadTrainingPlans();
@@ -467,80 +544,40 @@ document.addEventListener('DOMContentLoaded', () => {
                     const el = document.getElementById('todayWorkout');
                     if (el) {
                         const exercises = result.exercises || ['Разминка 10 мин', 'Основная часть 30 мин', 'Заминка 10 мин'];
-                        el.innerHTML = `
-                            <h4 style="margin-bottom:12px;font-size:17px;">${result.training_type_ru || 'Тренировка'}</h4>
-                            <div style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">
-                                ${result.duration_minutes || 45} мин · Интенсивность ${Math.round((result.intensity || 0.6) * 100)}%
-                            </div>
-                            ${exercises.map(ex => `
-                                <div class="workout-item">
-                                    <span class="workout-exercise">${ex}</span>
-                                </div>
-                            `).join('')}
-                        `;
+                        el.innerHTML = `<h4 style="margin-bottom:12px;font-size:17px;">${result.training_type_ru || 'Тренировка'}</h4>
+                            <div style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">${result.duration_minutes || 45} мин</div>
+                            ${exercises.map(ex => `<div class="workout-item"><span class="workout-exercise">${ex}</span></div>`).join('')}`;
                     }
                 }
             }
-        } catch (err) {
-            showToast('Ошибка: ' + err.message, 'error');
-        }
+        } catch (err) { showToast('Ошибка: ' + err.message, 'error'); }
     }
 
-    // ===== ML Analysis =====
-    async function loadMLView() {
-        // Show last result if available
-    }
+    // ===== ML =====
+    async function loadMLView() {}
 
     async function mlClassify() {
         try {
             const container = document.getElementById('mlResult');
             container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-secondary);">Анализ...</div>';
-
             const result = await apiRequest('/ml/classify', { method: 'POST', body: '{}' });
-
             const classRu = result.predicted_class_ru || result.predicted_class || 'Не определено';
             const confidence = result.confidence ? Math.round(result.confidence * 100) : 0;
-
-            container.innerHTML = `
-                <div class="ml-classification">
-                    <div class="class-label">Ваше состояние</div>
-                    <div class="class-name">${classRu}</div>
-                    <div class="confidence">Уверенность: ${confidence}%</div>
-                    ${result.description ? `<p style="margin-top:12px;font-size:15px;color:var(--text-secondary);">${result.description}</p>` : ''}
-                    ${result.recommendations?.length ? `
-                        <div style="margin-top:16px;text-align:left;">
-                            ${result.recommendations.map(r => `<p style="padding:8px 0;border-bottom:0.5px solid rgba(255,255,255,0.1);font-size:15px;">• ${r}</p>`).join('')}
-                        </div>
-                    ` : ''}
-                </div>
-            `;
+            container.innerHTML = `<div class="ml-classification">
+                <div class="class-label">Ваше состояние</div>
+                <div class="class-name">${classRu}</div>
+                <div class="confidence">Уверенность: ${confidence}%</div>
+                ${result.description ? `<p style="margin-top:12px;font-size:15px;color:var(--text-secondary);">${result.description}</p>` : ''}</div>`;
         } catch (err) {
-            document.getElementById('mlResult').innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">⚠️</div>
-                    <h3>Не удалось проанализировать</h3>
-                    <p>${err.message}</p>
-                </div>
-            `;
+            document.getElementById('mlResult').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div>
+                <h3>Не удалось проанализировать</h3><p>${err.message}</p></div>`;
         }
     }
 
-    // ===== Helpers =====
-    function hideAllAuthErrors() {
-        ['loginError', 'registerError', 'authError'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) { el.textContent = ''; el.classList.add('hidden'); }
-        });
-        ['loginEmailError', 'loginPasswordError', 'regNameError', 'regEmailError', 'regPasswordError'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.textContent = '';
-        });
-    }
-
+    // ===== Toast =====
     function showToast(msg, type = 'success') {
         const existing = document.querySelector('.toast');
         if (existing) existing.remove();
-
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
         toast.textContent = msg;

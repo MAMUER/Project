@@ -1,13 +1,16 @@
 const API_BASE = '/api/v1';
 
 let authToken = localStorage.getItem('authToken');
+console.log('[API] init, token:', authToken ? 'present' : 'null');
 
 function setAuthToken(token) {
     authToken = token;
     if (token) {
         localStorage.setItem('authToken', token);
+        console.log('[API] Token saved');
     } else {
         localStorage.removeItem('authToken');
+        console.log('[API] Token removed');
     }
 }
 
@@ -16,23 +19,42 @@ async function apiRequest(endpoint, options = {}) {
         'Content-Type': 'application/json',
         ...options.headers
     };
-    
+
     if (authToken) {
         headers['Authorization'] = `Bearer ${authToken}`;
     }
-    
+
+    console.log('[API] Request:', endpoint, options.method || 'GET');
+
     const response = await fetch(`${API_BASE}${endpoint}`, {
         ...options,
         headers
     });
-    
+
+    console.log('[API] Response status:', response.status);
+
     if (response.status === 401) {
         setAuthToken(null);
         window.location.reload();
-        throw new Error('Unauthorized');
+        throw new Error('Сессия истекла. Войдите заново');
     }
-    
-    return response.json();
+
+    let data;
+    const contentType = response.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+        data = await response.json();
+    } else {
+        data = await response.text();
+    }
+
+    console.log('[API] Response data:', data);
+
+    if (!response.ok) {
+        const msg = typeof data === 'string' ? data : (data.message || data.error || `Ошибка сервера (${response.status})`);
+        throw new Error(msg);
+    }
+
+    return data;
 }
 
 // Auth

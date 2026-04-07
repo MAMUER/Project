@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"net"
 	"os"
+	"time"
 
 	pb "github.com/MAMUER/Project/api/gen/user"
 	"github.com/MAMUER/Project/internal/auth"
 	"github.com/MAMUER/Project/internal/db"
+	"github.com/MAMUER/Project/internal/email"
 	"github.com/MAMUER/Project/internal/logger"
 	"github.com/MAMUER/Project/internal/sanitize"
 	"github.com/MAMUER/Project/internal/validator"
@@ -24,9 +28,11 @@ import (
 
 type userServer struct {
 	pb.UnimplementedUserServiceServer
-	db     *sql.DB
-	log    *logger.Logger
-	secret string
+	db          *sql.DB
+	log         *logger.Logger
+	secret      string
+	emailSender *email.Sender
+	baseURL     string
 }
 
 func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
@@ -71,6 +77,28 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 		return nil, status.Error(codes.Internal, "failed to create user")
 	}
 
+	// Генерация токена подтверждения email
+	verificationToken := generateVerificationToken()
+	_, err = s.db.ExecContext(ctx, `
+        INSERT INTO email_verifications (user_id, email, token, expires_at, used)
+        VALUES ($1, $2, $3, NOW() + INTERVAL '24 hours', false)
+    `, userID, email, verificationToken)
+	if err != nil {
+		s.log.Error("Failed to create email verification record", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to create verification token")
+	}
+
+	// Отправка письма подтверждения (не блокирует регистрацию при ошибке)
+	if s.emailSender != nil && s.baseURL != "" {
+		if err := s.emailSender.SendVerificationEmail(email, verificationToken, s.baseURL); err != nil {
+			s.log.Warn("Failed to send verification email (registration will proceed)",
+				zap.Error(err),
+				zap.String("email", email))
+		} else {
+			s.log.Info("Verification email sent", zap.String("email", email))
+		}
+	}
+
 	// Создание пустого профиля
 	_, err = s.db.ExecContext(ctx, `
         INSERT INTO user_profiles (user_id) VALUES ($1)
@@ -83,7 +111,63 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 
 	return &pb.RegisterResponse{
 		UserId:  userID,
-		Message: "user created successfully",
+		Message: "user created successfully. Verification token (dev only): " + verificationToken,
+	}, nil
+}
+
+func (s *userServer) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailRequest) (*pb.ConfirmEmailResponse, error) {
+	s.log.Info("Confirm email request", zap.String("token", req.Token))
+
+	if req.Token == "" {
+		return nil, status.Error(codes.InvalidArgument, "token is required")
+	}
+
+	// Ищем запись о верификации
+	var userID, email string
+	var used bool
+	var expiresAt sql.NullTime
+	err := s.db.QueryRowContext(ctx, `
+        SELECT user_id, email, used, expires_at FROM email_verifications WHERE token = $1
+    `, req.Token).Scan(&userID, &email, &used, &expiresAt)
+	if err == sql.ErrNoRows {
+		return nil, status.Error(codes.InvalidArgument, "invalid verification token")
+	}
+	if err != nil {
+		s.log.Error("Database error checking verification token", zap.Error(err))
+		return nil, status.Error(codes.Internal, "database error")
+	}
+
+	// Проверяем, не использован ли токен
+	if used {
+		return nil, status.Error(codes.InvalidArgument, "verification token has already been used")
+	}
+
+	// Проверяем, не истёк ли токен
+	if expiresAt.Valid && expiresAt.Time.Before(time.Now()) {
+		return nil, status.Error(codes.InvalidArgument, "verification token has expired")
+	}
+
+	// Обновляем: помечаем токен как использованный и подтверждаем email
+	_, err = s.db.ExecContext(ctx, `
+        UPDATE email_verifications SET used = true WHERE token = $1
+    `, req.Token)
+	if err != nil {
+		s.log.Error("Failed to update verification token", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to confirm email")
+	}
+
+	_, err = s.db.ExecContext(ctx, `
+        UPDATE users SET email_confirmed = true WHERE id = $1
+    `, userID)
+	if err != nil {
+		s.log.Error("Failed to update user email_confirmed", zap.Error(err))
+		return nil, status.Error(codes.Internal, "failed to confirm email")
+	}
+
+	s.log.Info("Email confirmed", zap.String("user_id", userID), zap.String("email", email))
+	return &pb.ConfirmEmailResponse{
+		UserId:  userID,
+		Message: "email confirmed successfully",
 	}, nil
 }
 
@@ -96,8 +180,23 @@ func (s *userServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 		return nil, err
 	}
 
+	// Проверка подтверждения email
+	var emailConfirmed bool
+	err := s.db.QueryRowContext(ctx, "SELECT email_confirmed FROM users WHERE email = $1", req.Email).Scan(&emailConfirmed)
+	if err == sql.ErrNoRows {
+		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
+	}
+	if err != nil {
+		s.log.Error("Database error checking email confirmation", zap.Error(err))
+		return nil, status.Error(codes.Internal, "database error")
+	}
+	if !emailConfirmed {
+		s.log.Info("Login attempt with unconfirmed email", zap.String("email", req.Email))
+		return nil, status.Error(codes.Unauthenticated, "Email not confirmed. Please check your inbox.")
+	}
+
 	var user models.User
-	err := s.db.QueryRowContext(ctx, `
+	err = s.db.QueryRowContext(ctx, `
         SELECT id, email, password_hash, role FROM users WHERE email = $1
     `, req.Email).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role)
 	if err == sql.ErrNoRows {
@@ -275,6 +374,22 @@ func (s *userServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*
 	}, nil
 }
 
+// generateVerificationToken generates a random 32-byte hex token for email verification.
+func generateVerificationToken() string {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		panic("failed to generate verification token: " + err.Error())
+	}
+	return hex.EncodeToString(b)
+}
+
+func getEnvOrDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func main() {
 	log := logger.New("user-service")
 	defer log.Sync() //nolint:errcheck
@@ -308,6 +423,11 @@ func main() {
 		log.Fatal("JWT_SECRET environment variable is required")
 	}
 
+	// SMTP email configuration
+	emailCfg := email.LoadConfig()
+	emailSender := email.NewSender(emailCfg)
+	baseURL := getEnvOrDefault("BASE_URL", "http://localhost:8443")
+
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatal("Failed to listen", zap.Error(err))
@@ -315,9 +435,11 @@ func main() {
 
 	s := grpc.NewServer()
 	pb.RegisterUserServiceServer(s, &userServer{
-		db:     database,
-		log:    log,
-		secret: secret,
+		db:          database,
+		log:         log,
+		secret:      secret,
+		emailSender: emailSender,
+		baseURL:     baseURL,
 	})
 
 	log.Info("User service starting", zap.String("port", port))
