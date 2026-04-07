@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,11 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/google/uuid"
+	_ "github.com/lib/pq"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/redis/go-redis/v9"
 
 	biometricpb "github.com/MAMUER/Project/api/gen/biometric"
 	trainingpb "github.com/MAMUER/Project/api/gen/training"
@@ -27,13 +33,19 @@ import (
 )
 
 type gateway struct {
-	userClient      userpb.UserServiceClient
-	biometricClient biometricpb.BiometricServiceClient
-	trainingClient  trainingpb.TrainingServiceClient
-	mlClassifierURL string
-	mlGeneratorURL  string
-	log             *logger.Logger
-	jwtSecret       string
+	userClient         userpb.UserServiceClient
+	biometricClient    biometricpb.BiometricServiceClient
+	trainingClient     trainingpb.TrainingServiceClient
+	mlClassifierURL    string
+	mlGeneratorURL     string
+	deviceConnectorURL string
+	log                *logger.Logger
+	jwtSecret          string
+	db                 *sql.DB // For server-side role re-verification
+	// Async ML processing
+	rdb     *redis.Client
+	rmqCh   *amqp.Channel
+	mlAsync bool
 }
 
 // ========== Helper Functions ==========
@@ -64,7 +76,8 @@ func grpcToHTTPStatus(err error) (int, string) {
 	case codes.Unauthenticated:
 		return http.StatusUnauthorized, msg
 	case codes.PermissionDenied:
-		return http.StatusForbidden, msg
+		// Требование #4: Никогда не возвращаем 403 — заменяем на 404
+		return http.StatusNotFound, "not found"
 	case codes.DeadlineExceeded:
 		return http.StatusGatewayTimeout, msg
 	case codes.Unavailable:
@@ -134,12 +147,18 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+	// Требование #11: HMAC-SHA256 подпись критического ответа
+	loginResp := map[string]interface{}{
 		"status":       "ok",
 		"access_token": resp.GetAccessToken(),
 		"token_type":   resp.GetTokenType(),
 		"expires_in":   resp.GetExpiresIn(),
-	}); err != nil {
+	}
+	if signature, err := auth.SignResponse(loginResp, g.jwtSecret); err == nil {
+		w.Header().Set("X-Response-Signature", signature)
+	}
+
+	if err := json.NewEncoder(w).Encode(loginResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -147,7 +166,7 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // logoutHandler — принудительная инвалидация сессии
-// Требование #1: Явное указание браузеру на удаление cookies
+// Требование #1: Явное указание браузеру на удаление cookies (session, refresh_token)
 // Требование #7: return после отправки заголовков
 func (g *gateway) logoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Требование #1: Заголовки для удаления cookies на клиенте
@@ -188,13 +207,16 @@ func (g *gateway) profileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	signature, err := auth.SignResponse(resp, g.jwtSecret)
-	if err == nil {
+	// Требование #11: HMAC-SHA256 подпись критического ответа
+	profileResp := map[string]interface{}{
+		"status":  "ok",
+		"profile": resp,
+	}
+	if signature, err := auth.SignResponse(profileResp, g.jwtSecret); err == nil {
 		w.Header().Set("X-Response-Signature", signature)
 	}
 
-	// ✅ Проверяем ошибку кодирования
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+	if err := json.NewEncoder(w).Encode(profileResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -246,6 +268,152 @@ func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 
 	// ✅ Исправлено: проверяем ошибку Encode
 	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// ========== Security #10: Server-side Role Re-verification ==========
+
+// verifyUserRole re-queries the user's role from the database to prevent privilege escalation.
+func (g *gateway) verifyUserRole(ctx context.Context, userID, requiredRole string) bool {
+	if g.db == nil {
+		g.log.Warn("Database not available for role verification")
+		return false
+	}
+	var actualRole string
+	err := g.db.QueryRowContext(ctx, "SELECT role FROM users WHERE id = $1", userID).Scan(&actualRole)
+	if err == sql.ErrNoRows {
+		g.log.Warn("User not found during role verification", zap.String("user_id", userID))
+		return false
+	}
+	if err != nil {
+		g.log.Error("Database error during role verification", zap.Error(err))
+		return false
+	}
+	return actualRole == requiredRole
+}
+
+// deleteProfileHandler handles profile deletion with server-side role re-verification.
+func (g *gateway) deleteProfileHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	if !g.verifyUserRole(r.Context(), userID, "user") {
+		g.log.Warn("Role verification failed for profile deletion", zap.String("user_id", userID))
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	// Delete profile directly from database
+	if g.db == nil {
+		g.log.Error("Database not available for profile deletion")
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	_, err := g.db.ExecContext(r.Context(), "DELETE FROM users WHERE id = $1", userID)
+	if err != nil {
+		g.log.Error("Failed to delete profile", zap.Error(err), zap.String("user_id", userID))
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	// Требование #1: Инвалидация сессии после удаления профиля
+	logoutHeaders := middleware.LogoutHeaders()
+	for key, values := range logoutHeaders {
+		for _, value := range values {
+			w.Header().Add(key, value)
+		}
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "deleted"}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// adminListUsersHandler handles admin user listing with server-side role re-verification.
+func (g *gateway) adminListUsersHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
+	if !ok {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	if !g.verifyUserRole(r.Context(), userID, "admin") {
+		g.log.Warn("Non-admin attempted to access user list", zap.String("user_id", userID))
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	if g.db == nil {
+		g.log.Error("Database not available for user listing")
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	page := 1
+	if p := r.URL.Query().Get("page"); p != "" {
+		if val, err := strconv.Atoi(p); err == nil && val > 0 {
+			page = val
+		}
+	}
+	pageSize := 20
+	if ps := r.URL.Query().Get("page_size"); ps != "" {
+		if val, err := strconv.Atoi(ps); err == nil && val > 0 {
+			pageSize = val
+		}
+	}
+	offset := (page - 1) * pageSize
+
+	rows, err := g.db.QueryContext(r.Context(),
+		"SELECT id, email, full_name, role, created_at FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2",
+		pageSize, offset)
+	if err != nil {
+		g.log.Error("Failed to query users", zap.Error(err))
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			g.log.Error("Failed to close rows", zap.Error(closeErr))
+		}
+	}()
+
+	type userInfo struct {
+		ID        string    `json:"id"`
+		Email     string    `json:"email"`
+		FullName  string    `json:"full_name"`
+		Role      string    `json:"role"`
+		CreatedAt time.Time `json:"created_at"`
+	}
+	var users []userInfo
+	for rows.Next() {
+		var u userInfo
+		if scanErr := rows.Scan(&u.ID, &u.Email, &u.FullName, &u.Role, &u.CreatedAt); scanErr != nil {
+			g.log.Error("Failed to scan user row", zap.Error(scanErr))
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		users = append(users, u)
+	}
+	if scanErr := rows.Err(); scanErr != nil {
+		g.log.Error("Rows iteration error", zap.Error(scanErr))
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+
+	adminResp := map[string]interface{}{"status": "ok", "users": users, "total": len(users)}
+	if signature, err := auth.SignResponse(adminResp, g.jwtSecret); err == nil {
+		w.Header().Set("X-Response-Signature", signature)
+	}
+
+	if err := json.NewEncoder(w).Encode(adminResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -339,8 +507,13 @@ func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// ✅ Исправлено: проверяем ошибку Encode
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+	// Требование #11: HMAC-SHA256 подпись критического ответа
+	bioResp := map[string]interface{}{"status": "ok"}
+	if signature, err := auth.SignResponse(bioResp, g.jwtSecret); err == nil {
+		w.Header().Set("X-Response-Signature", signature)
+	}
+
+	if err := json.NewEncoder(w).Encode(bioResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -392,8 +565,13 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ Исправлено: проверяем ошибку Encode
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+	// Требование #11: HMAC-SHA256 подпись критического ответа
+	planResp := map[string]interface{}{"status": "ok"}
+	if signature, err := auth.SignResponse(planResp, g.jwtSecret); err == nil {
+		w.Header().Set("X-Response-Signature", signature)
+	}
+
+	if err := json.NewEncoder(w).Encode(planResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -432,8 +610,13 @@ func (g *gateway) getPlansHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ Исправлено: проверяем ошибку Encode
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{"status": "ok"}); err != nil {
+	// Требование #11: HMAC-SHA256 подпись критического ответа
+	plansResp := map[string]interface{}{"status": "ok"}
+	if signature, err := auth.SignResponse(plansResp, g.jwtSecret); err == nil {
+		w.Header().Set("X-Response-Signature", signature)
+	}
+
+	if err := json.NewEncoder(w).Encode(plansResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
@@ -515,25 +698,29 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Получаем последние биометрические данные
+	// Build the ML payload (same as sync path)
 	bioResp, err := g.biometricClient.GetLatest(r.Context(), &biometricpb.GetLatestRequest{
 		UserId:     userID,
 		MetricType: "heart_rate",
 	})
 	if err != nil {
 		g.log.Warn("Failed to get heart rate", zap.Error(err))
-		// Используем дефолтное значение
 	}
 
-	// Формируем данные для классификации в формате ML сервиса
 	mlPayload := extractMLPayload(bioResp)
 
-	// ✅ Создаём контекст с таймаутом
+	if g.mlAsync {
+		// Async path: publish to RabbitMQ, return 202
+		g.handleAsyncClassify(w, r, mlPayload)
+		return
+	}
+
+	// Sync path: call ML classifier directly (backward compatible)
+	reqBody, _ := json.Marshal(mlPayload)
+
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	// ✅ Создаём запрос с контекстом
-	reqBody, _ := json.Marshal(mlPayload)
 	req, err := http.NewRequestWithContext(ctx, "POST",
 		g.mlClassifierURL+"/classify",
 		bytes.NewReader(reqBody))
@@ -544,7 +731,6 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	// ✅ Выполняем запрос через http.Client
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
@@ -552,7 +738,6 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "classification service unavailable", http.StatusServiceUnavailable)
 		return
 	}
-	// ✅ Проверяем ошибку закрытия тела ответа
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			g.log.Error("Failed to close response body", zap.Error(closeErr))
@@ -565,11 +750,87 @@ func (g *gateway) classifyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ Проверяем ошибку копирования тела
 	_, err = io.Copy(w, resp.Body)
 	if err != nil {
 		g.log.Error("Failed to write response", zap.Error(err))
-		// Тело уже частично отправлено, логируем ошибку
+	}
+}
+
+// handleAsyncClassify publishes a classification job to RabbitMQ.
+func (g *gateway) handleAsyncClassify(w http.ResponseWriter, r *http.Request, mlPayload map[string]interface{}) {
+	jobID := uuid.New().String()
+
+	body, err := json.Marshal(map[string]interface{}{
+		"job_id":             jobID,
+		"physiological_data": mlPayload["physiological_data"],
+	})
+	if err != nil {
+		g.log.Error("Failed to marshal classify job", zap.Error(err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	err = g.rmqCh.PublishWithContext(ctx, "", "ml.classify", false, false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			DeliveryMode: amqp.Persistent,
+		})
+	if err != nil {
+		g.log.Error("Failed to publish classify job to RabbitMQ", zap.Error(err))
+		http.Error(w, "job queue unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"job_id": jobID,
+		"status": "pending",
+	}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+	}
+}
+
+// classifyStatusHandler returns the status/result of an async classification job.
+func (g *gateway) classifyStatusHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	jobID := vars["job_id"]
+	if jobID == "" {
+		http.Error(w, "job_id required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	val, err := g.rdb.Get(ctx, fmt.Sprintf("ml:result:%s", jobID)).Result()
+	if err == redis.Nil {
+		// Key not found - job still processing or expired
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"job_id": jobID,
+			"status": "processing",
+		}); err != nil {
+			g.log.Error("Failed to encode response", zap.Error(err))
+		}
+		return
+	}
+	if err != nil {
+		g.log.Error("Failed to get job result from Redis", zap.Error(err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	// Return the stored result
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(val)); err != nil {
+		g.log.Error("Failed to write response", zap.Error(err))
 	}
 }
 
@@ -598,7 +859,7 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Получаем профиль пользователя
+	// Get user profile
 	profile, err := g.userClient.GetProfile(r.Context(), &userpb.GetProfileRequest{UserId: userID})
 	if err != nil {
 		g.log.Error("Failed to get profile", zap.Error(err))
@@ -607,24 +868,44 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Формируем запрос к ML генератору
+	userProfile := map[string]interface{}{}
+	if profile.Age > 0 {
+		userProfile["age"] = profile.Age
+	}
+	if profile.Gender != "" {
+		userProfile["gender"] = profile.Gender
+	}
+	if profile.WeightKg > 0 {
+		userProfile["weight"] = profile.WeightKg
+	}
+	if profile.HeightCm > 0 {
+		userProfile["height"] = profile.HeightCm
+	}
+	if profile.FitnessLevel != "" {
+		userProfile["fitness_level"] = profile.FitnessLevel
+	}
+	if len(profile.Contraindications) > 0 {
+		userProfile["health_conditions"] = profile.Contraindications
+	}
+	if len(profile.Goals) > 0 {
+		userProfile["goals"] = profile.Goals
+	}
+	if profile.SleepHours > 0 {
+		userProfile["sleep_hours"] = profile.SleepHours
+	}
+	if profile.Nutrition != "" {
+		userProfile["nutrition"] = profile.Nutrition
+	}
+
+	if g.mlAsync {
+		g.handleAsyncGeneratePlan(w, r, req.ClassName, userProfile, req.Preferences)
+		return
+	}
+
+	// Sync path: call ML generator directly (backward compatible)
 	genReq := map[string]interface{}{
 		"training_class": req.ClassName,
-		"user_profile": map[string]interface{}{
-			"gender":            profile.Gender,
-			"age":               profile.Age,
-			"fitness_level":     profile.FitnessLevel,
-			"weight":            profile.WeightKg,
-			"height":            profile.HeightCm,
-			"health_conditions": profile.Contraindications,
-			"goals":             profile.Goals,
-			"sleep_hours":       profile.SleepHours,
-			"nutrition":         profile.Nutrition,
-			"lifestyle": map[string]interface{}{
-				"sleep_hours":       profile.SleepHours,
-				"nutrition_quality": 0.7,
-			},
-		},
+		"user_profile":   userProfile,
 		"preferences": map[string]interface{}{
 			"max_duration":        req.Preferences.MaxDuration,
 			"available_equipment": req.Preferences.AvailableEquipment,
@@ -646,7 +927,6 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "failed to generate plan", http.StatusInternalServerError)
 		return
 	}
-	// ✅ Проверяем ошибку закрытия тела ответа
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			g.log.Error("Failed to close response body", zap.Error(closeErr))
@@ -660,7 +940,7 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// Сохраняем план в training service
+	// Save plan to training service (non-blocking)
 	var mlResp map[string]interface{}
 	if err := json.Unmarshal(body, &mlResp); err == nil {
 		availableDays := make([]int32, len(req.AvailableDays))
@@ -668,26 +948,108 @@ func (g *gateway) generateMLPlanHandler(w http.ResponseWriter, r *http.Request) 
 			availableDays[i] = int32(d)
 		}
 
-		_, err = g.trainingClient.GeneratePlan(r.Context(), &trainingpb.GeneratePlanRequest{
+		_, saveErr := g.trainingClient.GeneratePlan(r.Context(), &trainingpb.GeneratePlanRequest{
 			UserId:              userID,
 			ClassificationClass: req.ClassName,
 			Confidence:          0.85,
 			DurationWeeks:       int32(req.DurationWeeks),
 			AvailableDays:       availableDays,
 		})
-		if err != nil {
-			httpCode, errMsg := grpcToHTTPStatus(err)
-			g.log.Warn("Failed to save plan to training service", zap.Error(err))
-			http.Error(w, errMsg, httpCode)
-			return
+		if saveErr != nil {
+			g.log.Warn("Failed to save ML plan to training service (non-critical)", zap.Error(saveErr))
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
-	// ✅ Проверяем ошибку Write
 	if _, err := w.Write(body); err != nil {
 		g.log.Error("Failed to write response body", zap.Error(err))
+	}
+}
+
+// handleAsyncGeneratePlan publishes a plan generation job to RabbitMQ.
+func (g *gateway) handleAsyncGeneratePlan(w http.ResponseWriter, r *http.Request, trainingClass string, userProfile map[string]interface{}, prefs struct {
+	MaxDuration        int      `json:"max_duration"`
+	AvailableEquipment []string `json:"available_equipment"`
+	PreferredTime      string   `json:"preferred_time"`
+}) {
+	jobID := uuid.New().String()
+
+	body, err := json.Marshal(map[string]interface{}{
+		"job_id":         jobID,
+		"training_class": trainingClass,
+		"user_profile":   userProfile,
+		"preferences": map[string]interface{}{
+			"max_duration":        prefs.MaxDuration,
+			"available_equipment": prefs.AvailableEquipment,
+			"preferred_time":      prefs.PreferredTime,
+		},
+	})
+	if err != nil {
+		g.log.Error("Failed to marshal generate-plan job", zap.Error(err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	err = g.rmqCh.PublishWithContext(ctx, "", "ml.generate", false, false,
+		amqp.Publishing{
+			ContentType:  "application/json",
+			Body:         body,
+			DeliveryMode: amqp.Persistent,
+		})
+	if err != nil {
+		g.log.Error("Failed to publish generate-plan job to RabbitMQ", zap.Error(err))
+		http.Error(w, "job queue unavailable", http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"job_id": jobID,
+		"status": "pending",
+	}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+	}
+}
+
+// generatePlanStatusHandler returns the status/result of an async plan generation job.
+func (g *gateway) generatePlanStatusHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	jobID := vars["job_id"]
+	if jobID == "" {
+		http.Error(w, "job_id required", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+
+	val, err := g.rdb.Get(ctx, fmt.Sprintf("ml:result:%s", jobID)).Result()
+	if err == redis.Nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(w).Encode(map[string]interface{}{
+			"job_id": jobID,
+			"status": "processing",
+		}); err != nil {
+			g.log.Error("Failed to encode response", zap.Error(err))
+		}
+		return
+	}
+	if err != nil {
+		g.log.Error("Failed to get job result from Redis", zap.Error(err))
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(val)); err != nil {
+		g.log.Error("Failed to write response", zap.Error(err))
 	}
 }
 
@@ -747,6 +1109,105 @@ func extractMLPayload(bioResp *biometricpb.BiometricRecord) map[string]interface
 	}
 }
 
+// ========== Device Connector Proxy Handlers ==========
+
+// deviceRegisterHandler proxies device registration to device-connector
+func (g *gateway) deviceRegisterHandler(w http.ResponseWriter, r *http.Request) {
+	if g.deviceConnectorURL == "" {
+		http.Error(w, "device connector service not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		g.log.Error("Failed to read request body", zap.Error(err))
+		http.Error(w, "failed to read request", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		g.deviceConnectorURL+"/api/v1/devices/register",
+		bytes.NewReader(body))
+	if err != nil {
+		g.log.Error("Failed to create device register request", zap.Error(err))
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		g.log.Error("Device connector unreachable", zap.Error(err))
+		http.Error(w, "device connector service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			g.log.Error("Failed to close response body", zap.Error(closeErr))
+		}
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		g.log.Error("Failed to write response", zap.Error(err))
+	}
+}
+
+// deviceIngestHandler proxies data ingestion to device-connector
+func (g *gateway) deviceIngestHandler(w http.ResponseWriter, r *http.Request) {
+	if g.deviceConnectorURL == "" {
+		http.Error(w, "device connector service not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	vars := mux.Vars(r)
+	deviceID := vars["device_id"]
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		g.log.Error("Failed to read request body", zap.Error(err))
+		http.Error(w, "failed to read request", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "POST",
+		g.deviceConnectorURL+"/api/v1/devices/"+deviceID+"/ingest",
+		bytes.NewReader(body))
+	if err != nil {
+		g.log.Error("Failed to create device ingest request", zap.Error(err))
+		http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		g.log.Error("Device connector unreachable", zap.Error(err))
+		http.Error(w, "device connector service unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			g.log.Error("Failed to close response body", zap.Error(closeErr))
+		}
+	}()
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(resp.StatusCode)
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		g.log.Error("Failed to write response", zap.Error(err))
+	}
+}
+
 // ========== Main ==========
 
 func main() {
@@ -787,9 +1248,95 @@ func main() {
 		mlGeneratorURL = "http://localhost:8002"
 	}
 
+	deviceConnectorURL := os.Getenv("DEVICE_CONNECTOR_URL")
+	if deviceConnectorURL == "" {
+		deviceConnectorURL = "http://localhost:8082"
+	}
+
+	// Async ML processing configuration
+	mlAsync := os.Getenv("ML_ASYNC") == "true" || os.Getenv("ML_ASYNC") == "True" || os.Getenv("ML_ASYNC") == "1"
+
+	rabbitmqURL := os.Getenv("RABBITMQ_URL")
+	if rabbitmqURL == "" {
+		rabbitmqURL = "amqp://guest:guest@localhost:5672/"
+	}
+
+	redisHost := os.Getenv("REDIS_HOST")
+	if redisHost == "" {
+		redisHost = "localhost"
+	}
+
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
 		log.Fatal("JWT_SECRET environment variable is required")
+	}
+
+	// Database connection for server-side role re-verification (Security #10)
+	dbURL := os.Getenv("DATABASE_URL")
+	var db *sql.DB
+	if dbURL != "" {
+		var openErr error
+		db, openErr = sql.Open("postgres", dbURL)
+		if openErr != nil {
+			log.Fatal("Failed to open database", zap.Error(openErr))
+		}
+		db.SetMaxOpenConns(5)
+		db.SetMaxIdleConns(2)
+		db.SetConnMaxLifetime(5 * time.Minute)
+		if pingErr := db.Ping(); pingErr != nil {
+			log.Fatal("Failed to ping database", zap.Error(pingErr))
+		}
+		defer func() {
+			if closeErr := db.Close(); closeErr != nil {
+				log.Error("Failed to close database connection", zap.Error(closeErr))
+			}
+		}()
+	}
+
+	// Redis client for job result storage (used in async mode)
+	var rdb *redis.Client
+	if mlAsync {
+		rdb = redis.NewClient(&redis.Options{
+			Addr: redisHost + ":6379",
+		})
+		if pingErr := rdb.Ping(context.Background()).Err(); pingErr != nil {
+			log.Warn("Redis unavailable, async ML mode disabled", zap.Error(pingErr))
+			mlAsync = false
+		} else {
+			log.Info("Redis connected for async job results", zap.String("host", redisHost))
+		}
+	}
+
+	// RabbitMQ channel for publishing ML jobs (used in async mode)
+	var rmqCh *amqp.Channel
+	var rmqClose func()
+	if mlAsync {
+		rmqConn, rmqErr := amqp.Dial(rabbitmqURL)
+		if rmqErr != nil {
+			log.Warn("RabbitMQ unavailable, async ML mode disabled", zap.Error(rmqErr))
+			mlAsync = false
+			rdb = nil
+		} else {
+			rmqCh, rmqErr = rmqConn.Channel()
+			if rmqErr != nil {
+				log.Warn("Failed to create RabbitMQ channel, async ML mode disabled", zap.Error(rmqErr))
+				mlAsync = false
+				rdb = nil
+				if closeErr := rmqConn.Close(); closeErr != nil {
+					log.Warn("Failed to close RabbitMQ connection", zap.Error(closeErr))
+				}
+			} else {
+				// Declare queues (idempotent)
+				_, _ = rmqCh.QueueDeclare("ml.classify", true, false, false, false, nil)
+				_, _ = rmqCh.QueueDeclare("ml.generate", true, false, false, false, nil)
+				log.Info("RabbitMQ connected for async ML jobs", zap.String("url", rabbitmqURL))
+				rmqClose = func() {
+					if closeErr := rmqConn.Close(); closeErr != nil {
+						log.Warn("Failed to close RabbitMQ connection", zap.Error(closeErr))
+					}
+				}
+			}
+		}
 	}
 
 	// ✅ Исправлено: используем grpc.NewClient вместо устаревшего grpc.Dial
@@ -832,14 +1379,23 @@ func main() {
 		}
 	}()
 
+	if rmqClose != nil {
+		defer rmqClose()
+	}
+
 	g := &gateway{
-		userClient:      userpb.NewUserServiceClient(userConn),
-		biometricClient: biometricpb.NewBiometricServiceClient(biometricConn),
-		trainingClient:  trainingpb.NewTrainingServiceClient(trainingConn),
-		mlClassifierURL: mlClassifierURL,
-		mlGeneratorURL:  mlGeneratorURL,
-		log:             log,
-		jwtSecret:       jwtSecret,
+		userClient:         userpb.NewUserServiceClient(userConn),
+		biometricClient:    biometricpb.NewBiometricServiceClient(biometricConn),
+		trainingClient:     trainingpb.NewTrainingServiceClient(trainingConn),
+		mlClassifierURL:    mlClassifierURL,
+		mlGeneratorURL:     mlGeneratorURL,
+		deviceConnectorURL: deviceConnectorURL,
+		log:                log,
+		jwtSecret:          jwtSecret,
+		db:                 db,
+		rdb:                rdb,
+		rmqCh:              rmqCh,
+		mlAsync:            mlAsync,
 	}
 
 	r := mux.NewRouter()
@@ -848,6 +1404,10 @@ func main() {
 	r.HandleFunc("/api/v1/register", g.registerHandler).Methods("POST")
 	r.HandleFunc("/api/v1/login", g.loginHandler).Methods("POST")
 	r.HandleFunc("/health", g.healthHandler).Methods("GET")
+
+	// Device connector routes (device token auth, not JWT)
+	r.HandleFunc("/api/v1/devices/register", g.deviceRegisterHandler).Methods("POST")
+	r.HandleFunc("/api/v1/devices/{device_id}/ingest", g.deviceIngestHandler).Methods("POST")
 
 	// Protected routes
 	protected := r.PathPrefix("/api/v1").Subrouter()
@@ -858,6 +1418,10 @@ func main() {
 
 	protected.HandleFunc("/profile", g.profileHandler).Methods("GET")
 	protected.HandleFunc("/profile", g.updateProfileHandler).Methods("PUT")
+	protected.HandleFunc("/profile", g.deleteProfileHandler).Methods("DELETE")
+
+	// Admin routes (server-side role re-verification in handler)
+	protected.HandleFunc("/admin/users", g.adminListUsersHandler).Methods("GET")
 
 	protected.HandleFunc("/biometrics", g.addBiometricRecordHandler).Methods("POST")
 	protected.HandleFunc("/biometrics", g.getBiometricRecordsHandler).Methods("GET")
@@ -868,7 +1432,9 @@ func main() {
 	protected.HandleFunc("/training/progress", g.getProgressHandler).Methods("GET")
 
 	protected.HandleFunc("/ml/classify", g.classifyHandler).Methods("POST")
+	protected.HandleFunc("/ml/classify/{job_id}", g.classifyStatusHandler).Methods("GET")
 	protected.HandleFunc("/ml/generate-plan", g.generateMLPlanHandler).Methods("POST")
+	protected.HandleFunc("/ml/generate-plan/{job_id}", g.generatePlanStatusHandler).Methods("GET")
 
 	// Static files
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", http.FileServer(http.Dir("./web/static/"))))

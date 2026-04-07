@@ -83,9 +83,9 @@ jobs:
       - name: Get short SHA
         id: sha
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      - name: Build and push Go images
+      - name: Build Go images
         run: |
-          services="user-service biometric-service training-service gateway"
+          services="user-service biometric-service training-service gateway device-connector"
           for svc in $services; do
             echo "Building $svc with tag ${{ steps.sha.outputs.short_sha }}..."
             docker build \
@@ -190,9 +190,8 @@ jobs:
             DB_NAME=${{ vars.POSTGRES_DB }}
             DB_SSLMODE=disable
             REDIS_ADDR=redis:6379
-            REDIS_PASSWORD=
             REDIS_DB=0
-            RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+            REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }}
             JWT_SECRET=${{ secrets.JWT_SECRET }}
             AUTH_PORT=8081
             AUTH_GRPC_PORT=50051
@@ -317,6 +316,7 @@ jobs:
             --from-literal=JWT_SECRET=${{ secrets.JWT_SECRET }} \
             --from-literal=RABBITMQ_USER=${{ secrets.RABBITMQ_USER }} \
             --from-literal=RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }} \
+            --from-literal=REDIS_PASSWORD=${{ secrets.REDIS_PASSWORD }} \
             --dry-run=client -o yaml | kubectl apply -f -
       - name: Install kubectl
         run: |
@@ -332,20 +332,27 @@ jobs:
         run: |
           kubectl apply -f configs/k8s/namespace.yaml
           kubectl apply -f configs/k8s/configmap.yaml
+          kubectl apply -f configs/k8s/serviceaccount.yaml
           kubectl apply -f configs/k8s/pvc.yaml
           kubectl apply -f configs/k8s/init-sql.yaml
+          # Infrastructure
           kubectl apply -f configs/k8s/deployments/postgres.yaml
           kubectl apply -f configs/k8s/deployments/redis.yaml
           kubectl apply -f configs/k8s/deployments/rabbitmq.yaml
           kubectl wait --for=condition=ready pod -l app=postgres -n fitness-platform --timeout=120s || true
+          kubectl wait --for=condition=ready pod -l app=redis -n fitness-platform --timeout=60s || true
+          # Application services
           kubectl apply -f configs/k8s/deployments/user-service.yaml
           kubectl apply -f configs/k8s/deployments/biometric-service.yaml
           kubectl apply -f configs/k8s/deployments/training-service.yaml
+          kubectl apply -f configs/k8s/deployments/device-connector.yaml
           kubectl apply -f configs/k8s/deployments/ml-classifier.yaml
           kubectl apply -f configs/k8s/deployments/ml-generator.yaml
           kubectl apply -f configs/k8s/deployments/gateway.yaml
+          kubectl apply -f configs/k8s/nginx-lb.yaml
+          # Services
           kubectl apply -f configs/k8s/services/
-          # Дополнительные манифесты безопасности (если существуют)
+          # Security & scaling
           kubectl apply -f configs/k8s/network-policies.yaml || true
           kubectl apply -f configs/k8s/resource-quota.yaml || true
           kubectl apply -f configs/k8s/hpa.yaml || true

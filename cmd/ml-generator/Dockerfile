@@ -13,7 +13,8 @@ COPY cmd/ml-generator/train_gan.py .
 # Создание директории для моделей
 RUN mkdir -p /app/models
 
-# Копирование модели из корневой директории
+# Копирование моделей из корневой директории
+COPY models/generator.keras /app/models/generator.keras
 COPY models/generator.h5 /app/models/generator.h5
 
 EXPOSE 8002

@@ -43,7 +43,7 @@ services:
       - "${RABBITMQ_PORT:-5672}:5672"
       - "${RABBITMQ_MGMT_PORT:-15672}:15672"
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER is required}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS is required}
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
@@ -69,6 +69,14 @@ services:
       - ../datasets:/app/datasets
     environment:
       - KERAS_BACKEND=tensorflow
+      - ML_ASYNC=true
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER required}:${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS required}@rabbitmq:5672/
+      - REDIS_HOST=redis
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - fitness-network
     restart: unless-stopped
@@ -84,6 +92,14 @@ services:
       - ../models:/app/models
     environment:
       - KERAS_BACKEND=tensorflow
+      - ML_ASYNC=true
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER required}:${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS required}@rabbitmq:5672/
+      - REDIS_HOST=redis
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - fitness-network
     restart: unless-stopped
@@ -105,7 +121,7 @@ services:
       - DB_SSLMODE=disable
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - REDIS_HOST=redis
-      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER required}:${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS required}@rabbitmq:5672/
     depends_on:
       postgres:
         condition: service_healthy
@@ -130,12 +146,36 @@ services:
       - DB_NAME=${DB_NAME:-fitness}
       - DB_SSLMODE=disable
       - REDIS_HOST=redis
-      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER required}:${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS required}@rabbitmq:5672/
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    networks:
+      - fitness-network
+    restart: unless-stopped
+
+  device-connector:
+    build:
+      context: ..
+      dockerfile: cmd/device-connector/Dockerfile
+    container_name: fitness-device-connector
+    ports:
+      - "${DEVICE_CONNECTOR_PORT:-8082}:8082"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-postgres}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      - DB_NAME=${DB_NAME:-fitness}
+      - DB_SSLMODE=disable
+      - BIOMETRIC_SERVICE_ADDR=biometric-service:50052
+    depends_on:
+      postgres:
+        condition: service_healthy
+      biometric-service:
+        condition: service_started
     networks:
       - fitness-network
     restart: unless-stopped
@@ -155,7 +195,7 @@ services:
       - DB_NAME=${DB_NAME:-fitness}
       - DB_SSLMODE=disable
       - REDIS_HOST=redis
-      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:-guest}:${RABBITMQ_DEFAULT_PASS:-guest}@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER required}:${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS required}@rabbitmq:5672/
       - ML_CLASSIFIER_URL=http://ml-classifier:8001
       - ML_GENERATOR_URL=http://ml-generator:8002
     depends_on:
@@ -185,12 +225,19 @@ services:
       - JWT_SECRET=${JWT_SECRET:?JWT_SECRET is required}
       - ML_CLASSIFIER_URL=http://ml-classifier:8001
       - ML_GENERATOR_URL=http://ml-generator:8002
+      - DEVICE_CONNECTOR_URL=http://device-connector:8082
+      - ML_ASYNC=true
+      - RABBITMQ_URL=amqp://${RABBITMQ_DEFAULT_USER:?RABBITMQ_DEFAULT_USER required}:${RABBITMQ_DEFAULT_PASS:?RABBITMQ_DEFAULT_PASS required}@rabbitmq:5672/
+      - REDIS_HOST=redis
     depends_on:
       - user-service
       - biometric-service
       - training-service
+      - device-connector
       - ml-classifier
       - ml-generator
+      - rabbitmq
+      - redis
     networks:
       - fitness-network
     restart: unless-stopped

@@ -3,10 +3,14 @@ kind: Service
 metadata:
   name: gateway-service
   namespace: fitness-platform
+  labels:
+    app: gateway
+    tier: frontend
 spec:
   selector:
     app: gateway
   ports:
   - port: 8080
     targetPort: 8080
-  type: NodePort
+    name: http
+  type: ClusterIP

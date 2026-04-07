@@ -10,7 +10,7 @@ data:
   DB_SSLMODE: "disable"
   REDIS_ADDR: "redis-service:6379"
   REDIS_DB: "0"
-  RABBITMQ_URL: "amqp://guest:guest@rabbitmq-service:5672/"
+  RABBITMQ_URL: "amqp://rabbitmq-service:5672/"
   USER_SERVICE_PORT: "50051"
   BIOMETRIC_SERVICE_PORT: "50052"
   TRAINING_SERVICE_PORT: "50053"

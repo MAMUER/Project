@@ -11,6 +11,17 @@ import keras  # standalone Keras 3 (via KERAS_BACKEND=tensorflow)
 import joblib
 import os
 import json
+import threading
+import uuid
+import logging
+
+# Async imports (loaded conditionally)
+try:
+    import pika
+    import redis
+    ASYNC_DEPS_AVAILABLE = True
+except ImportError:
+    ASYNC_DEPS_AVAILABLE = False
 
 app = FastAPI(
     title="ML Classifier Service",
@@ -21,6 +32,9 @@ app = FastAPI(
 # Global variables
 model = None
 scaler = None
+redis_client = None
+rabbitmq_url = None
+ml_async_enabled = False
 
 TRAINING_CLASSES = {
     0: {
@@ -125,16 +139,16 @@ class ClassificationResponse(BaseModel):
 def load_models():
     """Load trained models"""
     global model, scaler
-    
+
     model_path = '/app/models/classifier.keras'
     scaler_path = '/app/models/scaler.pkl'
-    
+
     if os.path.exists(model_path):
         model = keras.models.load_model(model_path)
         print(f"Model loaded from {model_path}")
     else:
         print(f"Model not found at {model_path}")
-    
+
     if os.path.exists(scaler_path):
         scaler = joblib.load(scaler_path)
         print(f"Scaler loaded from {scaler_path}")
@@ -142,10 +156,210 @@ def load_models():
         print(f"Scaler not found at {scaler_path}")
 
 
+def init_async():
+    """Initialize RabbitMQ consumer and Redis client for async mode."""
+    global redis_client, rabbitmq_url, ml_async_enabled
+
+    if not ASYNC_DEPS_AVAILABLE:
+        print("Async mode requested but pika/redis not installed. Running in sync mode.")
+        return
+
+    ml_async_enabled = os.environ.get('ML_ASYNC', '').lower() == 'true'
+    if not ml_async_enabled:
+        return
+
+    rabbitmq_url = os.environ.get('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672/')
+    redis_host = os.environ.get('REDIS_HOST', 'localhost')
+    redis_port = int(os.environ.get('REDIS_PORT', 6379))
+
+    try:
+        redis_client = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+        redis_client.ping()
+        print(f"Redis connected at {redis_host}:{redis_port}")
+    except Exception as e:
+        print(f"Redis connection failed: {e}. Async mode disabled.")
+        ml_async_enabled = False
+        redis_client = None
+        return
+
+    # Start RabbitMQ consumer in a background thread
+    consumer_thread = threading.Thread(
+        target=_run_rabbitmq_consumer,
+        daemon=True,
+        name="ml-classify-consumer"
+    )
+    consumer_thread.start()
+    print("RabbitMQ consumer thread started for ml.classify queue")
+
+
+def _run_rabbitmq_consumer():
+    """Blocking RabbitMQ consumer loop for ml.classify queue."""
+    logger = logging.getLogger("ml.classify.consumer")
+    while True:
+        try:
+            credentials = pika.URLParameters(rabbitmq_url)
+            connection = pika.BlockingConnection(credentials)
+            channel = connection.channel()
+            channel.queue_declare(queue='ml.classify', durable=True)
+            channel.basic_qos(prefetch_count=1)
+            channel.basic_consume(
+                queue='ml.classify',
+                on_message_callback=_on_classify_message,
+                auto_ack=False
+            )
+            logger.info("Started consuming from ml.classify queue")
+            channel.start_consuming()
+        except Exception as e:
+            logger.error(f"RabbitMQ consumer error: {e}. Reconnecting in 5s...")
+            import time
+            time.sleep(5)
+
+
+def _on_classify_message(channel, method, properties, body):
+    """Process a classification job from RabbitMQ."""
+    job_id = None
+    try:
+        message = json.loads(body)
+        job_id = message.get('job_id')
+        if not job_id:
+            logger = logging.getLogger("ml.classify.consumer")
+            logger.error("Received message without job_id")
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            return
+
+        logger = logging.getLogger("ml.classify.consumer")
+        logger.info(f"Processing classification job {job_id}")
+
+        # Run the same classification logic as the sync endpoint
+        physio_data = message['physiological_data']
+        user_profile_data = message.get('user_profile')
+
+        pd = type('PhysioData', (), physio_data)  # Simple object from dict
+        features = [
+            pd.heart_rate,
+            pd.heart_rate_variability if pd.heart_rate_variability is not None else 50.0,
+            pd.spo2 if pd.spo2 is not None else 98.0,
+            pd.temperature if pd.temperature is not None else 37.0,
+            pd.blood_pressure_systolic if pd.blood_pressure_systolic is not None else 120.0,
+            pd.blood_pressure_diastolic if pd.blood_pressure_diastolic is not None else 80.0,
+            pd.sleep_hours if pd.sleep_hours is not None else 7.0
+        ]
+
+        features_array = np.array(features).reshape(1, -1)
+        features_scaled = scaler.transform(features_array)
+
+        probabilities = model.predict(features_scaled, verbose=0)[0]
+        predicted_class = int(np.argmax(probabilities))
+        confidence = float(probabilities[predicted_class])
+
+        class_info = TRAINING_CLASSES[predicted_class]
+
+        result = {
+            'job_id': job_id,
+            'status': 'completed',
+            'result': {
+                'predicted_class': class_info['name'],
+                'predicted_class_ru': class_info['name_ru'],
+                'confidence': round(confidence, 4),
+                'probabilities': {
+                    TRAINING_CLASSES[i]['name']: round(float(p), 4)
+                    for i, p in enumerate(probabilities)
+                },
+                'description': class_info['description'],
+                'hr_range': class_info['hr_range'],
+                'recommendations': class_info['recommendations'],
+            },
+            'completed_at': __import__('datetime').datetime.utcnow().isoformat() + 'Z'
+        }
+
+        # Store result in Redis with TTL 1 hour
+        redis_client.setex(
+            f'ml:result:{job_id}',
+            3600,
+            json.dumps(result)
+        )
+        logger.info(f"Job {job_id} completed and stored in Redis")
+
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+
+    except Exception as e:
+        logger = logging.getLogger("ml.classify.consumer")
+        logger.error(f"Error processing job {job_id}: {e}")
+        # Reject and requeue
+        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+
+
+def _do_classify(physiological_data, user_profile=None):
+    """Core classification logic, shared between sync and async endpoints."""
+    if model is None or scaler is None:
+        raise RuntimeError("Models not loaded")
+
+    # Prepare features (7 dimensions)
+    pd = type('PD', (), physiological_data)()
+    features = [
+        physiological_data['heart_rate'],
+        physiological_data.get('heart_rate_variability') or 50.0,
+        physiological_data.get('spo2') or 98.0,
+        physiological_data.get('temperature') or 37.0,
+        physiological_data.get('blood_pressure_systolic') or 120.0,
+        physiological_data.get('blood_pressure_diastolic') or 80.0,
+        physiological_data.get('sleep_hours') or 7.0
+    ]
+
+    # Scale features
+    features_array = np.array(features).reshape(1, -1)
+    features_scaled = scaler.transform(features_array)
+
+    # Predict
+    probabilities = model.predict(features_scaled, verbose=0)[0]
+    predicted_class = int(np.argmax(probabilities))
+    confidence = float(probabilities[predicted_class])
+
+    # Get class info
+    class_info = TRAINING_CLASSES[predicted_class]
+
+    # Generate personalized notes
+    personalized_notes = None
+    if user_profile:
+        up = user_profile
+        notes = []
+
+        if up.get('fitness_level') == 'beginner':
+            notes.append("Рекомендуется снизить интенсивность на 10-15%")
+
+        if up.get('age', 0) > 50:
+            notes.append("Учитывайте возраст при планировании восстановления")
+
+        if up.get('health_conditions'):
+            notes.append(f"Проконсультируйтесь с врачом при: {', '.join(up['health_conditions'])}")
+
+        if up.get('goals'):
+            goals_lower = [g.lower() for g in up['goals']]
+            if 'похудение' in goals_lower and predicted_class == 0:
+                notes.append("Для похудения добавьте кардио в зоне E1-E2")
+
+        personalized_notes = " | ".join(notes) if notes else None
+
+    return {
+        'predicted_class': class_info['name'],
+        'predicted_class_ru': class_info['name_ru'],
+        'confidence': round(confidence, 4),
+        'probabilities': {
+            TRAINING_CLASSES[i]['name']: round(float(p), 4)
+            for i, p in enumerate(probabilities)
+        },
+        'description': class_info['description'],
+        'hr_range': class_info['hr_range'],
+        'recommendations': class_info['recommendations'],
+        'personalized_notes': personalized_notes
+    }
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Load models on startup"""
+    """Load models on startup and initialize async processing if enabled."""
     load_models()
+    init_async()
 
 
 @app.get("/health")
@@ -154,7 +368,8 @@ async def health_check():
     return {
         "status": "healthy",
         "model_loaded": model is not None,
-        "scaler_loaded": scaler is not None
+        "scaler_loaded": scaler is not None,
+        "async_enabled": ml_async_enabled
     }
 
 
@@ -167,72 +382,22 @@ async def get_training_classes():
 @app.post("/classify", response_model=ClassificationResponse)
 async def classify_training(request: ClassificationRequest):
     """
-    Classify training type based on physiological parameters
+    Classify training type based on physiological parameters.
+    Synchronous endpoint (always available for backward compatibility).
     """
     if model is None or scaler is None:
         raise HTTPException(status_code=503, detail="Models not loaded")
-    
+
     try:
-        # Prepare features (7 dimensions)
-        pd = request.physiological_data
-        features = [
-            pd.heart_rate,
-            pd.heart_rate_variability or 50.0,
-            pd.spo2 or 98.0,
-            pd.temperature or 37.0,
-            pd.blood_pressure_systolic or 120.0,
-            pd.blood_pressure_diastolic or 80.0,
-            pd.sleep_hours or 7.0
-        ]
-        
-        # Scale features
-        features_array = np.array(features).reshape(1, -1)
-        features_scaled = scaler.transform(features_array)
-        
-        # Predict
-        probabilities = model.predict(features_scaled, verbose=0)[0]
-        predicted_class = int(np.argmax(probabilities))
-        confidence = float(probabilities[predicted_class])
-        
-        # Get class info
-        class_info = TRAINING_CLASSES[predicted_class]
-        
-        # Generate personalized notes
-        personalized_notes = None
-        if request.user_profile:
-            up = request.user_profile
-            notes = []
-            
-            if up.fitness_level == 'beginner':
-                notes.append("Рекомендуется снизить интенсивность на 10-15%")
-            
-            if up.age > 50:
-                notes.append("Учитывайте возраст при планировании восстановления")
-            
-            if up.health_conditions:
-                notes.append(f"Проконсультируйтесь с врачом при: {', '.join(up.health_conditions)}")
-            
-            if up.goals:
-                goals_lower = [g.lower() for g in up.goals]
-                if 'похудение' in goals_lower and predicted_class == 0:
-                    notes.append("Для похудения добавьте кардио в зоне E1-E2")
-            
-            personalized_notes = " | ".join(notes) if notes else None
-        
-        return ClassificationResponse(
-            predicted_class=class_info['name'],
-            predicted_class_ru=class_info['name_ru'],
-            confidence=round(confidence, 4),
-            probabilities={
-                TRAINING_CLASSES[i]['name']: round(float(p), 4) 
-                for i, p in enumerate(probabilities)
-            },
-            description=class_info['description'],
-            hr_range=class_info['hr_range'],
-            recommendations=class_info['recommendations'],
-            personalized_notes=personalized_notes
-        )
-        
+        physio_dict = request.physiological_data.dict()
+        user_profile_dict = request.user_profile.dict() if request.user_profile else None
+
+        result = _do_classify(physio_dict, user_profile_dict)
+
+        return ClassificationResponse(**result)
+
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

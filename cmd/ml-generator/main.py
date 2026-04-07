@@ -10,6 +10,17 @@ import numpy as np
 import keras  # standalone Keras 3 (via KERAS_BACKEND=tensorflow)
 import os
 import json
+import threading
+import uuid
+import logging
+
+# Async imports (loaded conditionally)
+try:
+    import pika
+    import redis
+    ASYNC_DEPS_AVAILABLE = True
+except ImportError:
+    ASYNC_DEPS_AVAILABLE = False
 
 app = FastAPI(
     title="ML Generator Service",
@@ -17,8 +28,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Global variable
+# Global variables
 generator = None
+redis_client = None
+rabbitmq_url = None
+ml_async_enabled = False
 
 TRAINING_CLASSES = {
     0: 'recovery',
@@ -60,12 +74,12 @@ TRAINING_TEMPLATES = {
 
 
 class UserProfile(BaseModel):
-    """User profile for plan generation"""
-    gender: str = Field(..., description="Gender (male/female)")
-    age: int = Field(..., description="Age", ge=10, le=100)
-    fitness_level: str = Field(..., description="Fitness level (beginner/intermediate/advanced)")
-    weight: Optional[float] = Field(None, description="Weight (kg)", ge=30, le=200)
-    height: Optional[float] = Field(None, description="Height (cm)", ge=100, le=250)
+    """User profile for plan generation — all fields optional with defaults"""
+    gender: Optional[str] = Field("male", description="Gender (male/female)")
+    age: Optional[int] = Field(30, description="Age", ge=10, le=100)
+    fitness_level: Optional[str] = Field("intermediate", description="Fitness level (beginner/intermediate/advanced)")
+    weight: Optional[float] = Field(70.0, description="Weight (kg)", ge=30, le=200)
+    height: Optional[float] = Field(170.0, description="Height (cm)", ge=100, le=250)
     health_conditions: Optional[List[str]] = Field(None, description="Health conditions")
     goals: Optional[List[str]] = Field(None, description="Training goals")
     lifestyle: Optional[Dict] = Field(None, description="Lifestyle factors (nutrition, sleep, etc.)")
@@ -104,9 +118,9 @@ class TrainingPlan(BaseModel):
 def load_generator():
     """Load trained generator model"""
     global generator
-    
-    model_path = '/app/models/generator.h5'
-    
+
+    model_path = '/app/models/generator.keras'
+
     if os.path.exists(model_path):
         generator = keras.models.load_model(model_path)
         print(f"Generator loaded from {model_path}")
@@ -114,10 +128,144 @@ def load_generator():
         print(f"Generator not found at {model_path}")
 
 
+def init_async():
+    """Initialize RabbitMQ consumer and Redis client for async mode."""
+    global redis_client, rabbitmq_url, ml_async_enabled
+
+    if not ASYNC_DEPS_AVAILABLE:
+        print("Async mode requested but pika/redis not installed. Running in sync mode.")
+        return
+
+    ml_async_enabled = os.environ.get('ML_ASYNC', '').lower() == 'true'
+    if not ml_async_enabled:
+        return
+
+    rabbitmq_url = os.environ.get('RABBITMQ_URL', 'amqp://guest:guest@localhost:5672/')
+    redis_host = os.environ.get('REDIS_HOST', 'localhost')
+    redis_port = int(os.environ.get('REDIS_PORT', 6379))
+
+    try:
+        redis_client = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+        redis_client.ping()
+        print(f"Redis connected at {redis_host}:{redis_port}")
+    except Exception as e:
+        print(f"Redis connection failed: {e}. Async mode disabled.")
+        ml_async_enabled = False
+        redis_client = None
+        return
+
+    # Start RabbitMQ consumer in a background thread
+    consumer_thread = threading.Thread(
+        target=_run_rabbitmq_consumer,
+        daemon=True,
+        name="ml-generate-consumer"
+    )
+    consumer_thread.start()
+    print("RabbitMQ consumer thread started for ml.generate queue")
+
+
+def _run_rabbitmq_consumer():
+    """Blocking RabbitMQ consumer loop for ml.generate queue."""
+    logger = logging.getLogger("ml.generate.consumer")
+    while True:
+        try:
+            credentials = pika.URLParameters(rabbitmq_url)
+            connection = pika.BlockingConnection(credentials)
+            channel = connection.channel()
+            channel.queue_declare(queue='ml.generate', durable=True)
+            channel.basic_qos(prefetch_count=1)
+            channel.basic_consume(
+                queue='ml.generate',
+                on_message_callback=_on_generate_message,
+                auto_ack=False
+            )
+            logger.info("Started consuming from ml.generate queue")
+            channel.start_consuming()
+        except Exception as e:
+            logger.error(f"RabbitMQ consumer error: {e}. Reconnecting in 5s...")
+            import time
+            time.sleep(5)
+
+
+def _on_generate_message(channel, method, properties, body):
+    """Process a plan generation job from RabbitMQ."""
+    job_id = None
+    try:
+        message = json.loads(body)
+        job_id = message.get('job_id')
+        if not job_id:
+            logger = logging.getLogger("ml.generate.consumer")
+            logger.error("Received message without job_id")
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            return
+
+        logger = logging.getLogger("ml.generate.consumer")
+        logger.info(f"Processing plan generation job {job_id}")
+
+        training_class = message['training_class']
+        user_profile_dict = message['user_profile']
+        preferences = message.get('preferences')
+
+        # Build UserProfile object
+        up = UserProfile(**user_profile_dict)
+
+        # Run the same generation logic as the sync endpoint
+        plan = _do_generate_plan(training_class, up, preferences)
+
+        result = {
+            'job_id': job_id,
+            'status': 'completed',
+            'result': plan,
+            'completed_at': __import__('datetime').datetime.utcnow().isoformat() + 'Z'
+        }
+
+        # Store result in Redis with TTL 1 hour
+        redis_client.setex(
+            f'ml:result:{job_id}',
+            3600,
+            json.dumps(result)
+        )
+        logger.info(f"Job {job_id} completed and stored in Redis")
+
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+
+    except Exception as e:
+        logger = logging.getLogger("ml.generate.consumer")
+        logger.error(f"Error processing job {job_id}: {e}")
+        # Reject and requeue
+        channel.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
+
+
+def _do_generate_plan(training_class, user_profile, preferences=None):
+    """Core plan generation logic, shared between sync and async endpoints."""
+    if generator is None:
+        raise RuntimeError("Generator not loaded")
+
+    # Get training class index
+    class_idx = list(TRAINING_CLASSES.values()).index(training_class)
+
+    # Encode user profile
+    profile_encoded = encode_user_profile(user_profile)
+
+    # Encode training class
+    class_onehot = keras.utils.to_categorical([class_idx], 4)
+
+    # Generate noise
+    noise = np.random.normal(0, 1, (1, 32))
+
+    # Generate plan
+    plan_vector = generator.predict([noise, profile_encoded, class_onehot], verbose=0)[0]
+
+    # Decode to human-readable format
+    plan = decode_plan(plan_vector, training_class, user_profile)
+    return plan
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Load generator on startup"""
+    """Load generator on startup and initialize async processing if enabled."""
     load_generator()
+    init_async()
 
 
 @app.get("/health")
@@ -125,7 +273,8 @@ async def health_check():
     """Health check endpoint"""
     return {
         "status": "healthy",
-        "generator_loaded": generator is not None
+        "generator_loaded": generator is not None,
+        "async_enabled": ml_async_enabled
     }
 
 
@@ -141,10 +290,10 @@ def encode_user_profile(profile: UserProfile) -> np.ndarray:
     age_norm = (profile.age - 10) / 90
     fitness_map = {'beginner': 0.3, 'intermediate': 0.6, 'advanced': 0.9}
     fitness_norm = fitness_map.get(profile.fitness_level, 0.5)
-    
+
     weight_norm = (profile.weight or 70) / 200
     height_norm = (profile.height or 170) / 250
-    
+
     # Goal encoding
     goal_encoded = 0.5
     if profile.goals:
@@ -155,17 +304,17 @@ def encode_user_profile(profile: UserProfile) -> np.ndarray:
             goal_encoded = 0.8
         elif 'реабилитация' in goals_lower or 'rehabilitation' in goals_lower:
             goal_encoded = 0.1
-    
+
     health_flag = 1.0 if profile.health_conditions else 0.0
     gender_encoded = 1.0 if profile.gender.lower() == 'male' else 0.0
-    
+
     # Lifestyle factors
     sleep_score = 0.5
     nutrition_score = 0.5
     if profile.lifestyle:
         sleep_score = profile.lifestyle.get('sleep_hours', 7) / 10
         nutrition_score = profile.lifestyle.get('nutrition_quality', 0.5)
-    
+
     encoded = np.array([
         age_norm,
         fitness_norm,
@@ -178,45 +327,45 @@ def encode_user_profile(profile: UserProfile) -> np.ndarray:
         nutrition_score,
         0.5  # Reserved
     ])
-    
+
     return encoded.reshape(1, -1)
 
 
 def decode_plan(plan_vector: np.ndarray, training_class: str, user_profile: UserProfile) -> dict:
     """Decode GAN output (16 dimensions) to training plan"""
     template = TRAINING_TEMPLATES.get(training_class, TRAINING_TEMPLATES['endurance_e1e2'])
-    
+
     duration = int(plan_vector[0] * 100)
     intensity = plan_vector[1]
     rest_ratio = plan_vector[2]
     weekly_freq = int(plan_vector[3] * 7)
-    
+
     exercise_probs = plan_vector[4:9]
     primary_exercise_idx = np.argmax(exercise_probs)
     primary_exercise = template['exercises'][primary_exercise_idx % len(template['exercises'])]
-    
+
     warmup = int(plan_vector[9] * 100)
     cooldown = int(plan_vector[10] * 100)
-    
+
     # Build session structure
     session_structure = [
         Exercise(name="Разминка", duration_minutes=max(5, min(20, warmup)), intensity=0.3),
         Exercise(name=primary_exercise, duration_minutes=int(duration * 0.6), intensity=intensity),
         Exercise(name="Заминка", duration_minutes=max(5, min(20, cooldown)), intensity=0.3)
     ]
-    
+
     # Build notes
     notes = []
     if user_profile.fitness_level == 'beginner':
         notes.append("Начните с 50% от рекомендованной интенсивности")
         duration = int(duration * 0.7)
-    
+
     if user_profile.age > 50:
         notes.append("Увеличьте время разминки и заминки")
-    
+
     if user_profile.health_conditions:
         notes.append("Проконсультируйтесь с врачом перед началом")
-    
+
     if user_profile.goals:
         goals_lower = [g.lower() for g in user_profile.goals]
         if 'похудение' in goals_lower:
@@ -225,7 +374,7 @@ def decode_plan(plan_vector: np.ndarray, training_class: str, user_profile: User
             notes.append("Сфокусируйтесь на силовых упражнениях")
         if 'реабилитация' in goals_lower:
             notes.append("Следите за техникой выполнения упражнений")
-    
+
     # Weekly schedule
     weekly_schedule = {
         'monday': primary_exercise if weekly_freq >= 1 else 'rest',
@@ -234,7 +383,7 @@ def decode_plan(plan_vector: np.ndarray, training_class: str, user_profile: User
         'saturday': 'active_recovery' if weekly_freq >= 4 else 'rest',
         'sunday': 'rest'
     }
-    
+
     return {
         'training_type': training_class,
         'training_type_ru': template['name_ru'],
@@ -245,7 +394,7 @@ def decode_plan(plan_vector: np.ndarray, training_class: str, user_profile: User
         'warmup_minutes': max(5, min(20, warmup)),
         'cooldown_minutes': max(5, min(20, cooldown)),
         'exercises': template['exercises'],
-        'session_structure': [e.dict() for e in session_structure],
+        'session_structure': [e.model_dump() if hasattr(e, 'model_dump') else e.dict() for e in session_structure],
         'notes': notes,
         'weekly_schedule': weekly_schedule
     }
@@ -253,31 +402,23 @@ def decode_plan(plan_vector: np.ndarray, training_class: str, user_profile: User
 
 @app.post("/generate-plan", response_model=TrainingPlan)
 async def generate_plan(request: PlanGenerationRequest):
-    """Generate personalized training plan"""
+    """
+    Generate personalized training plan.
+    Synchronous endpoint (always available for backward compatibility).
+    """
     if generator is None:
         raise HTTPException(status_code=503, detail="Generator not loaded")
-    
+
     try:
-        # Get training class index
-        class_idx = list(TRAINING_CLASSES.values()).index(request.training_class)
-        
-        # Encode user profile
-        profile_encoded = encode_user_profile(request.user_profile)
-        
-        # Encode training class
-        class_onehot = keras.utils.to_categorical([class_idx], 4)
-        
-        # Generate noise
-        noise = np.random.normal(0, 1, (1, 32))
-        
-        # Generate plan
-        plan_vector = generator.predict([noise, profile_encoded, class_onehot], verbose=0)[0]
-        
-        # Decode to human-readable format
-        plan = decode_plan(plan_vector, request.training_class, request.user_profile)
-        
+        plan = _do_generate_plan(
+            request.training_class,
+            request.user_profile,
+            request.preferences
+        )
         return TrainingPlan(**plan)
-        
+
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

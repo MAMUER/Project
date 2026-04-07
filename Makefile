@@ -35,17 +35,17 @@ vet:
 	go vet ./...
 	@echo "Vet complete."
 
-# Запуск всех тестов
+# Проверка на неиспользуемые импорты и переменные
+unused:
+	@echo "Checking for unused code..."
+	golangci-lint run --enable=unused --max-issues-per-linter=0
+	@echo "Unused check complete."
+
+# Запуск всех тестов (без integration)
 test:
 	@echo "Running unit tests..."
-	go test -v ./...
+	go test -v -timeout 5m ./...
 	@echo "Tests complete."
-
-# Запуск интеграционных тестов (требуют запущенных сервисов)
-test-integration:
-	@echo "Running integration tests..."
-	go test -v -tags=integration ./...
-	@echo "Integration tests complete."
 
 # Запуск тестов с покрытием
 test-cover:
@@ -57,12 +57,14 @@ test-cover:
 # Запуск линтера
 lint:
 	@echo "Running golangci-lint..."
-	golangci-lint run
+	golangci-lint run --max-issues-per-linter=0
 	@echo "Lint complete."
 
 # Запуск всех проверок
-check: fmt vet lint test
-	@echo "All checks passed!"
+check: fmt vet lint test build
+	@echo "========================================"
+	@echo "  ALL CHECKS PASSED!"
+	@echo "========================================"
 
 
 proto:
