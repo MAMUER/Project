@@ -111,6 +111,19 @@ docker-up:
 docker-down:
 	docker-compose -f deployments/docker-compose.yml down
 
+# Миграция БД (кроссплатформенный)
+migrate:
+	python scripts/migrate.py
+
+# API тест (кроссплатформенный)
+api-test:
+	python scripts/api-test.py
+
+# Нагрузочный тест (требует k6)
+load-test:
+	@echo "Install k6: https://k6.io/docs/getting-started/installation/"
+	python scripts/load-test.py
+
 clean:
 	@echo "Cleaning..."
 	powershell -Command "if (Test-Path '$(BIN_DIR)') { Remove-Item -Recurse -Force '$(BIN_DIR)' }"
@@ -127,13 +140,15 @@ help:
 	@echo "  make fmt        - Format Go code"
 	@echo "  make vet        - Run go vet"
 	@echo "  make test       - Run unit tests"
-	@echo "  make test-integration - Run integration tests"
 	@echo "  make test-cover - Run tests with coverage report"
-	@echo "  make check      - Run fmt, vet and test"
+	@echo "  make check      - Run fmt, vet, lint, test, build"
 	@echo "  make proto      - Generate proto files"
 	@echo "  make build      - Build all services"
 	@echo "  make run        - Run gateway"
 	@echo "  make docker-up  - Start Docker services"
 	@echo "  make docker-down - Stop Docker services"
+	@echo "  make migrate    - Run database migrations (Python, cross-platform)"
+	@echo "  make api-test   - Run API test suite (Python, cross-platform)"
+	@echo "  make load-test  - Run load tests (requires k6)"
 	@echo "  make clean      - Clean generated files"
 	@echo "  make dev        - Start Docker services and run gateway"

@@ -371,7 +371,10 @@ make build        # Собрать все бинарники
 make run          # Запустить локально
 make test         # Unit-тесты
 make lint         # golangci-lint
-make check        # fmt + vet + lint + test
+make check        # fmt + vet + lint + test + build
+make migrate      # Применить миграции БД (Python, кроссплатформенный)
+make api-test     # Функциональные API-тесты (Python, кроссплатформенный)
+make load-test    # Нагрузочное тестирование (требует k6)
 make docker-up    # Запустить Docker Compose
 make docker-down  # Остановить Docker Compose
 make proto        # Перегенерировать gRPC из .proto
