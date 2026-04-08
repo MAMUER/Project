@@ -26,6 +26,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== Init =====
     function init() {
         console.log('[APP] Init, authToken:', authToken ? 'present' : 'null');
+
+        // Проверяем токен подтверждения в URL (из письма)
+        const urlParams = new URLSearchParams(window.location.search);
+        const confirmToken = urlParams.get('token');
+        if (confirmToken) {
+            console.log('[APP] Found confirm token in URL, auto-confirming...');
+            showAuthScreen();
+            // Показываем форму подтверждения с токеном
+            loginForm.classList.add('hidden');
+            registerForm.classList.add('hidden');
+            if (verifyForm) {
+                verifyForm.classList.remove('hidden');
+                document.getElementById('verifyToken').value = confirmToken;
+                // Автоматически подтверждаем
+                autoConfirmEmail(confirmToken);
+            }
+            return;
+        }
+
         if (authToken) {
             showMainApp();
         } else {
@@ -95,6 +114,34 @@ document.addEventListener('DOMContentLoaded', () => {
             throw new Error(data.message || data.error || 'Ошибка подтверждения');
         }
         return data;
+    }
+
+    async function autoConfirmEmail(token) {
+        const confirmErr = document.getElementById('confirmError');
+        const confirmOk = document.getElementById('confirmSuccess');
+        const btn = document.getElementById('confirmBtn');
+
+        if (btn) { btn.disabled = true; btn.textContent = 'Подтверждение...'; }
+        if (confirmErr) confirmErr.classList.add('hidden');
+        if (confirmOk) confirmOk.classList.add('hidden');
+
+        try {
+            await confirmEmail(token);
+            if (confirmOk) confirmOk.classList.remove('hidden');
+            showToast('Email подтверждён! Переход ко входу...', 'success');
+            setTimeout(() => {
+                loginForm.classList.remove('hidden');
+                if (verifyForm) verifyForm.classList.add('hidden');
+            }, 2000);
+        } catch (err) {
+            console.error('[AUTH] Auto-confirm failed:', err);
+            if (confirmErr) {
+                confirmErr.textContent = 'Ошибка: ' + err.message;
+                confirmErr.classList.remove('hidden');
+            }
+        } finally {
+            if (btn) { btn.disabled = false; btn.textContent = 'Подтвердить email'; }
+        }
     }
 
     function showMainApp() {
@@ -296,12 +343,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     console.log('[LOGIN] Calling API for:', email);
                     const data = await login(email, password);
-                    console.log('[LOGIN] Got response:', data);
-                    if (data && data.access_token) {
+                    console.log('[LOGIN] Got response type:', typeof data, 'keys:', data ? Object.keys(data) : 'null');
+                    if (data && typeof data === 'object' && data.access_token) {
                         setAuthToken(data.access_token);
                         showMainApp();
                     } else {
-                        throw new Error('Сервер не вернул токен');
+                        console.error('[LOGIN] Unexpected response:', data);
+                        const msg = data && data.message ? data.message : 'Сервер вернул неожиданный ответ. Попробуйте войти позже.';
+                        throw new Error(msg);
                     }
                 } catch (err) {
                     console.error('[LOGIN] Error:', err);

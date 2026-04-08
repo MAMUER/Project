@@ -215,6 +215,7 @@ func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Response-Signature", signature)
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(loginResp); err != nil {
 		g.log.Error("Failed to encode response", zap.Error(err))
 		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)

@@ -426,7 +426,7 @@ func main() {
 	// SMTP email configuration
 	emailCfg := email.LoadConfig()
 	emailSender := email.NewSender(emailCfg)
-	baseURL := getEnvOrDefault("BASE_URL", "http://localhost:8443")
+	baseURL := getEnvOrDefault("BASE_URL", "https://localhost:8443")
 
 	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {

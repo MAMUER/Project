@@ -133,7 +133,7 @@ services:
       - SMTP_TLS=${SMTP_TLS:-false}
       - EMAIL_DAILY_LIMIT=${EMAIL_DAILY_LIMIT:-100}
       - EMAIL_SKIP_DOMAINS=${EMAIL_SKIP_DOMAINS:-}
-      - BASE_URL=http://localhost:8443
+      - BASE_URL=${BASE_URL:-https://localhost:8443}
     depends_on:
       postgres:
         condition: service_healthy
