@@ -1,72 +1,382 @@
-# Fitness Platform - AI-Powered Personalized Training
-
-## Overview
-Intelligent web platform for personalized physical activity management and health risk prediction based on biometric data analysis.
-
-## Architecture
-- **User Service** (Go, gRPC) - authentication, profiles
-- **Biometric Service** (Go, gRPC) - health data collection
-- **Training Service** (Go, gRPC) - workout programs
-- **ML Classifier** (Python, FastAPI) - state classification (6 inputs)
-- **ML Generator** (Python, FastAPI) - GAN for program generation
-- **Gateway** (Go) - HTTP API + static files
-- **PostgreSQL** - primary database
-- **Redis** - caching
-- **RabbitMQ** - async messaging
-
-## Quick Start
-```bash
-# Start dependencies
-docker-compose -f deployments/docker-compose.yml up -d
-
-# Run services (in separate terminals)
-go run cmd/user-service/main.go
-go run cmd/biometric-service/main.go
-go run cmd/training-service/main.go
-python cmd/ml-classifier/main.py
-python cmd/ml-generator/main.py
-go run cmd/gateway/main.go
-```
-API Endpoints
-POST /api/v1/register - user registration
-
-POST /api/v1/login - user login
-
-GET /api/v1/profile - user profile
-
-POST /api/v1/biometrics - add biometric data
-
-POST /api/v1/training/generate - generate training plan
-
-GET /api/v1/training/plans - list training plans
-
-GET /api/v1/ml/classify - classify user state
-
-POST /api/v1/ml/generate-plan - generate plan via ML
-
+# FitPulse — Интеллектуальная платформа персонализированных тренировок
 
 ---
 
-## Запуск Kubernetes
+## Технические сведения о программе (по ГОСТ 19.102-77)
 
-```powershell
-# 1. Запустить Minikube
+### 1. Общие сведения
+
+**Полное наименование:** FitPulse — интеллектуальная веб-платформа для персонализированного управления физической активностью и прогнозирования рисков на основе анализа биометрических данных.
+
+**Краткое наименование:** FitPulse.
+
+**Версия программы:** 1.0.0.
+
+**Платформа:**
+- Серверная часть: Linux (Docker, Kubernetes), Windows (разработка)
+- Клиентская часть: веб-браузер (Chrome, Firefox, Edge, Safari)
+
+**Языки разработки:** Go 1.25, Python 3.11, JavaScript (ES2022), SQL.
+
+### 2. Функциональное назначение
+
+Программа предназначена для:
+- регистрации и авторизации пользователей с подтверждением email (SMTP);
+- сбора и хранения биометрических данных (ЧСС, SpO2 и др.);
+- классификации текущего состояния пользователя с помощью ML-модели (6 входных признаков);
+- генерации индивидуальных тренировочных планов с использованием GAN;
+- управления профилем пользователя (возраст, вес, рост, цели, противопоказания);
+- мониторинга состояния здоровья в реальном времени;
+- отслеживания достижений и прогресса тренировок.
+
+### 3. Описание логической структуры
+
+Система построена по микросервисной архитектуре. Взаимодействие компонентов:
+
+```
+┌──────────────┐
+│   Browser    │  HTTPS (8443)
+└──────┬───────┘
+       │
+┌──────▼───────┐
+│  NGINX (LB)  │  SSL termination, CSP, rate limiting
+└──────┬───────┘
+       │
+┌──────▼───────┐
+│   Gateway    │  HTTP REST → gRPC proxy (8080)
+└──┬───┬───┬───┘
+   │   │   │
+   ▼   ▼   ▼
+┌─────┐ ┌──────┐ ┌────────┐
+│User │ │Bio   │ │Training│  gRPC services
+│Svc  │ │Svc   │ │Svc     │
+└──┬──┘ └──┬───┘ └───┬────┘
+   │       │         │
+   ▼       ▼         ▼
+┌─────────────────────────┐      ┌─────────┐   ┌──────────┐
+│      PostgreSQL         │      │  Redis  │   │RabbitMQ  │
+└─────────────────────────┘      └─────────┘   └────┬─────┘
+                                                     │
+                                          ┌──────────▼──────────┐
+                                          │   ML Services       │
+                                          │  Classifier + GAN   │
+                                          └─────────────────────┘
+```
+
+**Компоненты системы:**
+
+| Компонент | Технология | Порт | Назначение |
+|-----------|-----------|------|------------|
+| Gateway | Go, gorilla/mux | 8080 | HTTP REST API, проксирование к gRPC |
+| User Service | Go, gRPC | 50051 | Регистрация, авторизация, профили, email-верификация |
+| Biometric Service | Go, gRPC | 50052 | Сбор и хранение биометрических данных |
+| Training Service | Go, gRPC | 50053 | Управление тренировочными планами |
+| ML Classifier | Python, FastAPI | 8001 | Классификация состояния пользователя |
+| ML Generator | Python, FastAPI | 8002 | Генерация планов (GAN) |
+| Device Connector | Go, HTTP | 8082 | Подключение внешних устройств |
+| NGINX LB | Nginx, Alpine | 8443 | SSL termination, балансировка, CSP |
+| PostgreSQL | 15 | 5432 | Основная база данных |
+| Redis | 7 | 6379 | Кэширование, сессии |
+| RabbitMQ | 3.12 | 5672 | Асинхронный обмен (ML jobs) |
+
+### 4. Описание взаимодействия с другими компонентами
+
+**Внешние зависимости:**
+- SMTP-сервер (Yandex Mail, Mail.ru, Gmail) — отправка писем верификации
+- Веб-браузер клиента — отображение интерфейса
+- Docker / Kubernetes — контейнеризация и оркестрация
+
+**Протоколы взаимодействия:**
+- Клиент ↔ Gateway: HTTPS (JSON REST API)
+- Gateway ↔ Микросервисы: gRPC (Protobuf)
+- Микросервисы ↔ ML: HTTP (FastAPI)
+- Микросервисы ↔ RabbitMQ: AMQP 0.9.1
+- Микросервисы ↔ Redis: RESP
+
+### 5. Настройка и установка
+
+#### Требования
+- Docker 24+ / Docker Compose v2
+- Go 1.25+ (для локальной разработки)
+- Python 3.11+ (для ML-сервисов)
+- 4 ГБ ОЗУ минимум
+
+#### Развёртывание (Docker Compose)
+
+```bash
+# 1. Скопировать и настроить .env
+cp .env.example .env   # заполнить SMTP, JWT_SECRET, пароли БД
+
+# 2. Запустить все сервисы
+docker compose -f deployments/docker-compose.yml up -d
+
+# 3. Проверить работоспособность
+docker compose -f deployments/docker-compose.yml ps
+curl -k https://localhost:8443/health
+```
+
+#### Развёртывание (Kubernetes)
+
+```bash
 minikube start
-
-# 2. Проверить
-minikube status
-kubectl cluster-info
-
-# 3. Применить манифесты
 kubectl apply -f configs/k8s/namespace.yaml
 kubectl apply -f configs/k8s/configmap.yaml
-kubectl apply -f configs/k8s/secrets.yaml
-kubectl apply -f configs/k8s/pvc.yaml
-kubectl apply -f configs/k8s/init-sql.yaml
 kubectl apply -f configs/k8s/deployments/
 kubectl apply -f configs/k8s/services/
-
-# 4. Проверить
 kubectl get pods -n fitness-platform -w
-kubectl get svc -n fitness-platform
 ```
+
+#### Настройка SMTP (Yandex)
+
+1. Создать пароль приложения: https://passport.yandex.ru/profile → Безопасность → Пароли приложений
+2. В `.env` указать:
+   ```
+   SMTP_HOST=smtp.yandex.ru
+   SMTP_PORT=465
+   SMTP_USER=ваш_email@yandex.ru
+   SMTP_PASSWORD=пароль_приложения
+   SMTP_FROM=ваш_email@yandex.ru
+   SMTP_TLS=true
+   ```
+
+### 6. Входные и выходные данные
+
+**Входные данные:**
+- Данные пользователя: email, пароль, ФИО, роль
+- Биометрические данные: тип метрики (heart_rate, spo2, temperature), значение, timestamp
+- Параметры профиля: возраст, пол, рост, вес, уровень подготовки, цели
+- Параметры тренировки: длительность (недели), доступные дни
+
+**Выходные данные:**
+- JWT access token (HS256, TTL 24 ч)
+- Тренировочный план (JSON: упражнения, подходы, повторения, длительность)
+- Классификация состояния (JSON: класс, уверенность)
+- Письмо верификации email (HTML)
+
+---
+
+## Техническое задание (по ГОСТ 19.201-78)
+
+### 1. Наименование и область применения
+
+**1.1.** Настоящее техническое задание распространяется на программный комплекс «FitPulse» — интеллектуальную веб-платформу для персонализированного управления физической активностью и прогнозирования рисков на основе анализа биометрических данных.
+
+**1.2.** Область применения: автоматизация планирования тренировок, мониторинг состояния здоровья, профилактика перетренированности и травм.
+
+### 2. Основание для разработки
+
+**2.1.** Разработка выполнена в рамках учебного проекта по дисциплине «Программная инженерия».
+
+**2.2.** Цель разработки: создание масштабируемой платформы, обеспечивающей индивидуальный подбор тренировочных нагрузок на основе биометрического анализа.
+
+### 3. Назначение разработки
+
+**3.1.** Программа предназначена для:
+- регистрации и аутентификации пользователей с двухфакторной верификацией email;
+- непрерывного сбора биометрических показателей (ЧСС, сатурация, температура);
+- автоматической классификации текущего состояния пользователя (6 классов);
+- генерации адаптивных тренировочных планов с применением GAN;
+- ведения истории тренировок и отслеживания прогресса;
+- уведомления пользователей о рисках и рекомендациях.
+
+**3.2.** Эксплуатация: веб-приложение, доступное через браузер.
+
+### 4. Требования к программе и программному документу
+
+#### 4.1. Требования к функциональным характеристикам
+
+**4.1.1.** Система должна обеспечивать:
+- регистрацию пользователей с подтверждением email (SMTP);
+- аутентификацию по JWT (HS256, TTL 24 ч);
+- CRUD-операции над профилем пользователя;
+- добавление и получение биометрических данных;
+- классификацию состояния по 6 признакам;
+- генерацию тренировочных планов на 4–12 недель;
+- разграничение ролей (client, trainer, admin);
+- логирование всех операций (zap, уровень info/warn/error).
+
+**4.1.2.** Состав подсистем:
+
+| Подсистема | Назначение |
+|------------|------------|
+| User Service | Регистрация, логин, профили, email-верификация |
+| Biometric Service | Приём и хранение биометрических данных |
+| Training Service | CRUD тренировочных планов, история завершённых тренировок |
+| ML Classifier | Классификация состояния (Keras, TensorFlow) |
+| ML Generator | Генерация планов (GAN) |
+| Gateway | Единая точка входа (REST → gRPC) |
+| NGINX | SSL termination, CSP, rate limiting |
+
+#### 4.2. Требования к надёжности
+
+**4.2.1.** Система должна обеспечивать:
+- автоматический перезапуск контейнеров при сбое (`restart: unless-stopped`);
+- health-check для PostgreSQL и Redis;
+- graceful shutdown всех сервисов;
+- обработку ошибок подключения к БД (логирование, возврат 500);
+- HMAC-SHA256 подпись критических ответов (login, register);
+- валидацию всех входных данных (gRPC status codes).
+
+**4.2.2.** Контроль работоспособности: эндпоинт `GET /health`.
+
+#### 4.3. Требования к условиям эксплуатации
+
+**4.3.1.** Технические условия:
+- сервер: Linux x86_64, 4 ГБ ОЗУ, 20 ГБ диска;
+- клиент: современный веб-браузер с поддержкой ES2022;
+- сеть: HTTPS (порт 8443), TLS 1.2+.
+
+**4.3.2.** Требования к персоналу:
+- пользователь: базовые навыки работы с веб-браузером;
+- администратор: навыки работы с Docker, Kubernetes, SQL.
+
+#### 4.4. Требования к составу и параметрам технических средств
+
+**4.4.1.** Минимальные требования к серверу:
+- CPU: 2 ядра
+- RAM: 4 ГБ
+- Диск: 20 ГБ (SSD рекомендуется)
+- Сеть: 100 Мбит/с
+
+**4.4.2.** Поддерживаемые ОС: Linux (Ubuntu 22.04+, Debian 12+), Windows 10/11 (через Docker Desktop).
+
+#### 4.5. Требования к информационной совместимости
+
+**4.5.1.** Входные данные:
+- email: формат RFC 5322, max 254 символа
+- пароль: min 8 символов
+- биометрия: heart_rate (30–220), spo2 (50–100), temperature (30–45)
+- роль: client, trainer, admin
+
+**4.5.2.** Выходные данные: JSON (UTF-8), Protobuf (binary).
+
+#### 4.6. Требования к транспортным протоколам и уровням взаимодействия
+
+**4.6.1.** Клиент ↔ Сервер: HTTPS (TLS 1.2+), JSON REST API.
+**4.6.2.** Gateway ↔ Микросервисы: gRPC over HTTP/2.
+**4.6.3.** Сервер ↔ SMTP: SMTP over TLS (порт 465).
+
+### 5. Требования к программной документации
+
+**5.1.** В состав документации входят:
+- настоящее ТЗ (ГОСТ 19.201-78);
+- описание программы (ГОСТ 19.102-77);
+- README.md (данный файл);
+- Swagger-спецификация (`api/rest/swagger.yaml`);
+- схема базы данных (`scripts/init-db.sql`).
+
+### 6. Технико-экономические показатели
+
+**6.1.** Программа распространяется бесплатно.
+**6.2.** Используемые компоненты: open-source (Go, Python, PostgreSQL, Redis, RabbitMQ, NGINX).
+**6.3.** SMTP: Yandex Mail (бесплатно, ~500 писем/день).
+
+### 7. Стадии разработки
+
+| Стадия | Содержание | Срок |
+|--------|-----------|------|
+| Техническое задание | Настоящий документ | — |
+| Эскизный проект | Архитектура, Protobuf-контракты | — |
+| Технический проект | Реализация микросервисов, ML-моделей | — |
+| Внедрение | Docker Compose, Kubernetes манифесты | — |
+| Опытная эксплуатация | Тестирование, нагрузочные тесты (k6) | — |
+
+### 8. Порядок контроля и приёмки
+
+**8.1.** Контроль качества:
+- `make check` — форматирование (go fmt), линтинг (golangci-lint), unit-тесты;
+- `go vet ./...` — статический анализ;
+- `golangci-lint run` — расширенный линтинг;
+- `go test -v -timeout 5m ./...` — unit-тесты.
+
+**8.2.** Нагрузочное тестирование:
+- k6 (script: `scripts/load-test/load-test.js`);
+- параметры: 50 VU, 2 min duration.
+
+**8.3.** Функциональное тестирование:
+- API test suite (`scripts/api-test.ps1`);
+- покрытие: регистрация, логин, профиль, биометрия, тренировки, ML.
+
+**8.4.** Критерии приёмки:
+- все unit-тесты проходят;
+- линтер без ошибок (0 issues);
+- приложение разворачивается через `docker compose up -d`;
+- регистрация → верификация email → логин → получение профиля работают последовательно.
+
+---
+
+## Быстрый старт
+
+```bash
+# 1. Настроить .env (заполнить SMTP, JWT_SECRET, пароли)
+# 2. Запустить
+docker compose -f deployments/docker-compose.yml up -d
+
+# 3. Открыть в браузере
+# https://localhost:8443
+```
+
+## API Endpoints
+
+| Метод | Путь | Описание | Auth |
+|-------|------|----------|------|
+| POST | `/api/v1/register` | Регистрация | ❌ |
+| POST | `/api/v1/login` | Вход | ❌ |
+| POST | `/api/v1/auth/confirm` | Подтверждение email | ❌ |
+| GET | `/api/v1/profile` | Профиль | ✅ |
+| PUT | `/api/v1/profile` | Обновление профиля | ✅ |
+| POST | `/api/v1/biometrics` | Добавить биометрию | ✅ |
+| GET | `/api/v1/biometrics` | Получить биометрию | ✅ |
+| POST | `/api/v1/ml/classify` | Классификация состояния | ✅ |
+| POST | `/api/v1/ml/generate-plan` | Генерация плана | ✅ |
+| GET | `/api/v1/training/plans` | Список планов | ✅ |
+| POST | `/api/v1/training/generate` | Генерировать план | ✅ |
+
+## Структура проекта
+
+```
+├── api/proto/           # Protobuf контракты
+├── api/gen/             # Сгенерированный gRPC код
+├── cmd/                 # Точки входа
+│   ├── gateway/         # HTTP Gateway
+│   ├── user-service/    # User Service (gRPC)
+│   ├── biometric-service/
+│   ├── training-service/
+│   ├── ml-classifier/   # Python ML сервис
+│   ├── ml-generator/    # Python GAN сервис
+│   └── device-connector/
+├── internal/            # Общие пакеты
+│   ├── auth/            # JWT, HMAC подпись
+│   ├── cache/           # Redis (сессии)
+│   ├── db/              # PostgreSQL подключение
+│   ├── email/           # SMTP отправка (Yandex, Mail.ru)
+│   ├── logger/          # Zap логирование
+│   ├── middleware/      # HTTP middleware
+│   ├── queue/           # RabbitMQ publisher/consumer
+│   ├── sanitize/        # Санитизация входных данных
+│   └── validator/       # Валидация запросов
+├── configs/             # YAML конфиги, K8s манифесты
+├── deployments/         # Docker Compose
+├── deploy/              # NGINX, TLS, K8s
+├── scripts/             # Инициализация БД, тесты
+├── web/                 # Фронтенд (HTML, CSS, JS)
+├── .env                 # Переменные окружения (не коммить!)
+└── Makefile             # Команды сборки, тестов, линта
+```
+
+## Команды Makefile
+
+```bash
+make build        # Собрать все бинарники
+make run          # Запустить локально
+make test         # Unit-тесты
+make lint         # golangci-lint
+make check        # fmt + vet + lint + test
+make docker-up    # Запустить Docker Compose
+make docker-down  # Остановить Docker Compose
+make proto        # Перегенерировать gRPC из .proto
+```
+
+## Лицензия
+
+MIT
