@@ -390,6 +390,99 @@ func getEnvOrDefault(key, fallback string) string {
 	return fallback
 }
 
+func (s *userServer) RegisterWithInvite(ctx context.Context, req *pb.RegisterWithInviteRequest) (*pb.RegisterResponse, error) {
+	s.log.Info("Register with invite code", zap.String("email", req.GetEmail()))
+
+	// Валидация invite-кода
+	result := s.db.QueryRowContext(ctx, `SELECT * FROM use_invite_code($1)`, req.GetInviteCode())
+	var isValid bool
+	var role, specialty, errMsg string
+	if err := result.Scan(&isValid, &role, &specialty, &errMsg); err != nil {
+		s.log.Error("Failed to validate invite code", zap.Error(err))
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+	if !isValid {
+		return nil, status.Errorf(codes.InvalidArgument, "invite code error: %s", errMsg)
+	}
+
+	// Определяем роль: приоритет у invite_code role
+	finalRole := role
+
+	// Хешируем пароль
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.GetPassword()), bcrypt.DefaultCost)
+	if err != nil {
+		s.log.Error("Failed to hash password", zap.Error(err))
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+
+	// Создаём пользователя
+	userID := uuid.New().String()
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO users (id, email, password_hash, full_name, role, email_confirmed)
+		VALUES ($1, $2, $3, $4, $5, true)
+	`, userID, sanitize.String(req.GetEmail()), string(hashedPassword), sanitize.String(req.GetFullName()), finalRole)
+
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+			return nil, status.Error(codes.AlreadyExists, "email already exists")
+		}
+		s.log.Error("Failed to create user", zap.Error(err))
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+
+	// Для doctors — создаём запись в doctors table
+	if finalRole == "doctor" {
+		doctorID := uuid.New().String()
+		_, err = s.db.ExecContext(ctx, `
+			INSERT INTO doctors (id, email, full_name, specialty, license_number, phone, bio, is_active)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+		`, doctorID, sanitize.String(req.GetEmail()), sanitize.String(req.GetFullName()), specialty, req.GetLicenseNumber(), req.GetPhone(), req.GetBio())
+		if err != nil {
+			s.log.Error("Failed to create doctor record", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to create doctor profile")
+		}
+	}
+
+	// Генерируем JWT (токен возвращается при login, не при регистрации)
+	_, err = auth.GenerateJWT(userID, req.GetEmail(), finalRole, s.secret, 24)
+	if err != nil {
+		s.log.Error("Failed to generate JWT", zap.Error(err))
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+
+	s.log.Info("User registered via invite code",
+		zap.String("user_id", userID),
+		zap.String("email", req.GetEmail()),
+		zap.String("role", finalRole),
+	)
+
+	return &pb.RegisterResponse{
+		UserId:  userID,
+		Message: "Регистрация успешна",
+	}, nil
+}
+
+func (s *userServer) ValidateInviteCode(ctx context.Context, req *pb.ValidateInviteCodeRequest) (*pb.ValidateInviteCodeResponse, error) {
+	if req.GetCode() == "" {
+		return nil, status.Error(codes.InvalidArgument, "code is required")
+	}
+
+	result := s.db.QueryRowContext(ctx, `SELECT * FROM use_invite_code($1)`, req.GetCode())
+	var isValid bool
+	var role, specialty, errMsg string
+	if err := result.Scan(&isValid, &role, &specialty, &errMsg); err != nil {
+		s.log.Error("Failed to validate invite code", zap.Error(err))
+		return nil, status.Error(codes.Internal, "internal error")
+	}
+
+	return &pb.ValidateInviteCodeResponse{
+		IsValid:      isValid,
+		Role:         role,
+		Specialty:    specialty,
+		ErrorMessage: errMsg,
+	}, nil
+}
+
 func main() {
 	log := logger.New("user-service")
 	defer log.Sync() //nolint:errcheck

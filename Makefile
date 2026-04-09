@@ -100,6 +100,7 @@ build:
 	go build -o $(BIN_DIR)/gateway.exe ./cmd/gateway
 	go build -o $(BIN_DIR)/biometric-service.exe ./cmd/biometric-service
 	go build -o $(BIN_DIR)/training-service.exe ./cmd/training-service
+	go build -o $(BIN_DIR)/device-emulator.exe ./cmd/device-emulator
 	@echo "Build complete."
 
 run: build

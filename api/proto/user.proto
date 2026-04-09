@@ -9,11 +9,13 @@ import "google/protobuf/timestamp.proto";
 
 service UserService {
     rpc Register(RegisterRequest) returns (RegisterResponse);
+    rpc RegisterWithInvite(RegisterWithInviteRequest) returns (RegisterResponse);
     rpc ConfirmEmail(ConfirmEmailRequest) returns (ConfirmEmailResponse);
     rpc Login(LoginRequest) returns (LoginResponse);
     rpc GetProfile(GetProfileRequest) returns (UserProfile);
     rpc UpdateProfile(UpdateProfileRequest) returns (UserProfile);
     rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+    rpc ValidateInviteCode(ValidateInviteCodeRequest) returns (ValidateInviteCodeResponse);
 }
 
 message RegisterRequest {
@@ -97,4 +99,29 @@ message ListUsersRequest {
 message ListUsersResponse {
     repeated UserProfile users = 1;
     int32 total = 2;
+}
+
+// ===== Invite Code Registration =====
+
+message RegisterWithInviteRequest {
+    string email = 1;
+    string password = 2;
+    string full_name = 3;
+    string invite_code = 4;
+    // Для doctors
+    string license_number = 5;
+    string specialty = 6;
+    string phone = 7;
+    string bio = 8;
+}
+
+message ValidateInviteCodeRequest {
+    string code = 1;
+}
+
+message ValidateInviteCodeResponse {
+    bool is_valid = 1;
+    string role = 2;
+    string specialty = 3;
+    string error_message = 4;
 }

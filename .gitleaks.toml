@@ -1,0 +1,20 @@
+# Gitleaks configuration for FitPulse project
+# Detects secrets, API keys, passwords, and other sensitive information
+
+title = "FitPulse Gitleaks Configuration"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allowlisted files and patterns for FitPulse"
+files = [
+    '''^\.github/workflows/ci\.yml$''',
+    '''^deployments/.*''',
+    '''^scripts/.*''',
+]
+paths = [
+    '''^\.git''',
+    '''^vendor/''',
+    '''^api/gen/''',
+]

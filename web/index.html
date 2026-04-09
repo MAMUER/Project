@@ -8,6 +8,7 @@
     <meta name="theme-color" content="#000000">
     <title>FitPulse</title>
     <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/modules.css">
 </head>
 <body>
     <div id="app">
@@ -253,11 +254,51 @@
 
                 <!-- Устройства -->
                 <div id="devicesView" class="view">
-                    <div class="empty-state">
-                        <div class="empty-icon">⌚</div>
-                        <h3>Подключите устройство</h3>
-                        <p>Поддерживаются Apple Watch, Samsung Galaxy Watch, Huawei Watch, Amazfit</p>
+                    <h3>Подключённые устройства</h3>
+                    <div id="deviceSelector" class="device-selector"></div>
+                    <div id="connectedDevicesList"></div>
+                    <button class="action-btn" id="connectDeviceBtn">Подключить устройство</button>
+                </div>
+
+                <!-- Врач -->
+                <div id="doctorView" class="view">
+                    <div class="tabs" id="doctorTabs">
+                        <div class="tab active" data-tab="doctors-list">Врачи</div>
+                        <div class="tab" data-tab="chat">Чат</div>
+                        <div class="tab" data-tab="prescriptions">Назначения</div>
                     </div>
+
+                    <!-- Список врачей -->
+                    <div id="doctors-list" class="doctor-tab-content active">
+                        <div class="subscription-banner">
+                            <h3>Персональный врач</h3>
+                            <p>Получите индивидуальную консультацию и контроль тренировок</p>
+                            <button class="subscribe-btn" id="subscribeBtn">Подключить врача</button>
+                        </div>
+                        <div id="doctorsList"></div>
+                    </div>
+
+                    <!-- Чат с врачом -->
+                    <div id="chat" class="doctor-tab-content">
+                        <div class="chat-container">
+                            <div id="chatMessages" class="chat-messages"></div>
+                            <div class="chat-input-container">
+                                <input type="text" id="chatInput" class="chat-input" placeholder="Напишите сообщение...">
+                                <button id="chatSendBtn" class="chat-send-btn">➤</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Назначения -->
+                    <div id="prescriptions" class="doctor-tab-content">
+                        <div id="prescriptionsList"></div>
+                    </div>
+                </div>
+
+                <!-- Диета -->
+                <div id="dietView" class="view">
+                    <h3>План питания</h3>
+                    <div id="dietPlanContainer"></div>
                 </div>
 
                 <!-- ML Анализ -->
@@ -303,12 +344,31 @@
                     </svg>
                     <span>Тренировки</span>
                 </button>
-                <button class="tab" data-view="ml">
+                <button class="tab" data-view="devices">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 2a10 10 0 0110 10 10 10 0 01-10 10A10 10 0 012 12 10 10 0 0112 2z"/>
-                        <path d="M12 8v4l3 3"/>
+                        <rect x="5" y="2" width="14" height="20" rx="2"/>
+                        <line x1="12" y1="18" x2="12" y2="18.01"/>
                     </svg>
-                    <span>AI</span>
+                    <span>Устройства</span>
+                </button>
+                <button class="tab" data-view="doctor">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4.8 2.3A.3.3 0 105 2H4a2 2 0 00-2 2v5a2 2 0 002 2h1"/>
+                        <path d="M6 8V4a2 2 0 012-2h4"/>
+                        <circle cx="18" cy="8" r="3"/>
+                        <path d="M22 21v-1a6 6 0 00-12 0v1"/>
+                    </svg>
+                    <span>Врач</span>
+                </button>
+                <button class="tab" data-view="diet">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8h1a4 4 0 010 8h-1"/>
+                        <path d="M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z"/>
+                        <line x1="6" y1="1" x2="6" y2="4"/>
+                        <line x1="10" y1="1" x2="10" y2="4"/>
+                        <line x1="14" y1="1" x2="14" y2="4"/>
+                    </svg>
+                    <span>Диета</span>
                 </button>
             </nav>
         </div>
@@ -316,6 +376,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="/static/js/api.js"></script>
+    <script src="/static/js/doctor.js"></script>
     <script src="/static/js/app.js"></script>
+    <script src="/static/js/modules.js"></script>
 </body>
 </html>

@@ -32,6 +32,8 @@ logs/
 # Environment — секреты в образе = уязвимость!
 .env
 .env.local
+.env.*.local
+!.env.example
 
 # ML models и датасеты — большие файлы
 # models/ НЕ исключён из корневого .dockerignore, т.к. ML Dockerfile
@@ -42,6 +44,10 @@ datasets/
 docs/
 *.md
 !README.md
+
+# Security files — не должны попадать в образ
+.gitleaks.toml
+SECURITY.md
 
 # Temporary files
 tmp/

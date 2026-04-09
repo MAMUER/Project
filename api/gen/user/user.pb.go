@@ -804,6 +804,219 @@ func (x *ListUsersResponse) GetTotal() int32 {
 	return 0
 }
 
+type RegisterWithInviteRequest struct {
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	Email      string                 `protobuf:"bytes,1,opt,name=email,proto3" json:"email,omitempty"`
+	Password   string                 `protobuf:"bytes,2,opt,name=password,proto3" json:"password,omitempty"`
+	FullName   string                 `protobuf:"bytes,3,opt,name=full_name,json=fullName,proto3" json:"full_name,omitempty"`
+	InviteCode string                 `protobuf:"bytes,4,opt,name=invite_code,json=inviteCode,proto3" json:"invite_code,omitempty"`
+	// Для doctors
+	LicenseNumber string `protobuf:"bytes,5,opt,name=license_number,json=licenseNumber,proto3" json:"license_number,omitempty"`
+	Specialty     string `protobuf:"bytes,6,opt,name=specialty,proto3" json:"specialty,omitempty"`
+	Phone         string `protobuf:"bytes,7,opt,name=phone,proto3" json:"phone,omitempty"`
+	Bio           string `protobuf:"bytes,8,opt,name=bio,proto3" json:"bio,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RegisterWithInviteRequest) Reset() {
+	*x = RegisterWithInviteRequest{}
+	mi := &file_user_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RegisterWithInviteRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RegisterWithInviteRequest) ProtoMessage() {}
+
+func (x *RegisterWithInviteRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RegisterWithInviteRequest.ProtoReflect.Descriptor instead.
+func (*RegisterWithInviteRequest) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *RegisterWithInviteRequest) GetEmail() string {
+	if x != nil {
+		return x.Email
+	}
+	return ""
+}
+
+func (x *RegisterWithInviteRequest) GetPassword() string {
+	if x != nil {
+		return x.Password
+	}
+	return ""
+}
+
+func (x *RegisterWithInviteRequest) GetFullName() string {
+	if x != nil {
+		return x.FullName
+	}
+	return ""
+}
+
+func (x *RegisterWithInviteRequest) GetInviteCode() string {
+	if x != nil {
+		return x.InviteCode
+	}
+	return ""
+}
+
+func (x *RegisterWithInviteRequest) GetLicenseNumber() string {
+	if x != nil {
+		return x.LicenseNumber
+	}
+	return ""
+}
+
+func (x *RegisterWithInviteRequest) GetSpecialty() string {
+	if x != nil {
+		return x.Specialty
+	}
+	return ""
+}
+
+func (x *RegisterWithInviteRequest) GetPhone() string {
+	if x != nil {
+		return x.Phone
+	}
+	return ""
+}
+
+func (x *RegisterWithInviteRequest) GetBio() string {
+	if x != nil {
+		return x.Bio
+	}
+	return ""
+}
+
+type ValidateInviteCodeRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateInviteCodeRequest) Reset() {
+	*x = ValidateInviteCodeRequest{}
+	mi := &file_user_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateInviteCodeRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateInviteCodeRequest) ProtoMessage() {}
+
+func (x *ValidateInviteCodeRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateInviteCodeRequest.ProtoReflect.Descriptor instead.
+func (*ValidateInviteCodeRequest) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *ValidateInviteCodeRequest) GetCode() string {
+	if x != nil {
+		return x.Code
+	}
+	return ""
+}
+
+type ValidateInviteCodeResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	IsValid       bool                   `protobuf:"varint,1,opt,name=is_valid,json=isValid,proto3" json:"is_valid,omitempty"`
+	Role          string                 `protobuf:"bytes,2,opt,name=role,proto3" json:"role,omitempty"`
+	Specialty     string                 `protobuf:"bytes,3,opt,name=specialty,proto3" json:"specialty,omitempty"`
+	ErrorMessage  string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ValidateInviteCodeResponse) Reset() {
+	*x = ValidateInviteCodeResponse{}
+	mi := &file_user_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ValidateInviteCodeResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ValidateInviteCodeResponse) ProtoMessage() {}
+
+func (x *ValidateInviteCodeResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_user_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ValidateInviteCodeResponse.ProtoReflect.Descriptor instead.
+func (*ValidateInviteCodeResponse) Descriptor() ([]byte, []int) {
+	return file_user_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *ValidateInviteCodeResponse) GetIsValid() bool {
+	if x != nil {
+		return x.IsValid
+	}
+	return false
+}
+
+func (x *ValidateInviteCodeResponse) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ValidateInviteCodeResponse) GetSpecialty() string {
+	if x != nil {
+		return x.Specialty
+	}
+	return ""
+}
+
+func (x *ValidateInviteCodeResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
 var File_user_proto protoreflect.FileDescriptor
 
 const file_user_proto_rawDesc = "" +
@@ -886,15 +1099,34 @@ const file_user_proto_rawDesc = "" +
 	"\x04role\x18\x03 \x01(\tR\x04role\"R\n" +
 	"\x11ListUsersResponse\x12'\n" +
 	"\x05users\x18\x01 \x03(\v2\x11.user.UserProfileR\x05users\x12\x14\n" +
-	"\x05total\x18\x02 \x01(\x05R\x05total2\xf9\x02\n" +
+	"\x05total\x18\x02 \x01(\x05R\x05total\"\xf8\x01\n" +
+	"\x19RegisterWithInviteRequest\x12\x14\n" +
+	"\x05email\x18\x01 \x01(\tR\x05email\x12\x1a\n" +
+	"\bpassword\x18\x02 \x01(\tR\bpassword\x12\x1b\n" +
+	"\tfull_name\x18\x03 \x01(\tR\bfullName\x12\x1f\n" +
+	"\vinvite_code\x18\x04 \x01(\tR\n" +
+	"inviteCode\x12%\n" +
+	"\x0elicense_number\x18\x05 \x01(\tR\rlicenseNumber\x12\x1c\n" +
+	"\tspecialty\x18\x06 \x01(\tR\tspecialty\x12\x14\n" +
+	"\x05phone\x18\a \x01(\tR\x05phone\x12\x10\n" +
+	"\x03bio\x18\b \x01(\tR\x03bio\"/\n" +
+	"\x19ValidateInviteCodeRequest\x12\x12\n" +
+	"\x04code\x18\x01 \x01(\tR\x04code\"\x8e\x01\n" +
+	"\x1aValidateInviteCodeResponse\x12\x19\n" +
+	"\bis_valid\x18\x01 \x01(\bR\aisValid\x12\x12\n" +
+	"\x04role\x18\x02 \x01(\tR\x04role\x12\x1c\n" +
+	"\tspecialty\x18\x03 \x01(\tR\tspecialty\x12#\n" +
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage2\xa1\x04\n" +
 	"\vUserService\x129\n" +
-	"\bRegister\x12\x15.user.RegisterRequest\x1a\x16.user.RegisterResponse\x12E\n" +
+	"\bRegister\x12\x15.user.RegisterRequest\x1a\x16.user.RegisterResponse\x12M\n" +
+	"\x12RegisterWithInvite\x12\x1f.user.RegisterWithInviteRequest\x1a\x16.user.RegisterResponse\x12E\n" +
 	"\fConfirmEmail\x12\x19.user.ConfirmEmailRequest\x1a\x1a.user.ConfirmEmailResponse\x120\n" +
 	"\x05Login\x12\x12.user.LoginRequest\x1a\x13.user.LoginResponse\x128\n" +
 	"\n" +
 	"GetProfile\x12\x17.user.GetProfileRequest\x1a\x11.user.UserProfile\x12>\n" +
 	"\rUpdateProfile\x12\x1a.user.UpdateProfileRequest\x1a\x11.user.UserProfile\x12<\n" +
-	"\tListUsers\x12\x16.user.ListUsersRequest\x1a\x17.user.ListUsersResponseB(Z&github.com/MAMUER/Project/api/gen/userb\x06proto3"
+	"\tListUsers\x12\x16.user.ListUsersRequest\x1a\x17.user.ListUsersResponse\x12W\n" +
+	"\x12ValidateInviteCode\x12\x1f.user.ValidateInviteCodeRequest\x1a .user.ValidateInviteCodeResponseB(Z&github.com/MAMUER/Project/api/gen/userb\x06proto3"
 
 var (
 	file_user_proto_rawDescOnce sync.Once
@@ -908,36 +1140,43 @@ func file_user_proto_rawDescGZIP() []byte {
 	return file_user_proto_rawDescData
 }
 
-var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_user_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_user_proto_goTypes = []any{
-	(*RegisterRequest)(nil),      // 0: user.RegisterRequest
-	(*RegisterResponse)(nil),     // 1: user.RegisterResponse
-	(*ConfirmEmailRequest)(nil),  // 2: user.ConfirmEmailRequest
-	(*ConfirmEmailResponse)(nil), // 3: user.ConfirmEmailResponse
-	(*LoginRequest)(nil),         // 4: user.LoginRequest
-	(*LoginResponse)(nil),        // 5: user.LoginResponse
-	(*GetProfileRequest)(nil),    // 6: user.GetProfileRequest
-	(*UpdateProfileRequest)(nil), // 7: user.UpdateProfileRequest
-	(*UserProfile)(nil),          // 8: user.UserProfile
-	(*ListUsersRequest)(nil),     // 9: user.ListUsersRequest
-	(*ListUsersResponse)(nil),    // 10: user.ListUsersResponse
+	(*RegisterRequest)(nil),            // 0: user.RegisterRequest
+	(*RegisterResponse)(nil),           // 1: user.RegisterResponse
+	(*ConfirmEmailRequest)(nil),        // 2: user.ConfirmEmailRequest
+	(*ConfirmEmailResponse)(nil),       // 3: user.ConfirmEmailResponse
+	(*LoginRequest)(nil),               // 4: user.LoginRequest
+	(*LoginResponse)(nil),              // 5: user.LoginResponse
+	(*GetProfileRequest)(nil),          // 6: user.GetProfileRequest
+	(*UpdateProfileRequest)(nil),       // 7: user.UpdateProfileRequest
+	(*UserProfile)(nil),                // 8: user.UserProfile
+	(*ListUsersRequest)(nil),           // 9: user.ListUsersRequest
+	(*ListUsersResponse)(nil),          // 10: user.ListUsersResponse
+	(*RegisterWithInviteRequest)(nil),  // 11: user.RegisterWithInviteRequest
+	(*ValidateInviteCodeRequest)(nil),  // 12: user.ValidateInviteCodeRequest
+	(*ValidateInviteCodeResponse)(nil), // 13: user.ValidateInviteCodeResponse
 }
 var file_user_proto_depIdxs = []int32{
 	8,  // 0: user.ListUsersResponse.users:type_name -> user.UserProfile
 	0,  // 1: user.UserService.Register:input_type -> user.RegisterRequest
-	2,  // 2: user.UserService.ConfirmEmail:input_type -> user.ConfirmEmailRequest
-	4,  // 3: user.UserService.Login:input_type -> user.LoginRequest
-	6,  // 4: user.UserService.GetProfile:input_type -> user.GetProfileRequest
-	7,  // 5: user.UserService.UpdateProfile:input_type -> user.UpdateProfileRequest
-	9,  // 6: user.UserService.ListUsers:input_type -> user.ListUsersRequest
-	1,  // 7: user.UserService.Register:output_type -> user.RegisterResponse
-	3,  // 8: user.UserService.ConfirmEmail:output_type -> user.ConfirmEmailResponse
-	5,  // 9: user.UserService.Login:output_type -> user.LoginResponse
-	8,  // 10: user.UserService.GetProfile:output_type -> user.UserProfile
-	8,  // 11: user.UserService.UpdateProfile:output_type -> user.UserProfile
-	10, // 12: user.UserService.ListUsers:output_type -> user.ListUsersResponse
-	7,  // [7:13] is the sub-list for method output_type
-	1,  // [1:7] is the sub-list for method input_type
+	11, // 2: user.UserService.RegisterWithInvite:input_type -> user.RegisterWithInviteRequest
+	2,  // 3: user.UserService.ConfirmEmail:input_type -> user.ConfirmEmailRequest
+	4,  // 4: user.UserService.Login:input_type -> user.LoginRequest
+	6,  // 5: user.UserService.GetProfile:input_type -> user.GetProfileRequest
+	7,  // 6: user.UserService.UpdateProfile:input_type -> user.UpdateProfileRequest
+	9,  // 7: user.UserService.ListUsers:input_type -> user.ListUsersRequest
+	12, // 8: user.UserService.ValidateInviteCode:input_type -> user.ValidateInviteCodeRequest
+	1,  // 9: user.UserService.Register:output_type -> user.RegisterResponse
+	1,  // 10: user.UserService.RegisterWithInvite:output_type -> user.RegisterResponse
+	3,  // 11: user.UserService.ConfirmEmail:output_type -> user.ConfirmEmailResponse
+	5,  // 12: user.UserService.Login:output_type -> user.LoginResponse
+	8,  // 13: user.UserService.GetProfile:output_type -> user.UserProfile
+	8,  // 14: user.UserService.UpdateProfile:output_type -> user.UserProfile
+	10, // 15: user.UserService.ListUsers:output_type -> user.ListUsersResponse
+	13, // 16: user.UserService.ValidateInviteCode:output_type -> user.ValidateInviteCodeResponse
+	9,  // [9:17] is the sub-list for method output_type
+	1,  // [1:9] is the sub-list for method input_type
 	1,  // [1:1] is the sub-list for extension type_name
 	1,  // [1:1] is the sub-list for extension extendee
 	0,  // [0:1] is the sub-list for field type_name
@@ -955,7 +1194,7 @@ func file_user_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_user_proto_rawDesc), len(file_user_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   11,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

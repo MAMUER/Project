@@ -2,11 +2,57 @@ version: "2"
 
 run:
   timeout: 5m
+  allow-parallel-runners: true
 
 linters:
   enable:
+    # Базовые
     - errcheck
     - govet
     - ineffassign
     - staticcheck
     - unused
+    # Security-oriented
+    - gosec          # Security vulnerability detection
+    - goconst        # Повторяющиеся строковые литералы (potential secrets/hardcoded values)
+    - gochecknoglobals # Запрет глобальных переменных (code quality)
+    - nilerr         # Проверка ошибок nil
+    - bodyclose      # Проверка закрытия HTTP response bodies
+    - noctx          # Требование context в HTTP/gRPC запросах
+    - prealloc       # Предварительное выделение слайсов (performance)
+    - errorlint      # Правильная обработка ошибок
+    - exhaustive     # Проверка полноты switch statement
+    - copyloopvar    # Обнаружение копирования переменных цикла
+    - fatcontext     # Обнаружение больших context
+  settings:
+    gosec:
+      severity: medium
+      confidence: medium
+      excludes:
+        - G104  # Duplicate of errcheck
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment  # Не критично для production
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - gosec
+        path: "_test\\.go"
+      - linters:
+          - gochecknoglobals
+        path: "internal/metrics|internal/logger"
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - api/gen/

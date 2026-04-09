@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+# Security: non-root user
+RUN groupadd -r mluser && useradd -r -g mluser -d /app -s /sbin/nologin mluser
+
 WORKDIR /app
 
 # Установка зависимостей
@@ -19,6 +22,13 @@ RUN mkdir -p /app/models
 COPY models/classifier.keras /app/models/classifier.keras
 COPY models/scaler.pkl /app/models/scaler.pkl
 
+# Security: ownership
+RUN chown -R mluser:mluser /app
+USER mluser
+
 EXPOSE 8001
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')" || exit 1
 
 CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]

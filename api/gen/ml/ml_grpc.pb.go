@@ -19,8 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MLService_Classify_FullMethodName = "/ml.MLService/Classify"
-	MLService_Generate_FullMethodName = "/ml.MLService/Generate"
+	MLService_Classify_FullMethodName             = "/ml.MLService/Classify"
+	MLService_Generate_FullMethodName             = "/ml.MLService/Generate"
+	MLService_ClassifyUserState_FullMethodName    = "/ml.MLService/ClassifyUserState"
+	MLService_GenerateTrainingPlan_FullMethodName = "/ml.MLService/GenerateTrainingPlan"
+	MLService_GenerateDietPlan_FullMethodName     = "/ml.MLService/GenerateDietPlan"
+	MLService_AdaptPlan_FullMethodName            = "/ml.MLService/AdaptPlan"
 )
 
 // MLServiceClient is the client API for MLService service.
@@ -29,6 +33,11 @@ const (
 type MLServiceClient interface {
 	Classify(ctx context.Context, in *ClassifyRequest, opts ...grpc.CallOption) (*ClassifyResponse, error)
 	Generate(ctx context.Context, in *GenerateRequest, opts ...grpc.CallOption) (*GenerateResponse, error)
+	// Новые методы для комплексной логики
+	ClassifyUserState(ctx context.Context, in *ClassifyUserStateRequest, opts ...grpc.CallOption) (*ClassifyUserStateResponse, error)
+	GenerateTrainingPlan(ctx context.Context, in *GenerateTrainingPlanRequest, opts ...grpc.CallOption) (*GenerateTrainingPlanResponse, error)
+	GenerateDietPlan(ctx context.Context, in *GenerateDietPlanRequest, opts ...grpc.CallOption) (*GenerateDietPlanResponse, error)
+	AdaptPlan(ctx context.Context, in *AdaptPlanRequest, opts ...grpc.CallOption) (*AdaptPlanResponse, error)
 }
 
 type mLServiceClient struct {
@@ -59,12 +68,57 @@ func (c *mLServiceClient) Generate(ctx context.Context, in *GenerateRequest, opt
 	return out, nil
 }
 
+func (c *mLServiceClient) ClassifyUserState(ctx context.Context, in *ClassifyUserStateRequest, opts ...grpc.CallOption) (*ClassifyUserStateResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ClassifyUserStateResponse)
+	err := c.cc.Invoke(ctx, MLService_ClassifyUserState_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mLServiceClient) GenerateTrainingPlan(ctx context.Context, in *GenerateTrainingPlanRequest, opts ...grpc.CallOption) (*GenerateTrainingPlanResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateTrainingPlanResponse)
+	err := c.cc.Invoke(ctx, MLService_GenerateTrainingPlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mLServiceClient) GenerateDietPlan(ctx context.Context, in *GenerateDietPlanRequest, opts ...grpc.CallOption) (*GenerateDietPlanResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateDietPlanResponse)
+	err := c.cc.Invoke(ctx, MLService_GenerateDietPlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *mLServiceClient) AdaptPlan(ctx context.Context, in *AdaptPlanRequest, opts ...grpc.CallOption) (*AdaptPlanResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(AdaptPlanResponse)
+	err := c.cc.Invoke(ctx, MLService_AdaptPlan_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // MLServiceServer is the server API for MLService service.
 // All implementations must embed UnimplementedMLServiceServer
 // for forward compatibility.
 type MLServiceServer interface {
 	Classify(context.Context, *ClassifyRequest) (*ClassifyResponse, error)
 	Generate(context.Context, *GenerateRequest) (*GenerateResponse, error)
+	// Новые методы для комплексной логики
+	ClassifyUserState(context.Context, *ClassifyUserStateRequest) (*ClassifyUserStateResponse, error)
+	GenerateTrainingPlan(context.Context, *GenerateTrainingPlanRequest) (*GenerateTrainingPlanResponse, error)
+	GenerateDietPlan(context.Context, *GenerateDietPlanRequest) (*GenerateDietPlanResponse, error)
+	AdaptPlan(context.Context, *AdaptPlanRequest) (*AdaptPlanResponse, error)
 	mustEmbedUnimplementedMLServiceServer()
 }
 
@@ -80,6 +134,18 @@ func (UnimplementedMLServiceServer) Classify(context.Context, *ClassifyRequest) 
 }
 func (UnimplementedMLServiceServer) Generate(context.Context, *GenerateRequest) (*GenerateResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Generate not implemented")
+}
+func (UnimplementedMLServiceServer) ClassifyUserState(context.Context, *ClassifyUserStateRequest) (*ClassifyUserStateResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ClassifyUserState not implemented")
+}
+func (UnimplementedMLServiceServer) GenerateTrainingPlan(context.Context, *GenerateTrainingPlanRequest) (*GenerateTrainingPlanResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateTrainingPlan not implemented")
+}
+func (UnimplementedMLServiceServer) GenerateDietPlan(context.Context, *GenerateDietPlanRequest) (*GenerateDietPlanResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GenerateDietPlan not implemented")
+}
+func (UnimplementedMLServiceServer) AdaptPlan(context.Context, *AdaptPlanRequest) (*AdaptPlanResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method AdaptPlan not implemented")
 }
 func (UnimplementedMLServiceServer) mustEmbedUnimplementedMLServiceServer() {}
 func (UnimplementedMLServiceServer) testEmbeddedByValue()                   {}
@@ -138,6 +204,78 @@ func _MLService_Generate_Handler(srv interface{}, ctx context.Context, dec func(
 	return interceptor(ctx, in, info, handler)
 }
 
+func _MLService_ClassifyUserState_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ClassifyUserStateRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MLServiceServer).ClassifyUserState(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MLService_ClassifyUserState_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MLServiceServer).ClassifyUserState(ctx, req.(*ClassifyUserStateRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MLService_GenerateTrainingPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateTrainingPlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MLServiceServer).GenerateTrainingPlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MLService_GenerateTrainingPlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MLServiceServer).GenerateTrainingPlan(ctx, req.(*GenerateTrainingPlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MLService_GenerateDietPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateDietPlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MLServiceServer).GenerateDietPlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MLService_GenerateDietPlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MLServiceServer).GenerateDietPlan(ctx, req.(*GenerateDietPlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _MLService_AdaptPlan_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(AdaptPlanRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MLServiceServer).AdaptPlan(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: MLService_AdaptPlan_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MLServiceServer).AdaptPlan(ctx, req.(*AdaptPlanRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // MLService_ServiceDesc is the grpc.ServiceDesc for MLService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -152,6 +290,22 @@ var MLService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "Generate",
 			Handler:    _MLService_Generate_Handler,
+		},
+		{
+			MethodName: "ClassifyUserState",
+			Handler:    _MLService_ClassifyUserState_Handler,
+		},
+		{
+			MethodName: "GenerateTrainingPlan",
+			Handler:    _MLService_GenerateTrainingPlan_Handler,
+		},
+		{
+			MethodName: "GenerateDietPlan",
+			Handler:    _MLService_GenerateDietPlan_Handler,
+		},
+		{
+			MethodName: "AdaptPlan",
+			Handler:    _MLService_AdaptPlan_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

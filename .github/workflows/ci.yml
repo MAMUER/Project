@@ -5,10 +5,14 @@ on:
     branches: [main, master, Microservice_arc]
   pull_request:
     branches: [main, master, Microservice_arc]
+  schedule:
+    # Еженедельный security scan (понедельник 00:00 UTC)
+    - cron: '0 0 * * 1'
 
 permissions:
   contents: read
   packages: write
+  security-events: write
 
 env:
   GO_VERSION: "1.25"
@@ -28,6 +32,11 @@ jobs:
         run: go mod download
       - name: Run vet
         run: go vet ./...
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
       - name: Run fmt check
         run: |
           FILES=$(gofmt -l . | grep -v "cmd/tools/tools.go" || true)
@@ -40,10 +49,108 @@ jobs:
       - name: Run tests
         run: go test -v -short ./...
 
+  security-scan:
+    name: Security Scanning (SAST + Dependencies)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install dependencies
+        run: go mod download
+
+      # Go Security: проверка зависимостей на уязвимости (аналог npm audit)
+      - name: Install gosec and govulncheck
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@latest
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      # SAST: статический анализ кода на security issues
+      - name: Run gosec SAST scanner
+        run: |
+          gosec -exclude-generated -fmt=sarif -out=gosec-results.sarif ./... || true
+          echo "=== GOSEC SUMMARY ==="
+          gosec -exclude-generated ./... || true
+
+      # Upload gosec results to GitHub Security tab
+      - name: Upload gosec results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: gosec-results.sarif
+          category: gosec
+
+      # Проверка зависимостей на известные уязвимости
+      - name: Run govulncheck
+        run: |
+          govulncheck ./... 2>&1 | tee vulncheck-results.txt || true
+          echo "=== VULNCHECK SUMMARY ==="
+          # Считаем количество найденных уязвимостей
+          VULN_COUNT=$(grep -c "vulnerability" vulncheck-results.txt || echo "0")
+          echo "Found $VULN_COUNT potential vulnerabilities"
+
+      # Trivy: сканирование filesystem на secrets, misconfigurations
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Trivy scan results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+          category: trivy-fs
+
+      # Проверка Dockerfile на best practices
+      - name: Run Trivy config scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+  secrets-scan:
+    name: Secrets Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # TruffleHog: поиск secrets в истории коммитов
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+
+      # Gitleaks: дополнительный поиск утечек credentials
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          config-path: .gitleaks.toml
+          verbose: true
+
   build:
     name: Build Binaries
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, security-scan, secrets-scan]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -56,6 +163,7 @@ jobs:
           go build -o bin/biometric-service ./cmd/biometric-service
           go build -o bin/training-service ./cmd/training-service
           go build -o bin/gateway ./cmd/gateway
+          go build -o bin/device-emulator ./cmd/device-emulator
       - uses: actions/upload-artifact@v4
         with:
           name: binaries
@@ -89,7 +197,7 @@ jobs:
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       - name: Build Go images
         run: |
-          services="user-service biometric-service training-service gateway device-connector"
+          services="user-service biometric-service training-service gateway device-connector device-emulator"
           for svc in $services; do
             echo "Building $svc with tag ${{ steps.sha.outputs.short_sha }}..."
             docker build \
@@ -101,6 +209,23 @@ jobs:
             docker push ${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/$svc:latest
             echo "✅ $svc pushed"
           done
+
+      # Security scan Docker images before pushing
+      - name: Scan Docker images with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.REGISTRY }}/${{ steps.repo-lower.outputs.repo_lower }}/gateway:${{ steps.sha.outputs.short_sha }}'
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: Upload Docker Trivy results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-image-results.sarif
+          category: trivy-docker
       - name: Build and push ML images (if models exist)
         run: |
           # ML classifier — собираем только если модели присутствуют
@@ -367,19 +492,21 @@ jobs:
   notify:
     name: Send Notification
     runs-on: ubuntu-latest
-    needs: [test, build, docker, deploy, k8s-deploy]
+    needs: [test, security-scan, secrets-scan, build, docker, deploy, k8s-deploy]
     if: always() && (github.ref == 'refs/heads/Microservice_arc' || github.ref == 'refs/heads/main')
     steps:
-      - uses: actions/checkout@v4 
+      - uses: actions/checkout@v4
       - name: Get all job statuses
         id: statuses
         run: |
           TEST_STATUS="${{ needs.test.result }}"
+          SECURITY_STATUS="${{ needs.security-scan.result }}"
+          SECRETS_STATUS="${{ needs.secrets-scan.result }}"
           BUILD_STATUS="${{ needs.build.result }}"
           DOCKER_STATUS="${{ needs.docker.result }}"
           DEPLOY_STATUS="${{ needs.deploy.result }}"
           K8S_STATUS="${{ needs.k8s-deploy.result }}"
-          
+
           if [ "$K8S_STATUS" = "success" ] && [ "$DEPLOY_STATUS" = "success" ]; then
             OVERALL="success"
             OVERALL_EMOJI="✅"
@@ -396,6 +523,14 @@ jobs:
             OVERALL="failure"
             OVERALL_EMOJI="❌"
             OVERALL_TEXT="ОШИБКА СБОРКИ"
+          elif [ "$SECURITY_STATUS" = "failure" ]; then
+            OVERALL="failure"
+            OVERALL_EMOJI="❌"
+            OVERALL_TEXT="ОШИБКА SECURITY"
+          elif [ "$SECRETS_STATUS" = "failure" ]; then
+            OVERALL="failure"
+            OVERALL_EMOJI="❌"
+            OVERALL_TEXT="ОБНАРУЖЕНЫ СЕКРЕТЫ"
           elif [ "$TEST_STATUS" = "failure" ]; then
             OVERALL="failure"
             OVERALL_EMOJI="❌"
@@ -405,11 +540,11 @@ jobs:
             OVERALL_EMOJI="✅"
             OVERALL_TEXT="УСПЕШНО"
           fi
-          
+
           echo "overall=$OVERALL" >> $GITHUB_OUTPUT
           echo "overall_emoji=$OVERALL_EMOJI" >> $GITHUB_OUTPUT
           echo "overall_text=$OVERALL_TEXT" >> $GITHUB_OUTPUT
-          
+
           get_status_emoji() {
             case "$1" in
               "success") echo "✅" ;;
@@ -419,14 +554,18 @@ jobs:
               *) echo "❓" ;;
             esac
           }
-          
+
           echo "test_emoji=$(get_status_emoji $TEST_STATUS)" >> $GITHUB_OUTPUT
+          echo "security_emoji=$(get_status_emoji $SECURITY_STATUS)" >> $GITHUB_OUTPUT
+          echo "secrets_emoji=$(get_status_emoji $SECRETS_STATUS)" >> $GITHUB_OUTPUT
           echo "build_emoji=$(get_status_emoji $BUILD_STATUS)" >> $GITHUB_OUTPUT
           echo "docker_emoji=$(get_status_emoji $DOCKER_STATUS)" >> $GITHUB_OUTPUT
           echo "deploy_emoji=$(get_status_emoji $DEPLOY_STATUS)" >> $GITHUB_OUTPUT
           echo "k8s_emoji=$(get_status_emoji $K8S_STATUS)" >> $GITHUB_OUTPUT
-          
+
           echo "test_status=$TEST_STATUS" >> $GITHUB_OUTPUT
+          echo "security_status=$SECURITY_STATUS" >> $GITHUB_OUTPUT
+          echo "secrets_status=$SECRETS_STATUS" >> $GITHUB_OUTPUT
           echo "build_status=$BUILD_STATUS" >> $GITHUB_OUTPUT
           echo "docker_status=$DOCKER_STATUS" >> $GITHUB_OUTPUT
           echo "deploy_status=$DEPLOY_STATUS" >> $GITHUB_OUTPUT
@@ -450,26 +589,28 @@ jobs:
           format: markdown
           message: |
             *${{ steps.statuses.outputs.overall_emoji }} CI/CD Pipeline — ${{ steps.statuses.outputs.overall_text }}*
-            
+
             📦 **Репозиторий:** [${{ github.repository }}](${{ github.server_url }}/${{ github.repository }})
             🌿 **Ветка:** `${{ github.ref_name }}`
             🔖 **Коммит:** [`${{ github.sha }}`](${{ steps.commit.outputs.commit_url }})
             👤 **Автор:** ${{ steps.commit.outputs.author }}
             📝 **Сообщение:** ${{ steps.commit.outputs.message }}
-            
+
             ━━━━━━━━━━━━━━━━━━━━━
-            
+
             *📊 Статусы этапов:*
             | Этап | Статус |
             |------|--------|
             | 🧪 Тесты | ${{ steps.statuses.outputs.test_emoji }} ${{ steps.statuses.outputs.test_status }} |
-            | 🔨 Сборка | ${{ steps.statuses.outputs.build_emoji }} ${{ steps.statuses.outputs.build_status }} |
+            | � Security | ${{ steps.statuses.outputs.security_emoji }} ${{ steps.statuses.outputs.security_status }} |
+            | 🔑 Secrets | ${{ steps.statuses.outputs.secrets_emoji }} ${{ steps.statuses.outputs.secrets_status }} |
+            | �🔨 Сборка | ${{ steps.statuses.outputs.build_emoji }} ${{ steps.statuses.outputs.build_status }} |
             | 🐳 Docker | ${{ steps.statuses.outputs.docker_emoji }} ${{ steps.statuses.outputs.docker_status }} |
             | 🚀 Деплой (VPS) | ${{ steps.statuses.outputs.deploy_emoji }} ${{ steps.statuses.outputs.deploy_status }} |
             | ☸️ Kubernetes | ${{ steps.statuses.outputs.k8s_emoji }} ${{ steps.statuses.outputs.k8s_status }} |
-            
+
             ━━━━━━━━━━━━━━━━━━━━━
-            
+
             *🖥️ Сервисы:*
             • Gateway: http://${{ secrets.VPS_HOST }}:8080
             • ML Classifier: http://${{ secrets.VPS_HOST }}:8001
@@ -477,5 +618,5 @@ jobs:
             • RabbitMQ UI: http://${{ secrets.VPS_HOST }}:15672
             • Prometheus: http://${{ secrets.VPS_HOST }}:9090
             • Grafana: http://${{ secrets.VPS_HOST }}:3000
-            
+
             [🔗 Подробнее в Actions](${{ steps.commit.outputs.run_url }})

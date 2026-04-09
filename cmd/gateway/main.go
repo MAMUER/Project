@@ -177,6 +177,85 @@ func (g *gateway) registerHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (g *gateway) registerWithInviteHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Email         string `json:"email"`
+		Password      string `json:"password"`
+		FullName      string `json:"full_name"`
+		InviteCode    string `json:"invite_code"`
+		LicenseNumber string `json:"license_number"`
+		Specialty     string `json:"specialty"`
+		Phone         string `json:"phone"`
+		Bio           string `json:"bio"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		g.log.Error("Failed to decode register with invite request", zap.Error(err))
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := g.userClient.RegisterWithInvite(r.Context(), &userpb.RegisterWithInviteRequest{
+		Email:         req.Email,
+		Password:      req.Password,
+		FullName:      req.FullName,
+		InviteCode:    req.InviteCode,
+		LicenseNumber: req.LicenseNumber,
+		Specialty:     req.Specialty,
+		Phone:         req.Phone,
+		Bio:           req.Bio,
+	})
+	if err != nil {
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		g.log.Error("Register with invite failed", zap.Error(err))
+		http.Error(w, errMsg, httpCode)
+		return
+	}
+
+	response := map[string]interface{}{
+		"status":  "ok",
+		"user_id": resp.GetUserId(),
+	}
+	if resp.GetMessage() != "" {
+		response["message"] = resp.GetMessage()
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (g *gateway) validateInviteCodeHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		g.log.Error("Failed to decode validate invite request", zap.Error(err))
+		http.Error(w, "Некорректный запрос", http.StatusBadRequest)
+		return
+	}
+
+	resp, err := g.userClient.ValidateInviteCode(r.Context(), &userpb.ValidateInviteCodeRequest{
+		Code: req.Code,
+	})
+	if err != nil {
+		httpCode, errMsg := grpcToHTTPStatus(err)
+		http.Error(w, errMsg, httpCode)
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"is_valid":  resp.GetIsValid(),
+		"role":      resp.GetRole(),
+		"specialty": resp.GetSpecialty(),
+		"error":     resp.GetErrorMessage(),
+	}); err != nil {
+		g.log.Error("Failed to encode response", zap.Error(err))
+		http.Error(w, "Ошибка формирования ответа", http.StatusInternalServerError)
+		return
+	}
+}
+
 func (g *gateway) loginHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email    string `json:"email"`
@@ -1553,6 +1632,8 @@ func main() {
 
 	// Public routes
 	r.HandleFunc("/api/v1/register", g.registerHandler).Methods("POST")
+	r.HandleFunc("/api/v1/register/invite", g.registerWithInviteHandler).Methods("POST")
+	r.HandleFunc("/api/v1/invite/validate", g.validateInviteCodeHandler).Methods("POST")
 	r.HandleFunc("/api/v1/login", g.loginHandler).Methods("POST")
 	r.HandleFunc("/api/v1/auth/confirm", g.confirmEmailHandler).Methods("POST")
 	r.HandleFunc("/api/v1/auth/verify-status", g.checkVerificationStatusHandler).Methods("GET")

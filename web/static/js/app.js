@@ -20,6 +20,8 @@ document.addEventListener('DOMContentLoaded', () => {
         profile: 'Профиль',
         training: 'Тренировки',
         devices: 'Устройства',
+        doctor: 'Врач',
+        diet: 'Диета',
         ml: 'AI Анализ',
     };
 
@@ -455,6 +457,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (viewName === 'profile') loadProfile();
         if (viewName === 'training') loadTrainingPlans();
         if (viewName === 'ml') loadMLView();
+        if (viewName === 'devices') initDevicesView();
+        if (viewName === 'doctor') initDoctorView();
+        if (viewName === 'diet') initDietView();
     }
 
     // ===== Dashboard =====
@@ -621,6 +626,58 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('mlResult').innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div>
                 <h3>Не удалось проанализировать</h3><p>${err.message}</p></div>`;
         }
+    }
+
+    // ===== Devices View =====
+    function initDevicesView() {
+        if (window.AppModules) {
+            window.AppModules.DeviceModule.init();
+        }
+    }
+
+    // ===== Doctor View =====
+    function initDoctorView() {
+        if (window.AppModules) {
+            window.AppModules.DoctorModule.loadDoctors();
+            window.AppModules.DoctorModule.loadPrescriptions();
+            bindDoctorTabs();
+        }
+    }
+
+    // ===== Diet View =====
+    function initDietView() {
+        if (window.AppModules) {
+            window.AppModules.DietModule.loadDietPlan();
+        }
+    }
+
+    // ===== Doctor Tabs =====
+    function bindDoctorTabs() {
+        document.querySelectorAll('#doctorTabs .tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('#doctorTabs .tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                const target = tab.dataset.tab;
+                document.querySelectorAll('.doctor-tab-content').forEach(c => c.classList.remove('active'));
+                document.getElementById(target)?.classList.add('active');
+            });
+        });
+
+        // Chat send button
+        document.getElementById('chatSendBtn')?.addEventListener('click', () => {
+            const input = document.getElementById('chatInput');
+            if (input && input.value.trim() && window.AppModules) {
+                window.AppModules.DoctorModule.sendMessage(input.value.trim());
+                input.value = '';
+            }
+        });
+
+        document.getElementById('chatInput')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && e.target.value.trim() && window.AppModules) {
+                window.AppModules.DoctorModule.sendMessage(e.target.value.trim());
+                e.target.value = '';
+            }
+        });
     }
 
     // ===== Toast =====
