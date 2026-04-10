@@ -17,7 +17,7 @@ permissions:
 env:
   GO_VERSION: "1.25.9"
   REGISTRY: ghcr.io
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  ACTIONS_RUNNER_FORCE_ACTIONS_NODE_24: "true"
 
 jobs:
   test:
@@ -150,7 +150,7 @@ jobs:
     needs: [test, security-scan, secrets-scan]
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Build Go services
@@ -161,7 +161,7 @@ jobs:
           go build -o bin/training-service ./cmd/training-service
           go build -o bin/gateway ./cmd/gateway
           go build -o bin/device-emulator ./cmd/device-emulator
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: binaries
           path: bin/
