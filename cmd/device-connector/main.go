@@ -26,23 +26,28 @@ import (
 
 // ========== Valid device types ==========
 
-var validDeviceTypes = map[string]bool{
-	"apple_watch":          true,
-	"samsung_galaxy_watch": true,
-	"huawei_watch_d2":      true,
-	"amazfit_trex3":        true,
+// isValidDeviceType checks if the device type is supported
+func isValidDeviceType(dt string) bool {
+	switch dt {
+	case "apple_watch", "samsung_galaxy_watch", "huawei_watch_d2", "amazfit_trex3":
+		return true
+	}
+	return false
 }
 
-// Valid metric types with their recommended sync intervals
-var metricSyncIntervals = map[string]struct {
-	MinIntervalMs int
-	MaxIntervalMs int
-	Name          string
-}{
-	"heart_rate": {5000, 15000, "heart_rate"},
-	"spo2":       {60000, 300000, "spo2"},
-	"steps":      {30000, 30000, "steps"},
-	"sleep":      {86400000, 86400000, "sleep"},
+// metricSyncRules returns sync interval rules for a metric type
+func metricSyncRules(metricType string) (minMs, maxMs int, name string, ok bool) {
+	rules := map[string]struct {
+		min, max int
+		name     string
+	}{
+		"heart_rate": {5000, 15000, "heart_rate"},
+		"spo2":       {60000, 300000, "spo2"},
+		"steps":      {30000, 30000, "steps"},
+		"sleep":      {86400000, 86400000, "sleep"},
+	}
+	r, ok := rules[metricType]
+	return r.min, r.max, r.name, ok
 }
 
 // ========== Data structures ==========
@@ -139,7 +144,7 @@ func (s *deviceConnector) registerDeviceHandler(w http.ResponseWriter, r *http.R
 		http.Error(w, "device_type is required", http.StatusBadRequest)
 		return
 	}
-	if !validDeviceTypes[req.DeviceType] {
+	if !isValidDeviceType(req.DeviceType) {
 		s.log.Warn("Unsupported device type", zap.String("device_type", req.DeviceType))
 		http.Error(w, fmt.Sprintf("unsupported device_type: %s", req.DeviceType), http.StatusBadRequest)
 		return
@@ -248,7 +253,7 @@ func (s *deviceConnector) ingestHandler(w http.ResponseWriter, r *http.Request) 
 		}
 
 		// Apply metric-specific validation rules
-		if rules, ok := metricSyncIntervals[rec.MetricType]; ok {
+		if _, _, _, ok := metricSyncRules(rec.MetricType); ok {
 			if rec.MetricType == "heart_rate" && (rec.Value < 30 || rec.Value > 220) {
 				stats.Failed++
 				s.log.Warn("Heart rate out of range", zap.Float64("value", rec.Value))
@@ -259,7 +264,6 @@ func (s *deviceConnector) ingestHandler(w http.ResponseWriter, r *http.Request) 
 				s.log.Warn("SpO2 out of range", zap.Float64("value", rec.Value))
 				continue
 			}
-			_ = rules
 		}
 
 		// Deduplicate: check if (device_id, timestamp, metric_type) already exists
@@ -396,7 +400,7 @@ func (s *deviceConnector) authenticateDevice(ctx context.Context, deviceID, toke
 // initDatabase creates required tables if they don't exist
 func initDatabase(database *sql.DB, log *logger.Logger) error {
 	// Devices table — stores registered devices and their auth tokens
-	_, err := database.Exec(`
+	_, err := database.ExecContext(context.Background(), `
 		CREATE TABLE IF NOT EXISTS devices (
 			id UUID PRIMARY KEY,
 			user_id TEXT NOT NULL,
@@ -414,7 +418,7 @@ func initDatabase(database *sql.DB, log *logger.Logger) error {
 	log.Info("Devices table ready")
 
 	// Ingest log table — tracks ingested records for deduplication
-	_, err = database.Exec(`
+	_, err = database.ExecContext(context.Background(), `
 		CREATE TABLE IF NOT EXISTS device_ingest_log (
 			id UUID PRIMARY KEY,
 			device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
@@ -430,7 +434,7 @@ func initDatabase(database *sql.DB, log *logger.Logger) error {
 	log.Info("Device ingest log table ready")
 
 	// Index for deduplication queries
-	_, err = database.Exec(`
+	_, err = database.ExecContext(context.Background(), `
 		CREATE INDEX IF NOT EXISTS idx_ingest_dedup
 		ON device_ingest_log (device_id, timestamp, metric_type)
 	`)
@@ -483,8 +487,8 @@ func main() {
 	}()
 
 	// Initialize tables
-	if err := initDatabase(database, log); err != nil {
-		log.Fatal("Failed to initialize database", zap.Error(err))
+	if initErr := initDatabase(database, log); initErr != nil {
+		log.Fatal("Failed to initialize database", zap.Error(initErr))
 	}
 
 	// Connect to biometric-service via gRPC
@@ -524,12 +528,19 @@ func main() {
 	handler = middleware.RequestID(handler)
 	handler = middleware.LoggingMiddleware(log.Logger)(handler)
 
+	srv := &http.Server{
+		Addr:         ":" + port,
+		Handler:      handler,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 30 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
 	log.Info("Device connector starting",
 		zap.String("port", port),
 		zap.String("biometric_service", biometricServiceAddr),
 	)
 
-	if err := http.ListenAndServe(":"+port, handler); err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		log.Fatal("Failed to start server", zap.Error(err))
 	}
 }

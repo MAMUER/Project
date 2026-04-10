@@ -146,10 +146,10 @@ func TestClientClose(t *testing.T) {
 	require.NoError(t, err)
 
 	// Close() не возвращает значение, просто вызываем его
-	client.Close() //nolint:errcheck
+	defer func() { _ = client.Close() }()
 
 	// Повторный Close не должен вызывать панику
-	client.Close() //nolint:errcheck
+	defer func() { _ = client.Close() }()
 }
 
 func TestSetWithNilValue(t *testing.T) {

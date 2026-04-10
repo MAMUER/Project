@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -40,7 +41,7 @@ func TestGateway_EmailConfirmPageHandler(t *testing.T) {
 	g := &gateway{log: log}
 
 	t.Run("valid token - serves template", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/confirm?token=abc123", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/confirm?token=abc123", nil)
 		rr := httptest.NewRecorder()
 
 		g.emailConfirmPageHandler(rr, req)
@@ -54,7 +55,7 @@ func TestGateway_EmailConfirmPageHandler(t *testing.T) {
 	})
 
 	t.Run("empty token - serves template with empty token", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/confirm", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/confirm", nil)
 		rr := httptest.NewRecorder()
 
 		g.emailConfirmPageHandler(rr, req)
@@ -77,7 +78,7 @@ func TestGateway_EmailConfirmPageHandler_NoTemplateFile(t *testing.T) {
 	g := &gateway{log: log}
 
 	t.Run("fallback with token", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/confirm?token=xyz789", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/confirm?token=xyz789", nil)
 		rr := httptest.NewRecorder()
 
 		g.emailConfirmPageHandler(rr, req)
@@ -88,7 +89,7 @@ func TestGateway_EmailConfirmPageHandler_NoTemplateFile(t *testing.T) {
 	})
 
 	t.Run("fallback without token", func(t *testing.T) {
-		req := httptest.NewRequest("GET", "/confirm", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/confirm", nil)
 		rr := httptest.NewRecorder()
 
 		g.emailConfirmPageHandler(rr, req)

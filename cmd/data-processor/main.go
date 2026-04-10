@@ -13,7 +13,7 @@ import (
 
 func main() {
 	log := logger.New("data-processor")
-	defer log.Sync() //nolint:errcheck
+	defer func() { _ = log.Sync() }()
 
 	log.Info("Data processor service starting")
 
@@ -29,7 +29,7 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
-	defer database.Close() //nolint:errcheck
+	defer func() { _ = database.Close() }()
 
 	rabbitURL := os.Getenv("RABBITMQ_URL")
 	var consumer queue.Consumer // ← ИНТЕРФЕЙС

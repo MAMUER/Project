@@ -455,7 +455,7 @@ func TestBatchAddRecords_RollbackOnDBError(t *testing.T) {
 func TestBiometricServer_GetRecords(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close() //nolint:errcheck
+	defer func() { _ = db.Close() }()
 
 	srv := &biometricServer{db: db, log: logger.New("test")}
 

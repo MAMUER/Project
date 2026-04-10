@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,6 +14,8 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 )
+
+const testSecretMW = "test-secret-mw"
 
 func TestRequestID(t *testing.T) {
 	tests := []struct {
@@ -46,7 +49,7 @@ func TestRequestID(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 			if tt.requestHeader != "" {
 				req.Header.Set("X-Request-ID", tt.requestHeader)
 			}
@@ -77,7 +80,7 @@ func TestRequestIDMultipleRequests(t *testing.T) {
 
 	ids := make([]string, 5)
 	for i := 0; i < 5; i++ {
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 		rr := httptest.NewRecorder()
 		middleware.ServeHTTP(rr, req)
 		ids[i] = rr.Header().Get("X-Request-ID")
@@ -91,7 +94,7 @@ func TestRequestIDMultipleRequests(t *testing.T) {
 }
 
 func TestAuthMiddleware(t *testing.T) {
-	secret := "test-secret"
+	secret := testSecretMW
 	log := zap.NewNop()
 
 	validToken, err := auth.GenerateJWT("user-123", "test@example.com", "client", secret, 24)
@@ -153,7 +156,7 @@ func TestAuthMiddleware(t *testing.T) {
 				w.WriteHeader(http.StatusOK)
 			})
 
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 			if tt.authHeader != "" {
 				req.Header.Set("Authorization", tt.authHeader)
 			}
@@ -182,7 +185,7 @@ func generateExpiredToken(secret string) string {
 }
 
 func TestAuthMiddlewareWithContext(t *testing.T) {
-	secret := "test-secret"
+	secret := testSecretMW
 	log := zap.NewNop()
 
 	validToken, err := auth.GenerateJWT("user-456", "test@example.com", "admin", secret, 24)
@@ -197,7 +200,7 @@ func TestAuthMiddlewareWithContext(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+validToken)
 	rr := httptest.NewRecorder()
 
@@ -208,7 +211,7 @@ func TestAuthMiddlewareWithContext(t *testing.T) {
 }
 
 func TestAuthMiddlewareLogging(t *testing.T) {
-	secret := "test-secret"
+	secret := testSecretMW
 	core, recorded := observer.New(zap.DebugLevel)
 	log := zap.New(core)
 
@@ -218,7 +221,7 @@ func TestAuthMiddlewareLogging(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+invalidToken)
 	rr := httptest.NewRecorder()
 

@@ -4,8 +4,10 @@ import (
 	"testing"
 )
 
+const testSecret = "test-secret"
+
 func TestSignResponse(t *testing.T) {
-	secret := "test-secret"
+	secret := testSecret
 	data := map[string]string{"key": "value"}
 	sig, err := SignResponse(data, secret)
 	if err != nil {
@@ -17,7 +19,7 @@ func TestSignResponse(t *testing.T) {
 }
 
 func TestVerifyResponse(t *testing.T) {
-	secret := "test-secret"
+	secret := testSecret
 	data := map[string]string{"key": "value"}
 	sig, _ := SignResponse(data, secret)
 

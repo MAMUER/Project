@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -82,10 +83,10 @@ func TestNewConnection(t *testing.T) {
 	if err != nil {
 		t.Skip("PostgreSQL not available, skipping test")
 	}
-	defer db.Close() //nolint:errcheck
+	defer func() { _ = db.Close() }()
 
 	assert.NotNil(t, db)
-	err = db.Ping()
+	err = db.PingContext(context.Background())
 	assert.NoError(t, err)
 }
 
@@ -118,7 +119,7 @@ func TestConnectionPoolSettings(t *testing.T) {
 	if err != nil {
 		t.Skip("PostgreSQL not available, skipping test")
 	}
-	defer db.Close() //nolint:errcheck
+	defer func() { _ = db.Close() }()
 
 	assert.Equal(t, 25, db.Stats().MaxOpenConnections)
 	assert.Equal(t, 10, db.Stats().MaxIdleClosed)

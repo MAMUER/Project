@@ -74,11 +74,17 @@ func main() {
 		}
 
 		body, _ := json.Marshal(regReq)
-		resp, err := http.Post(regURL, "application/json", bytes.NewReader(body))
+		client := &http.Client{Timeout: 10 * time.Second}
+		req, err := http.NewRequestWithContext(ctx, "POST", regURL, bytes.NewReader(body))
+		if err != nil {
+			log.Fatalf("Failed to create registration request: %v", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := client.Do(req)
 		if err != nil {
 			log.Fatalf("Failed to register device: %v", err)
 		}
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		var regResp map[string]interface{}
 		if err := json.NewDecoder(resp.Body).Decode(&regResp); err != nil {
@@ -142,9 +148,7 @@ func syncData(ctx context.Context, emulator *wearableemulator.DeviceEmulator, co
 
 	// Build ingest request
 	records := make([]wearableemulator.BiometricSample, 0, len(samples))
-	for _, sample := range samples {
-		records = append(records, sample)
-	}
+	records = append(records, samples...)
 
 	ingestReq := map[string]interface{}{
 		"device_type":      emulator.DeviceType,
@@ -172,7 +176,7 @@ func syncData(ctx context.Context, emulator *wearableemulator.DeviceEmulator, co
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)

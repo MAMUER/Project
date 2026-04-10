@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"net"
 	"os"
 	"time"
@@ -90,9 +91,9 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 
 	// Отправка письма подтверждения (не блокирует регистрацию при ошибке)
 	if s.emailSender != nil && s.baseURL != "" {
-		if err := s.emailSender.SendVerificationEmail(email, verificationToken, s.baseURL); err != nil {
+		if sendErr := s.emailSender.SendVerificationEmail(email, verificationToken, s.baseURL); sendErr != nil {
 			s.log.Warn("Failed to send verification email (registration will proceed)",
-				zap.Error(err),
+				zap.Error(sendErr),
 				zap.String("email", email))
 		} else {
 			s.log.Info("Verification email sent", zap.String("email", email))
@@ -129,7 +130,7 @@ func (s *userServer) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailReque
 	err := s.db.QueryRowContext(ctx, `
         SELECT user_id, email, used, expires_at FROM email_verifications WHERE token = $1
     `, req.Token).Scan(&userID, &email, &used, &expiresAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.InvalidArgument, "invalid verification token")
 	}
 	if err != nil {
@@ -183,7 +184,7 @@ func (s *userServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 	// Проверка подтверждения email
 	var emailConfirmed bool
 	err := s.db.QueryRowContext(ctx, "SELECT email_confirmed FROM users WHERE email = $1", req.Email).Scan(&emailConfirmed)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
 	if err != nil {
@@ -199,7 +200,7 @@ func (s *userServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 	err = s.db.QueryRowContext(ctx, `
         SELECT id, email, password_hash, role FROM users WHERE email = $1
     `, req.Email).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		// Возвращаем Unauthenticated вместо NotFound для безопасности
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
@@ -209,7 +210,7 @@ func (s *userServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.Login
 	}
 
 	// Проверка пароля
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+	if cmpErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); cmpErr != nil {
 		s.log.Info("Invalid login attempt", zap.String("email", req.Email))
 		return nil, status.Error(codes.Unauthenticated, "invalid credentials")
 	}
@@ -238,7 +239,7 @@ func (s *userServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) 
 	var weightKg sql.NullFloat64
 	var fitnessLevel sql.NullString
 
-	err := s.db.QueryRow(`
+	err := s.db.QueryRowContext(ctx, `
         SELECT u.id, u.email, u.full_name, u.role,
                p.age, p.gender, p.height_cm, p.weight_kg, p.fitness_level,
                p.goals,
@@ -253,7 +254,7 @@ func (s *userServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) 
 		pq.Array(&profile.Goals), pq.Array(&profile.Contraindications),
 		&profile.CreatedAt, &profile.UpdatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.NotFound, "user not found")
 	}
 	if err != nil {
@@ -348,16 +349,16 @@ func (s *userServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*
 	var users []*pb.UserProfile
 	for rows.Next() {
 		var user pb.UserProfile
-		if err := rows.Scan(&user.UserId, &user.Email, &user.FullName, &user.Role, &user.CreatedAt, &user.UpdatedAt); err != nil {
-			s.log.Error("Failed to scan user", zap.Error(err))
+		if scanErr := rows.Scan(&user.UserId, &user.Email, &user.FullName, &user.Role, &user.CreatedAt, &user.UpdatedAt); scanErr != nil {
+			s.log.Error("Failed to scan user", zap.Error(scanErr))
 			return nil, status.Error(codes.Internal, "failed to read user data")
 		}
 		users = append(users, &user)
 	}
 
 	// Проверяем ошибку итерации
-	if err := rows.Err(); err != nil {
-		s.log.Error("Row iteration error", zap.Error(err))
+	if rowErr := rows.Err(); rowErr != nil {
+		s.log.Error("Row iteration error", zap.Error(rowErr))
 		return nil, status.Error(codes.Internal, "error reading users")
 	}
 
@@ -423,7 +424,8 @@ func (s *userServer) RegisterWithInvite(ctx context.Context, req *pb.RegisterWit
 	`, userID, sanitize.String(req.GetEmail()), string(hashedPassword), sanitize.String(req.GetFullName()), finalRole)
 
 	if err != nil {
-		if pqErr, ok := err.(*pq.Error); ok && pqErr.Code == "23505" {
+		var pqErr *pq.Error
+		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
 			return nil, status.Error(codes.AlreadyExists, "email already exists")
 		}
 		s.log.Error("Failed to create user", zap.Error(err))
@@ -485,7 +487,7 @@ func (s *userServer) ValidateInviteCode(ctx context.Context, req *pb.ValidateInv
 
 func main() {
 	log := logger.New("user-service")
-	defer log.Sync() //nolint:errcheck
+	defer func() { _ = log.Sync() }()
 
 	port := os.Getenv("USER_SERVICE_PORT")
 	if port == "" {
@@ -521,7 +523,7 @@ func main() {
 	emailSender := email.NewSender(emailCfg)
 	baseURL := getEnvOrDefault("BASE_URL", "https://localhost:8443")
 
-	lis, err := net.Listen("tcp", ":"+port)
+	lis, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", ":"+port)
 	if err != nil {
 		log.Fatal("Failed to listen", zap.Error(err))
 	}

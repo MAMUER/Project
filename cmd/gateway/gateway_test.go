@@ -133,7 +133,7 @@ func TestGateway_RegisterHandler(t *testing.T) {
 				require.NoError(t, err)
 			}
 
-			req := httptest.NewRequest("POST", "/api/v1/register", bytes.NewReader(reqBody))
+			req := httptest.NewRequestWithContext(context.Background(), "POST", "/api/v1/register", bytes.NewReader(reqBody))
 			req.Header.Set("Content-Type", "application/json")
 			rr := httptest.NewRecorder()
 
@@ -217,7 +217,7 @@ func TestGateway_GetBiometricRecordsHandler(t *testing.T) {
 				}
 			}
 
-			req := httptest.NewRequest("GET", url, nil)
+			req := httptest.NewRequestWithContext(context.Background(), "GET", url, nil)
 
 			// Добавляем user_id в контекст если нужно
 			if tt.contextUserID != "" {
@@ -347,7 +347,7 @@ func TestGateway_HealthHandler(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc("/health", g.healthHandler).Methods("GET")
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/health", nil)
 	rr := httptest.NewRecorder()
 
 	router.ServeHTTP(rr, req)

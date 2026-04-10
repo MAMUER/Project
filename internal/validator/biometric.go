@@ -21,10 +21,14 @@ type MetricRules struct {
 	Name     string
 }
 
-var metricRules = map[string]MetricRules{
-	"heart_rate": {30, 220, "heart_rate"},
-	"spo2":       {70, 100, "spo2"},
-	// Easy to extend
+// getMetricRules returns validation rules for a metric type
+func getMetricRules(metricType string) (MetricRules, bool) {
+	rules := map[string]MetricRules{
+		"heart_rate": {30, 220, "heart_rate"},
+		"spo2":       {70, 100, "spo2"},
+	}
+	r, ok := rules[metricType]
+	return r, ok
 }
 
 // ValidateBiometricRequest проверяет входные данные биометрии
@@ -57,7 +61,7 @@ func ValidateBiometricRecord(req *pb.AddRecordRequest) error {
 	}
 
 	// Специфичные правила для метрик
-	if rules, ok := metricRules[req.MetricType]; ok {
+	if rules, ok := getMetricRules(req.MetricType); ok {
 		if req.Value < rules.Min || req.Value > rules.Max {
 			return fmt.Errorf("%s out of valid range", rules.Name)
 		}

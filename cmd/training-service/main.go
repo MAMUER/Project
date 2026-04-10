@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net"
 	"os"
 	"time"
@@ -108,8 +109,8 @@ func (s *trainingServer) GeneratePlan(ctx context.Context, req *pb.GeneratePlanR
 		"timestamp": time.Now(),
 	}
 	if s.rabbitQueue != nil {
-		if err := s.rabbitQueue.Publish(ctx, event); err != nil {
-			s.log.Warn("Failed to publish event", zap.Error(err))
+		if pubErr := s.rabbitQueue.Publish(ctx, event); pubErr != nil {
+			s.log.Warn("Failed to publish event", zap.Error(pubErr))
 		}
 	}
 
@@ -132,12 +133,12 @@ func (s *trainingServer) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*
 	var planDataJSON []byte
 	var generatedAt, startDate, endDate time.Time
 
-	err := s.db.QueryRow(`
+	err := s.db.QueryRowContext(ctx, `
 		SELECT id, user_id, plan_data, generated_at, start_date, end_date, status
 		FROM training_plans
 		WHERE id = $1
 	`, req.PlanId).Scan(&plan.Id, &plan.UserId, &planDataJSON, &generatedAt, &startDate, &endDate, &plan.Status)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, status.Error(codes.NotFound, "plan not found")
 	}
 	if err != nil {
@@ -145,8 +146,8 @@ func (s *trainingServer) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*
 	}
 
 	var planData map[string]interface{}
-	if err := json.Unmarshal(planDataJSON, &planData); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to unmarshal plan: %v", err)
+	if umErr := json.Unmarshal(planDataJSON, &planData); umErr != nil {
+		return nil, status.Errorf(codes.Internal, "failed to unmarshal plan: %v", umErr)
 	}
 
 	planDataStruct, err := structpb.NewStruct(planData)
@@ -373,7 +374,7 @@ func (s *trainingServer) GetProgress(ctx context.Context, req *pb.GetProgressReq
 
 func main() {
 	log := logger.New("training-service")
-	defer log.Sync() //nolint:errcheck
+	defer func() { _ = log.Sync() }()
 
 	port := os.Getenv("TRAINING_SERVICE_PORT")
 	if port == "" {
@@ -393,8 +394,8 @@ func main() {
 		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer func() {
-		if err := database.Close(); err != nil {
-			log.Error("Failed to close database", zap.Error(err))
+		if closeErr := database.Close(); closeErr != nil {
+			log.Error("Failed to close database", zap.Error(closeErr))
 		}
 	}()
 
@@ -411,7 +412,8 @@ func main() {
 		}
 	}
 
-	lis, err := net.Listen("tcp", ":"+port)
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(context.Background(), "tcp", ":"+port)
 	if err != nil {
 		log.Fatal("Failed to listen", zap.Error(err))
 	}

@@ -13,6 +13,10 @@ type visitor struct {
 	lastSeen time.Time
 }
 
+// Глобальное хранилище rate limit записей (thread-safe sync.Map)
+// Rate limiter требует общего состояния для всех запросов
+//
+//nolint:gochecknoglobals // Rate limiter requires shared state across requests
 var (
 	visitors    = sync.Map{}
 	cleanupOnce sync.Once

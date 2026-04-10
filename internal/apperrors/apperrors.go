@@ -40,6 +40,8 @@ func (e *Error) GRPCStatus() *status.Status {
 		return status.New(codes.NotFound, e.Message)
 	case ErrDatabase:
 		return status.New(codes.Internal, e.Message)
+	case ErrConcurrentMod:
+		return status.New(codes.Aborted, e.Message)
 	default:
 		return status.New(codes.Unknown, e.Message)
 	}

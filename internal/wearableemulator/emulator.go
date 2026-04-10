@@ -138,6 +138,8 @@ func DefaultPhysiologicalState() *UserPhysiologicalState {
 // ==========================================
 
 // DataGenerator генерирует реалистичные биометрические данные
+//
+//nolint:gosec // G404: math/rand is acceptable for biometric emulation (not security-sensitive)
 type DataGenerator struct {
 	state *UserPhysiologicalState
 	rng   *rand.Rand
@@ -148,7 +150,8 @@ type DataGenerator struct {
 func NewDataGenerator(state *UserPhysiologicalState) *DataGenerator {
 	return &DataGenerator{
 		state: state,
-		rng:   rand.New(rand.NewSource(time.Now().UnixNano())),
+		//nolint:gosec // G404: math/rand is acceptable for biometric data emulation (not security-sensitive)
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- biometric emulation, not security
 	}
 }
 
@@ -260,10 +263,10 @@ func (g *DataGenerator) GenerateSleepStage() string {
 		case r < 0.7*quality:
 			return "rem"
 		default:
-			return "awake"
+			return sleepStageAwake
 		}
 	}
-	return "awake"
+	return sleepStageAwake
 }
 
 // GenerateSteps генерирует количество шагов за интервал
@@ -292,13 +295,23 @@ func (g *DataGenerator) GenerateSteps() float64 {
 	return math.Max(0, value)
 }
 
+// gaussianNoise генерирует гауссовский шум
+func (g *DataGenerator) gaussianNoise(stdDev float64) float64 {
+	u1 := g.rng.Float64()
+	u2 := g.rng.Float64()
+	z := math.Sqrt(-2*math.Log(u1)) * math.Cos(2*math.Pi*u2)
+	return z * stdDev
+}
+
 // GenerateECG генерирует упрощённые данные ЭКГ (симуляция PQRST волны)
 func (g *DataGenerator) GenerateECG() []float64 {
+	// GenerateHeartRate acquires its own lock, so call it BEFORE locking
+	heartRate := g.GenerateHeartRate()
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	// Симуляция PQRST комплекса (5 точек)
-	heartRate := g.GenerateHeartRate()
 	amplitude := 1.0 + (heartRate-70)/100
 
 	ecgPoints := []float64{
@@ -310,14 +323,6 @@ func (g *DataGenerator) GenerateECG() []float64 {
 	}
 
 	return ecgPoints
-}
-
-// gaussianNoise генерирует гауссовский шум
-func (g *DataGenerator) gaussianNoise(stdDev float64) float64 {
-	u1 := g.rng.Float64()
-	u2 := g.rng.Float64()
-	z := math.Sqrt(-2*math.Log(u1)) * math.Cos(2*math.Pi*u2)
-	return z * stdDev
 }
 
 // ==========================================
@@ -450,6 +455,8 @@ func (e *DeviceEmulator) GenerateBatch() []BiometricSample {
 	return samples
 }
 
+const sleepStageAwake = "awake"
+
 // sleepStageToValue преобразует фазу сна в числовое значение
 func sleepStageToValue(stage string) float64 {
 	switch stage {
@@ -459,7 +466,7 @@ func sleepStageToValue(stage string) float64 {
 		return 3
 	case "rem":
 		return 2
-	case "awake":
+	case sleepStageAwake:
 		return 1
 	default:
 		return 0
@@ -727,17 +734,17 @@ func (sm *SyncManager) FetchFromRealDevice(ctx context.Context, deviceType Devic
 		client = sm.healthKitClient
 	case SamsungGalaxyWatch:
 		if sm.samsungHealthClient == nil {
-			return nil, fmt.Errorf("Samsung Health API not configured")
+			return nil, fmt.Errorf("samsung health API not configured")
 		}
 		client = sm.samsungHealthClient
 	case HuaweiWatchD2:
 		if sm.huaweiHealthClient == nil {
-			return nil, fmt.Errorf("Huawei Health Kit API not configured")
+			return nil, fmt.Errorf("huawei health kit API not configured")
 		}
 		client = sm.huaweiHealthClient
 	case AmazfitTRex3:
 		if sm.zeppClient == nil {
-			return nil, fmt.Errorf("Zepp API not configured")
+			return nil, fmt.Errorf("zepp API not configured")
 		}
 		client = sm.zeppClient
 	default:
@@ -793,13 +800,15 @@ func (h *EmulatorHTTPHandler) RegisterHandler(w http.ResponseWriter, r *http.Req
 	h.SyncManager.RegisterDevice(emulator)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"device_id":    deviceID,
 		"device_type":  deviceType,
 		"device_token": token,
 		"user_id":      req.UserID,
 		"emulated":     true,
-	})
+	}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // SyncHandler синхронизирует данные с устройства
@@ -819,12 +828,14 @@ func (h *EmulatorHTTPHandler) SyncHandler(w http.ResponseWriter, r *http.Request
 	samples := emulator.GenerateBatch()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
 		"device_id": deviceID,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 		"samples":   samples,
 		"count":     len(samples),
-	})
+	}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }
 
 // UpdateStateHandler обновляет физиологическое состояние
@@ -840,5 +851,7 @@ func (h *EmulatorHTTPHandler) UpdateStateHandler(w http.ResponseWriter, r *http.
 	h.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	if err := json.NewEncoder(w).Encode(map[string]string{"status": "ok"}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+	}
 }

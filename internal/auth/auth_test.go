@@ -164,7 +164,7 @@ func TestValidateJWT(t *testing.T) {
 }
 
 func TestExpiredToken(t *testing.T) {
-	secret := "test-secret"
+	secret := testSecret
 
 	claims := Claims{
 		UserID: "123",
@@ -186,7 +186,7 @@ func TestExpiredToken(t *testing.T) {
 }
 
 func TestTokenWithFutureIssuedAt(t *testing.T) {
-	secret := "test-secret"
+	secret := testSecret
 
 	// Создаем токен с будущей датой выдачи
 	futureIssuedAt := time.Now().Add(1 * time.Hour)
@@ -212,7 +212,7 @@ func TestTokenWithFutureIssuedAt(t *testing.T) {
 }
 
 func TestJWTStructure(t *testing.T) {
-	secret := "test-secret"
+	secret := testSecret
 	userID := "user-123"
 	email := "user@example.com"
 	role := "client"

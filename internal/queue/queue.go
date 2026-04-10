@@ -4,6 +4,7 @@ package queue
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -13,6 +14,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// Prometheus метрики для очереди
+// Prometheus counters must be global — registered once at startup
+//
+//nolint:gochecknoglobals // Prometheus metrics require package-level registration
 var (
 	queueMessagesTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
@@ -161,10 +166,10 @@ func NewConsumer(url, queueName string, logger *zap.Logger) (Consumer, error) {
 		return nil, fmt.Errorf("failed to declare queue: %w", err)
 	}
 
-	if err := ch.Qos(1, 0, false); err != nil {
+	if qosErr := ch.Qos(1, 0, false); qosErr != nil {
 		_ = ch.Close()
 		_ = conn.Close()
-		return nil, fmt.Errorf("failed to set QoS: %w", err)
+		return nil, fmt.Errorf("failed to set QoS: %w", qosErr)
 	}
 
 	msgs, err := ch.Consume(queueName, "", false, false, false, false, nil)
@@ -223,5 +228,5 @@ func (c *rabbitConsumer) Close() error {
 }
 
 func isClosedError(err error) bool {
-	return err == io.EOF || err == amqp.ErrClosed
+	return errors.Is(err, io.EOF) || errors.Is(err, amqp.ErrClosed)
 }

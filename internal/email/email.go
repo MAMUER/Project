@@ -3,12 +3,15 @@
 package email
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/smtp"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Config holds SMTP server configuration.
@@ -61,8 +64,9 @@ func LoadConfig() Config {
 }
 
 func splitCSV(s string) []string {
-	result := []string{}
-	for _, part := range strings.Split(s, ",") {
+	parts := strings.Split(s, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
 		result = append(result, strings.TrimSpace(part))
 	}
 	return result
@@ -138,7 +142,10 @@ func (s *Sender) sendWithTLS(addr string, toEmail string, msg string) error {
 	}
 
 	// Подключаемся к серверу
-	conn, err := tls.Dial("tcp", addr, tlsConfig)
+	conn, err := (&tls.Dialer{
+		NetDialer: &net.Dialer{Timeout: 10 * time.Second},
+		Config:    tlsConfig,
+	}).DialContext(context.Background(), "tcp", addr)
 	if err != nil {
 		return fmt.Errorf("TLS подключение к SMTP серверу (%s) не удалось: %w", addr, err)
 	}
@@ -152,18 +159,18 @@ func (s *Sender) sendWithTLS(addr string, toEmail string, msg string) error {
 	// Аутентификация
 	if s.cfg.User != "" && s.cfg.Password != "" {
 		auth := smtp.PlainAuth("", s.cfg.User, s.cfg.Password, s.cfg.Host)
-		if err := client.Auth(auth); err != nil {
-			return fmt.Errorf("SMTP аутентификация не удалась: %w", err)
+		if authErr := client.Auth(auth); authErr != nil {
+			return fmt.Errorf("SMTP аутентификация не удалась: %w", authErr)
 		}
 	}
 
 	// Отправка письма
-	if err := client.Mail(s.cfg.From); err != nil {
-		return fmt.Errorf("ошибка при установке отправителя: %w", err)
+	if mailErr := client.Mail(s.cfg.From); mailErr != nil {
+		return fmt.Errorf("ошибка при установке отправителя: %w", mailErr)
 	}
 
-	if err := client.Rcpt(toEmail); err != nil {
-		return fmt.Errorf("ошибка при установке получателя (%s): %w", toEmail, err)
+	if rcptErr := client.Rcpt(toEmail); rcptErr != nil {
+		return fmt.Errorf("ошибка при установке получателя (%s): %w", toEmail, rcptErr)
 	}
 
 	// Отправка данных письма

@@ -4,10 +4,11 @@ package repository
 import (
 	"context"
 	"database/sql"
-	"errors" // ✅ ИСПРАВЛЕНИЕ: добавлен импорт
+	"errors"
+	"time"
+
 	"github.com/MAMUER/Project/internal/domain"
 	"github.com/google/uuid"
-	"time"
 )
 
 type BiometricRepository interface {

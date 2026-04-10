@@ -12,14 +12,19 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	testRabbitURL = "amqp://guest:guest@localhost:5672/"
+	testQueueName = "test_queue"
+)
+
 // ✅ В тестах используем интерфейс через переменную типа Publisher
 func TestNewPublisher(t *testing.T) {
 	if testing.Short() {
 		t.Skip("skipping integration test")
 	}
 
-	url := "amqp://guest:guest@localhost:5672/"
-	queueName := "test_queue"
+	url := testRabbitURL
+	queueName := testQueueName
 
 	pub, err := NewPublisher(url, queueName, zap.NewNop())
 	if err != nil {
@@ -41,8 +46,8 @@ func TestPublish(t *testing.T) {
 		t.Skip("skipping integration test - use -short flag to skip")
 	}
 
-	url := "amqp://guest:guest@localhost:5672/"
-	queueName := "test_queue"
+	url := testRabbitURL
+	queueName := testQueueName
 
 	pub, err := NewPublisher(url, queueName, zap.NewNop())
 	if err != nil {
@@ -82,8 +87,8 @@ func TestNewConsumer(t *testing.T) {
 		t.Skip("skipping integration test - use -short flag to skip")
 	}
 
-	url := "amqp://guest:guest@localhost:5672/"
-	queueName := "test_queue"
+	url := testRabbitURL
+	queueName := testQueueName
 
 	// Создаем publisher, чтобы очередь существовала
 	pub, err := NewPublisher(url, queueName, zap.NewNop())
@@ -108,8 +113,8 @@ func TestPublishAndConsume(t *testing.T) {
 		t.Skip("skipping integration test - use -short flag to skip")
 	}
 
-	url := "amqp://guest:guest@localhost:5672/"
-	queueName := "test_queue"
+	url := testRabbitURL
+	queueName := testQueueName
 
 	// Создаем publisher
 	pub, err := NewPublisher(url, queueName, zap.NewNop())
@@ -132,7 +137,7 @@ func TestPublishAndConsume(t *testing.T) {
 	go func() {
 		for msg := range consumer.Messages() {
 			var data map[string]interface{}
-			if err := json.Unmarshal(msg.Body, &data); err == nil {
+			if umErr := json.Unmarshal(msg.Body, &data); umErr == nil {
 				received <- data
 				_ = msg.Ack(false)
 			}
@@ -166,8 +171,8 @@ func TestPublisherClose(t *testing.T) {
 		t.Skip("skipping integration test - use -short flag to skip")
 	}
 
-	url := "amqp://guest:guest@localhost:5672/"
-	queueName := "test_queue"
+	url := testRabbitURL
+	queueName := testQueueName
 
 	pub, err := NewPublisher(url, queueName, zap.NewNop())
 	if err != nil {
@@ -187,8 +192,8 @@ func TestConsumerClose(t *testing.T) {
 		t.Skip("skipping integration test - use -short flag to skip")
 	}
 
-	url := "amqp://guest:guest@localhost:5672/"
-	queueName := "test_queue"
+	url := testRabbitURL
+	queueName := testQueueName
 
 	// Создаем publisher, чтобы очередь существовала
 	pub, err := NewPublisher(url, queueName, zap.NewNop())

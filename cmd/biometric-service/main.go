@@ -28,6 +28,17 @@ type biometricServer struct {
 	rabbitQueue queue.Publisher // ← ИНТЕРФЕЙС, не *queue.Publisher!
 }
 
+// safeIntToInt32 safely converts int to int32
+func safeIntToInt32(v int) int32 {
+	if v > 2147483647 {
+		return 2147483647
+	}
+	if v < -2147483648 {
+		return -2147483648
+	}
+	return int32(v)
+}
+
 func (s *biometricServer) AddRecord(ctx context.Context, req *pb.AddRecordRequest) (*pb.AddRecordResponse, error) {
 	s.log.Info("AddRecord",
 		zap.String("user_id", req.UserId),
@@ -44,7 +55,7 @@ func (s *biometricServer) AddRecord(ctx context.Context, req *pb.AddRecordReques
 	id := uuid.New().String()
 	timestamp := req.Timestamp.AsTime()
 
-	_, err := s.db.Exec(`
+	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO biometric_data (id, user_id, metric_type, value, timestamp, device_type)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`, id, req.UserId, req.MetricType, req.Value, timestamp, req.DeviceType)
@@ -133,7 +144,7 @@ func (s *biometricServer) BatchAddRecords(ctx context.Context, req *pb.BatchAddR
 		return nil, status.Error(codes.Internal, "database commit error")
 	}
 
-	return &pb.BatchAddRecordsResponse{Count: int32(len(req.Records))}, nil
+	return &pb.BatchAddRecordsResponse{Count: safeIntToInt32(len(req.Records))}, nil
 }
 
 func (s *biometricServer) GetRecords(ctx context.Context, req *pb.GetRecordsRequest) (*pb.GetRecordsResponse, error) {
@@ -265,7 +276,8 @@ func main() {
 		}
 	}
 
-	lis, err := net.Listen("tcp", ":"+port)
+	lc := net.ListenConfig{}
+	lis, err := lc.Listen(context.Background(), "tcp", ":"+port)
 	if err != nil {
 		log.Fatal("Failed to listen", zap.Error(err))
 	}
