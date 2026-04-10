@@ -19,6 +19,9 @@ spec:
         tier: frontend
         component: nginx
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
       serviceAccountName: app-service-account
       affinity:
         podAntiAffinity:

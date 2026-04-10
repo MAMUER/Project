@@ -17,6 +17,13 @@ spec:
       - name: ml-generator
         image: ghcr.io/mamuer/technology_2_sem/ml-generator:latest
         imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: 8002
           name: http

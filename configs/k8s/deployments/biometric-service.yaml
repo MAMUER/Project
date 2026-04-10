@@ -17,6 +17,13 @@ spec:
       - name: biometric-service
         image: ghcr.io/mamuer/technology_2_sem/biometric-service:latest
         imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
         ports:
         - containerPort: 50052
           name: grpc
