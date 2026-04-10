@@ -361,8 +361,8 @@ jobs:
 
             # Попробуем скачать ML образы — если их нет, пропустим
             ML_SERVICES="user-service biometric-service training-service gateway"
-            docker-compose pull ml-classifier 2>/dev/null && ML_SERVICES="$ML_SERVICES ml-classifier" || echo "⚠️  Skipping ml-classifier — image not in registry"
-            docker-compose pull ml-generator 2>/dev/null && ML_SERVICES="$ML_SERVICES ml-generator" || echo "⚠️  Skipping ml-generator — image not in registry"
+            docker-compose pull ml-classifier 2>/dev/null && ML_SERVICES="$ML_SERVICES ml-classifier" || echo "Skipping ml-classifier — image not in registry"
+            docker-compose pull ml-generator 2>/dev/null && ML_SERVICES="$ML_SERVICES ml-generator" || echo "Skipping ml-generator — image not in registry"
 
             # Остановим старые контейнеры
             docker-compose down 2>/dev/null || true
