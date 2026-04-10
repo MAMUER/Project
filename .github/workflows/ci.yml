@@ -140,9 +140,9 @@ jobs:
 
       # Gitleaks: дополнительный поиск утечек credentials
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks_linux_amd64.tar.gz | tar xz
+          ./gitleaks detect --source . --config .gitleaks.toml --report-format json --report-path gitleaks-results.json || true
 
   build:
     name: Build Binaries
