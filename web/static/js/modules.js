@@ -1,4 +1,4 @@
-// FitPulse New Modules — Doctor, Devices, Diet, Training
+// FitPulse Modules — Doctor & Devices
 // Mobile web app UI logic
 
 const AppModules = (() => {
@@ -207,108 +207,10 @@ const AppModules = (() => {
         }
     };
 
-    // ===== Diet Module =====
-    const DietModule = {
-        async loadDietPlan() {
-            const container = document.getElementById('dietPlanContainer');
-            if (!container) return;
-
-            try {
-                // TODO: API call to get diet plan
-                container.innerHTML = `
-                    <div class="diet-summary">
-                        <div class="diet-calories">2,200</div>
-                        <div class="diet-label">калорий в день</div>
-                        <div class="diet-macros">
-                            <div class="macro-item">
-                                <div class="macro-value">165г</div>
-                                <div class="macro-label">Белки</div>
-                            </div>
-                            <div class="macro-item">
-                                <div class="macro-value">247г</div>
-                                <div class="macro-label">Углеводы</div>
-                            </div>
-                            <div class="macro-item">
-                                <div class="macro-value">61г</div>
-                                <div class="macro-label">Жиры</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="meal-card">
-                        <div class="meal-time">🌅 08:00</div>
-                        <div class="meal-name">Овсянка с фруктами</div>
-                        <div class="meal-details">350 ккал • 12г белка • 60г углеводов • 8г жиров</div>
-                    </div>
-                    <div class="meal-card">
-                        <div class="meal-time">☀️ 13:00</div>
-                        <div class="meal-name">Курица с рисом</div>
-                        <div class="meal-details">550 ккал • 40г белка • 60г углеводов • 15г жиров</div>
-                    </div>
-                    <div class="meal-card">
-                        <div class="meal-time">🌙 19:00</div>
-                        <div class="meal-name">Индейка с овощами</div>
-                        <div class="meal-details">400 ккал • 35г белка • 25г углеводов • 18г жиров</div>
-                    </div>
-                `;
-            } catch (err) {
-                console.error('Failed to load diet plan:', err);
-            }
-        }
-    };
-
-    // ===== Training Plan Module =====
-    const TrainingModule = {
-        async loadTrainingPlan() {
-            const container = document.getElementById('trainingPlanContainer');
-            if (!container) return;
-
-            try {
-                container.innerHTML = `
-                    <div class="training-plan-card">
-                        <div class="plan-day-header">
-                            <div class="plan-day-name">Понедельник</div>
-                            <div class="plan-day-type">Выносливость</div>
-                        </div>
-                        <div class="exercise-item">
-                            <div class="exercise-number">1</div>
-                            <div class="exercise-details">
-                                <div class="exercise-name">Ходьба на беговой дорожке</div>
-                                <div class="exercise-meta">10 мин • Разминка</div>
-                            </div>
-                        </div>
-                        <div class="exercise-item">
-                            <div class="exercise-number">2</div>
-                            <div class="exercise-details">
-                                <div class="exercise-name">Жим лёжа</div>
-                                <div class="exercise-meta">4×10 • 90 сек отдых</div>
-                            </div>
-                        </div>
-                        <div class="exercise-item">
-                            <div class="exercise-number">3</div>
-                            <div class="exercise-details">
-                                <div class="exercise-name">Становая тяга</div>
-                                <div class="exercise-meta">4×8 • 120 сек отдых</div>
-                            </div>
-                        </div>
-                        <div class="exercise-item">
-                            <div class="exercise-number">4</div>
-                            <div class="exercise-details">
-                                <div class="exercise-name">Фоам-роллинг</div>
-                                <div class="exercise-meta">10 мин • Заминка</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            } catch (err) {
-                console.error('Failed to load training plan:', err);
-            }
-        }
-    };
-
     // ===== Toast Notifications =====
     function showToast(message, type = 'info') {
         const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
+        toast.className = `module-toast ${type}`;
         toast.textContent = message;
         document.body.appendChild(toast);
 
@@ -323,16 +225,12 @@ const AppModules = (() => {
         DeviceModule.init();
         DoctorModule.loadDoctors();
         DoctorModule.loadPrescriptions();
-        DietModule.loadDietPlan();
-        TrainingModule.loadTrainingPlan();
     }
 
     return {
         init,
         DeviceModule,
         DoctorModule,
-        DietModule,
-        TrainingModule,
         showToast
     };
 })();

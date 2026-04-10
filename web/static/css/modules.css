@@ -384,7 +384,7 @@
     margin-bottom: 16px;
 }
 
-.tab {
+.doctor-tab {
     flex: 1;
     text-align: center;
     padding: 8px 12px;
@@ -396,7 +396,7 @@
     color: var(--text-secondary);
 }
 
-.tab.active {
+.doctor-tab.active {
     background: var(--blue);
     color: white;
 }
@@ -494,8 +494,8 @@
     color: var(--text-primary);
 }
 
-/* ===== Toast Notifications ===== */
-.toast {
+/* ===== Toast Notifications (Modules) ===== */
+.module-toast {
     position: fixed;
     bottom: 20px;
     left: 50%;
@@ -520,15 +520,15 @@
     }
 }
 
-.toast.success {
+.module-toast.success {
     border-left: 4px solid var(--green);
 }
 
-.toast.error {
+.module-toast.error {
     border-left: 4px solid var(--accent);
 }
 
-.toast.warning {
+.module-toast.warning {
     border-left: 4px solid var(--orange);
 }
 
