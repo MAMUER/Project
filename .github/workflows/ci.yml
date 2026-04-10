@@ -36,6 +36,7 @@ jobs:
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.1.2
+          install-mode: gocommand
           args: --timeout=5m
       - name: Run fmt check
         run: |
