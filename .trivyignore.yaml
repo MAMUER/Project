@@ -1,12 +1,10 @@
 # Trivy misconfiguration ignore rules
 # Infrastructure components that legitimately need writable filesystems
 
-# PostgreSQL needs writable filesystem for data files
-- rule: KSV-0014
+- rule: AVD-KSV-0014
   paths:
     - configs/k8s/deployments/postgres.yaml
 
-# RabbitMQ needs writable filesystem for queue data
-- rule: KSV-0014
+- rule: AVD-KSV-0014
   paths:
     - configs/k8s/deployments/rabbitmq.yaml

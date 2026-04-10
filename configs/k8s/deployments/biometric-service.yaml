@@ -13,6 +13,9 @@ spec:
       labels:
         app: biometric-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
       containers:
       - name: biometric-service
         image: ghcr.io/mamuer/technology_2_sem/biometric-service:latest
