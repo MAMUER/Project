@@ -83,8 +83,8 @@ func (g *gateway) getPlansHandler(w http.ResponseWriter, r *http.Request) {
 
 	_, err := g.trainingClient.ListPlans(r.Context(), &trainingpb.ListPlansRequest{
 		UserId:   userID,
-		Page:     int32(page),
-		PageSize: int32(pageSize),
+		Page:     safeIntToInt32(page),
+		PageSize: safeIntToInt32(pageSize),
 	})
 	if err != nil {
 		g.log.Error("Failed to get plans", zap.Error(err))

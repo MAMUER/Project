@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 
 	"github.com/MAMUER/Project/internal/doctor/model"
 	"github.com/MAMUER/Project/internal/doctor/port"
@@ -42,18 +43,21 @@ func (r *DoctorRepo) List(ctx context.Context, specialty string, page, pageSize 
 
 	offset := (page - 1) * pageSize
 
-	query := fmt.Sprintf(`
+	var query strings.Builder
+	query.WriteString(`
 		SELECT d.id, COALESCE(d.user_id::text, ''), COALESCE(d.specialty, ''),
 		       COALESCE(d.license_number, ''), COALESCE(d.phone, ''), COALESCE(d.bio, ''),
 		       d.is_active, d.created_at, d.updated_at
 		FROM doctors d
-		%s
+		`)
+	query.WriteString(whereClause)
+	fmt.Fprintf(&query, `
 		ORDER BY d.created_at DESC
 		LIMIT $%d OFFSET $%d
-	`, whereClause, argIdx, argIdx+1)
+	`, argIdx, argIdx+1)
 	args = append(args, pageSize, offset)
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.db.QueryContext(ctx, query.String(), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("query doctors: %w", err)
 	}

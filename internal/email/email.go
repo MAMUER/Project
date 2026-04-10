@@ -139,6 +139,7 @@ func (s *Sender) sendWithTLS(addr string, toEmail string, msg string) error {
 	// TLS конфигурация
 	tlsConfig := &tls.Config{
 		ServerName: s.cfg.Host,
+		MinVersion: tls.VersionTLS12,
 	}
 
 	// Подключаемся к серверу

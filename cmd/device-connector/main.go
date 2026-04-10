@@ -233,7 +233,7 @@ func (s *deviceConnector) ingestHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	var pbRecords []*biometricpb.BiometricRecord
+	pbRecords := make([]*biometricpb.BiometricRecord, 0, len(req.Records))
 
 	for _, rec := range req.Records {
 		// Validate metric type
