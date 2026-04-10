@@ -86,7 +86,7 @@ func main() {
 
 	rabbitmqURL := os.Getenv("RABBITMQ_URL")
 	if rabbitmqURL == "" {
-		rabbitmqURL = "amqp://guest:guest@localhost:5672/"
+		rabbitmqURL = "amqp://guest:guest@localhost:5672/" //nolint:gosec // G101: default dev credentials, not for production
 	}
 
 	redisHost := os.Getenv("REDIS_HOST")

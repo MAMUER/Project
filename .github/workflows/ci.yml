@@ -120,7 +120,6 @@ jobs:
           format: 'table'
           severity: 'CRITICAL,HIGH'
           exit-code: '1'
-          trivyignores: '.trivyignore.yaml'
 
   secrets-scan:
     name: Secrets Scanning
