@@ -1,10 +1,11 @@
 # Trivy misconfiguration ignore rules
-# Infrastructure components that legitimately need writable filesystems
-
-- rule: AVD-KSV-0014
+# https://aquasecurity.github.io/trivy/latest/docs/config/filtering/#by-exceptions-using-trivyignoreyaml
+- rule: KSV-0014
   paths:
     - configs/k8s/deployments/postgres.yaml
+  statement: PostgreSQL needs writable filesystem for data files
 
-- rule: AVD-KSV-0014
+- rule: KSV-0014
   paths:
     - configs/k8s/deployments/rabbitmq.yaml
+  statement: RabbitMQ needs writable filesystem for queue data
