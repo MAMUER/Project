@@ -567,44 +567,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== Training =====
     async function loadTrainingPlans() {
-        try {
-            const data = await getTrainingPlans();
-            const container = document.getElementById('plansList');
-            const plans = data.plans || [];
-            if (plans.length > 0) {
-                container.innerHTML = plans.map(plan => {
-                    const date = new Date(plan.generated_at).toLocaleDateString('ru-RU');
-                    return `<div class="plan-card"><h4>📋 Программа от ${date}</h4>
-                        <div class="plan-meta"><span>Статус: ${plan.status}</span><span>${plan.classification_class || '—'}</span></div></div>`;
-                }).join('');
-            } else {
-                container.innerHTML = `<div class="empty-state"><div class="empty-icon">🏃</div>
-                    <h3>Нет активных программ</h3><p>AI создаст персональный план</p></div>`;
-            }
-        } catch (err) { console.error('Training plans load failed:', err); }
+        if (window.AppModules) {
+            await window.AppModules.TrainingModule.loadPlans();
+        }
     }
 
     async function generatePlan() {
-        try {
-            showToast('Генерация плана...', 'success');
-            const result = await apiRequest('/ml/generate-plan', {
-                method: 'POST',
-                body: JSON.stringify({ training_class: 'endurance_e1e2', duration_weeks: 4, available_days: [1, 3, 5], preferences: { max_duration: 60 } })
-            });
-            if (result.training_type) {
-                showToast(`✅ ${result.training_type_ru || result.training_type}`, 'success');
-                if (state.currentView === 'training') loadTrainingPlans();
-                if (state.currentView === 'dashboard') {
-                    const el = document.getElementById('todayWorkout');
-                    if (el) {
-                        const exercises = result.exercises || ['Разминка 10 мин', 'Основная часть 30 мин', 'Заминка 10 мин'];
-                        el.innerHTML = `<h4 style="margin-bottom:12px;font-size:17px;">${result.training_type_ru || 'Тренировка'}</h4>
-                            <div style="color:var(--text-secondary);font-size:14px;margin-bottom:12px;">${result.duration_minutes || 45} мин</div>
-                            ${exercises.map(ex => `<div class="workout-item"><span class="workout-exercise">${ex}</span></div>`).join('')}`;
-                    }
-                }
-            }
-        } catch (err) { showToast('Ошибка: ' + err.message, 'error'); }
+        if (window.AppModules) {
+            await window.AppModules.TrainingModule.generatePlan();
+        }
     }
 
     // ===== ML =====
@@ -653,13 +624,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ===== Doctor Tabs =====
     function bindDoctorTabs() {
-        document.querySelectorAll('#doctorTabs .tab').forEach(tab => {
+        document.querySelectorAll('#doctorTabs .doctor-tab').forEach(tab => {
             tab.addEventListener('click', () => {
-                document.querySelectorAll('#doctorTabs .tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('#doctorTabs .doctor-tab').forEach(t => t.classList.remove('active'));
                 tab.classList.add('active');
                 const target = tab.dataset.tab;
                 document.querySelectorAll('.doctor-tab-content').forEach(c => c.classList.remove('active'));
-                document.getElementById(target)?.classList.add('active');
+                const el = document.getElementById(target);
+                if (el) el.classList.add('active');
             });
         });
 

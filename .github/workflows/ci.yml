@@ -33,9 +33,9 @@ jobs:
       - name: Run vet
         run: go vet ./...
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v8
         with:
-          version: latest
+          version: v2.1.2
           args: --timeout=5m
       - name: Run fmt check
         run: |
