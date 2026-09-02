@@ -125,6 +125,22 @@ func IsAppError(err error) bool {
 	return ok
 }
 
+func IsNotFound(err error) bool {
+	return Code(err) == "NOT_FOUND"
+}
+
+func IsUnauthorized(err error) bool {
+	return Code(err) == "UNAUTHORIZED"
+}
+
+func IsForbidden(err error) bool {
+	return Code(err) == "FORBIDDEN"
+}
+
+func IsValidation(err error) bool {
+	return Code(err) == "VALIDATION" || Code(err) == "INVALID_ARGUMENT"
+}
+
 func GRPCCode(err error) string {
 	switch Code(err) {
 	case "NOT_FOUND":

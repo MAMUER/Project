@@ -7,9 +7,23 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/MAMUER/project/internal/logger"
+	"github.com/spf13/viper"
 )
 
 const redacted = "[REDACTED]"
+
+var globalViper *viper.Viper
+
+func InitViper(appName string) {
+	globalViper = MustLoadViper(appName)
+}
+
+func GetViper() *viper.Viper {
+	if globalViper == nil {
+		return MustLoadViper("app")
+	}
+	return globalViper
+}
 
 type CacheConfig struct {
 	Addr     string

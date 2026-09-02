@@ -32,13 +32,18 @@ import (
 	"github.com/MAMUER/project/internal/telemetry"
 	"github.com/MAMUER/project/internal/validator"
 	"github.com/MAMUER/project/internal/webhook"
+	"github.com/MAMUER/project/internal/domain/entity"
+	"github.com/MAMUER/project/internal/domain/service"
+	"github.com/MAMUER/project/internal/apperrors"
+	"github.com/MAMUER/project/internal/repository/postgres"
 )
 
 type biometricServer struct {
 	pb.UnimplementedBiometricServiceServer
-	db          *sql.DB
-	log         *logger.Logger
-	rabbitQueue queue.Publisher
+	db           *sql.DB
+	biometricSvc service.BiometricService
+	log          *logger.Logger
+	rabbitQueue  queue.Publisher
 }
 
 func safeIntToInt32(v int) int32 {
@@ -69,6 +74,43 @@ func (s *biometricServer) AddRecord(ctx context.Context, req *pb.AddRecordReques
 		return nil, err
 	}
 
+	if s.biometricSvc != nil {
+		record := &entity.BiometricRecord{
+			ID:         uuid.New().String(),
+			UserID:     req.UserId,
+			MetricType: req.MetricType,
+			Value:      req.Value,
+			Timestamp:  req.Timestamp.AsTime(),
+			DeviceType: req.DeviceType,
+			Source:     "unknown",
+		}
+
+		stored, err := s.biometricSvc.AddRecord(ctx, record)
+		if err != nil {
+			s.log.Error("Failed to add record", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to insert record")
+		}
+
+		lag := time.Since(start).Seconds()
+		metrics.BiometricSyncLagSeconds.WithLabelValues(req.DeviceType, "default").Set(lag)
+
+		event := map[string]interface{}{
+			"user_id":     req.UserId,
+			"metric_type": req.MetricType,
+			"value":       req.Value,
+			"timestamp":   record.Timestamp,
+		}
+
+		if s.rabbitQueue != nil {
+			if err := s.rabbitQueue.Publish(ctx, event); err != nil {
+				s.log.Error("Failed to publish to queue", zap.Error(err))
+				return nil, status.Error(codes.Internal, "failed to queue event")
+			}
+		}
+
+		return &pb.AddRecordResponse{Id: stored.ID}, nil
+	}
+
 	var userExists bool
 	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", req.UserId).Scan(&userExists)
 	if err != nil {
@@ -80,8 +122,6 @@ func (s *biometricServer) AddRecord(ctx context.Context, req *pb.AddRecordReques
 		return nil, status.Error(codes.NotFound, "user not found")
 	}
 
-	// Use INSERT ... RETURNING id so we always get the actual id stored in DB.
-	// If a conflict occurs, perform a no-op UPDATE to be able to RETURNING the existing id.
 	newID := uuid.New().String()
 	timestamp := req.Timestamp.AsTime()
 
@@ -96,8 +136,6 @@ func (s *biometricServer) AddRecord(ctx context.Context, req *pb.AddRecordReques
 		s.log.Error("Failed to insert or fetch record id", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to insert record")
 	}
-
-	id := storedID
 
 	lag := time.Since(start).Seconds()
 	metrics.BiometricSyncLagSeconds.WithLabelValues(req.DeviceType, "default").Set(lag)
@@ -116,7 +154,7 @@ func (s *biometricServer) AddRecord(ctx context.Context, req *pb.AddRecordReques
 		}
 	}
 
-	return &pb.AddRecordResponse{Id: id}, nil
+	return &pb.AddRecordResponse{Id: storedID}, nil
 }
 
 func (s *biometricServer) BatchAddRecords(ctx context.Context, req *pb.BatchAddRecordsRequest) (*pb.BatchAddRecordsResponse, error) {
@@ -126,6 +164,29 @@ func (s *biometricServer) BatchAddRecords(ctx context.Context, req *pb.BatchAddR
 	if err := s.checkUserExists(ctx, req.UserId); err != nil {
 		return nil, err
 	}
+
+	if s.biometricSvc != nil {
+		records := make([]*entity.BiometricRecord, 0, len(req.Records))
+		for _, rec := range req.Records {
+			records = append(records, &entity.BiometricRecord{
+				ID:         uuid.New().String(),
+				UserID:     req.UserId,
+				MetricType: rec.MetricType,
+				Value:      rec.Value,
+				Timestamp:  rec.Timestamp.AsTime(),
+				DeviceType: rec.DeviceType,
+				Source:     "unknown",
+			})
+		}
+
+		inserted, err := s.biometricSvc.BatchAddRecords(ctx, records)
+		if err != nil {
+			s.log.Error("Failed to batch add records", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to save records")
+		}
+		return &pb.BatchAddRecordsResponse{Count: safeIntToInt32(inserted)}, nil
+	}
+
 	if err := validateRecords(ctx, req.Records); err != nil {
 		return nil, err
 	}
@@ -280,6 +341,38 @@ func (s *biometricServer) GetRecords(ctx context.Context, req *pb.GetRecordsRequ
 		return nil, status.Error(codes.InvalidArgument, "from cannot be after to")
 	}
 
+	if s.biometricSvc != nil {
+		limit := int(req.Limit)
+		if limit <= 0 {
+			limit = 100
+		}
+		if limit > 10000 {
+			limit = 10000
+		}
+
+		records, err := s.biometricSvc.GetRecords(ctx, req.UserId, req.MetricType, limit)
+		if err != nil {
+			s.log.Error("Failed to query records", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to query records")
+		}
+
+		pbRecords := make([]*pb.BiometricRecord, 0, len(records))
+		for _, r := range records {
+			pbRecords = append(pbRecords, &pb.BiometricRecord{
+				Id:        r.ID,
+				UserId:    r.UserID,
+				MetricType: r.MetricType,
+				Value:     r.Value,
+				Timestamp: timestamppb.New(r.Timestamp),
+				DeviceType: r.DeviceType,
+				CreatedAt: timestamppb.New(r.CreatedAt),
+			})
+		}
+
+		s.log.Debug("GetRecords fetched", zap.Int("count", len(pbRecords)))
+		return &pb.GetRecordsResponse{Records: pbRecords}, nil
+	}
+
 	q := s.buildGetRecordsQuery(req)
 	s.log.Debug("GetRecords query",
 		zap.String("query", q.query),
@@ -315,9 +408,7 @@ func (s *biometricServer) GetRecords(ctx context.Context, req *pb.GetRecordsRequ
 		return nil, status.Error(codes.Internal, "error reading records")
 	}
 
-	// add debug log with count to help troubleshooting
 	s.log.Debug("GetRecords fetched", zap.Int("count", len(records)))
-
 	return &pb.GetRecordsResponse{Records: records}, nil
 }
 
@@ -326,6 +417,27 @@ func (s *biometricServer) GetLatest(ctx context.Context, req *pb.GetLatestReques
 		zap.String("user_id", req.UserId),
 		zap.String("metric_type", req.MetricType),
 	)
+
+	if s.biometricSvc != nil {
+		record, err := s.biometricSvc.GetLatest(ctx, req.UserId, req.MetricType)
+		if err != nil {
+			s.log.Error("Failed to query latest record", zap.Error(err))
+			if apperrors.IsNotFound(err) {
+				return nil, status.Error(codes.NotFound, "no records found")
+			}
+			return nil, status.Error(codes.Internal, "failed to query record")
+		}
+
+		return &pb.BiometricRecord{
+			Id:        record.ID,
+			UserId:    record.UserID,
+			MetricType: record.MetricType,
+			Value:     record.Value,
+			Timestamp: timestamppb.New(record.Timestamp),
+			DeviceType: record.DeviceType,
+			CreatedAt: timestamppb.New(record.CreatedAt),
+		}, nil
+	}
 
 	var record pb.BiometricRecord
 	var timestamp, createdAt time.Time
@@ -359,6 +471,39 @@ func (s *biometricServer) UpdateRecord(ctx context.Context, req *pb.UpdateRecord
 		zap.String("action", "BIOMETRIC_UPDATE"),
 		zap.String("id", req.Id),
 	)
+
+	if s.biometricSvc != nil {
+		record := &entity.BiometricRecord{
+			ID:        req.Id,
+			Value:     req.Value,
+			Timestamp: req.Timestamp.AsTime(),
+			DeviceType: req.DeviceType,
+		}
+
+		stored, err := s.biometricSvc.UpdateRecord(ctx, record)
+		if err != nil {
+			s.log.Error("Failed to update record", zap.Error(err))
+			if apperrors.IsNotFound(err) {
+				return nil, status.Error(codes.NotFound, "record not found")
+			}
+			return nil, status.Error(codes.Internal, "failed to update record")
+		}
+
+		s.log.Info("BIOMETRIC_UPDATED",
+			zap.String("action", "BIOMETRIC_UPDATED"),
+			zap.String("id", stored.ID),
+		)
+
+		return &pb.BiometricRecord{
+			Id:        stored.ID,
+			UserId:    stored.UserID,
+			MetricType: stored.MetricType,
+			Value:     stored.Value,
+			Timestamp: timestamppb.New(stored.Timestamp),
+			DeviceType: stored.DeviceType,
+			CreatedAt: timestamppb.New(stored.CreatedAt),
+		}, nil
+	}
 
 	if req.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "id is required")
@@ -407,6 +552,23 @@ func (s *biometricServer) DeleteRecord(ctx context.Context, req *pb.DeleteRecord
 		zap.String("action", "BIOMETRIC_DELETE"),
 		zap.String("id", req.Id),
 	)
+
+	if s.biometricSvc != nil {
+		if err := s.biometricSvc.DeleteRecord(ctx, req.Id); err != nil {
+			s.log.Error("Failed to delete record", zap.Error(err))
+			if apperrors.IsNotFound(err) {
+				return nil, status.Error(codes.NotFound, "record not found")
+			}
+			return nil, status.Error(codes.Internal, "failed to delete record")
+		}
+
+		s.log.Info("BIOMETRIC_DELETED",
+			zap.String("action", "BIOMETRIC_DELETED"),
+			zap.String("id", req.Id),
+		)
+
+		return &pb.DeleteRecordResponse{Deleted: true}, nil
+	}
 
 	if req.Id == "" {
 		return nil, status.Error(codes.InvalidArgument, "id is required")
@@ -498,6 +660,9 @@ func main() {
 		}
 	}()
 
+	config.InitViper("biometric-service")
+	v := config.GetViper()
+
 	port := config.GetEnv("BIOMETRIC_SERVICE_PORT", "50052")
 	metricsPort := config.GetEnv("BIOMETRIC_METRICS_PORT", "9090")
 	webhookPort := config.GetEnv("OPEN_WEARABLES_WEBHOOK_PORT", "8085")
@@ -512,6 +677,8 @@ func main() {
 		SSLMode:  config.GetEnv("DB_SSLMODE"),
 	}
 
+	_ = v
+
 	grpcServer := createGRPCServer(log, jwtPublicKeyPEM)
 
 	database, err := db.NewConnection(dbCfg)
@@ -523,6 +690,9 @@ func main() {
 			log.Error("Failed to close database", zap.Error(closeErr))
 		}
 	}()
+
+	biometricRepo := postgres.NewBiometricRepository(database)
+	biometricSvc := service.NewBiometricService(biometricRepo)
 
 	rabbitURL := config.GetEnv("RABBITMQ_URL")
 	queueName := "biometric_events"
@@ -546,9 +716,10 @@ func main() {
 	healthServer := health.NewServer()
 
 	pb.RegisterBiometricServiceServer(grpcServer, &biometricServer{
-		db:          database,
-		log:         log,
-		rabbitQueue: rabbitQueue,
+		db:           database,
+		biometricSvc: biometricSvc,
+		log:          log,
+		rabbitQueue:  rabbitQueue,
 	})
 
 	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)

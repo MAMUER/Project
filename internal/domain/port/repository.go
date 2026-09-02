@@ -21,7 +21,9 @@ type UserRepository interface {
 type BiometricRepository interface {
 	Create(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error)
 	BatchCreate(ctx context.Context, records []*entity.BiometricRecord) (int, error)
-	GetByUserID(ctx context.Context, userID string, metricType string, limit, offset int) ([]*entity.BiometricRecord, error)
+	GetByUserID(ctx context.Context, userID, metricType string, limit, offset int) ([]*entity.BiometricRecord, error)
+	GetLatest(ctx context.Context, userID, metricType string) (*entity.BiometricRecord, error)
+	Update(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -78,4 +80,10 @@ type MenstrualCycleRepository interface {
 type AchievementRepository interface {
 	Create(ctx context.Context, achievement *entity.Achievement) (*entity.Achievement, error)
 	List(ctx context.Context, userID string) ([]*entity.Achievement, error)
+}
+
+type DeviceRepository interface {
+	List(ctx context.Context, userID string) ([]*entity.Device, error)
+	Create(ctx context.Context, device *entity.Device) (*entity.Device, error)
+	Delete(ctx context.Context, userID, deviceID string) error
 }

@@ -70,3 +70,13 @@ type Achievement struct {
 	Description string
 	EarnedAt    time.Time
 }
+
+type Device struct {
+	ID         string
+	UserID     string
+	DeviceType string
+	DeviceName string
+	Token      string
+	IsConnected bool
+	LastSync   time.Time
+}

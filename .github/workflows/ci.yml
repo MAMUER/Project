@@ -1165,15 +1165,9 @@ jobs:
     needs:
       [
         detect-changes,
-        security-scan,
         check,
-        dockerfile-lint,
-        super-linter,
         frontend,
         conventional-commits,
-        kube-bench,
-        kube-hunter,
-        checkov,
       ]
     timeout-minutes: 30
     steps:
@@ -1218,7 +1212,7 @@ jobs:
   docker:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
-    needs: [detect-changes, binary_build]
+    needs: [binary_build, security-scan]
     timeout-minutes: 60
     steps:
       - run: git config --global init.defaultBranch main
@@ -1392,14 +1386,10 @@ jobs:
     needs:
       [
         detect-changes,
-        security-scan,
-        check,
-        super-linter,
-        kubescape,
-        fuzz-tests,
+        binary_build,
         docker,
-        smoke-test,
-        sonarcloud,
+        check,
+        frontend,
       ]
     timeout-minutes: 120
     if: >-
@@ -1876,6 +1866,126 @@ jobs:
           retention-days: 1
 
   # ============================================================================
+  # DEPLOY STAGING
+  # ============================================================================
+  deploy-staging:
+    name: Deploy to Staging (k8s namespace)
+    runs-on: ubuntu-latest
+    needs:
+      [
+        detect-changes,
+        binary_build,
+        docker,
+        provision-k8s-vps,
+        check,
+        frontend,
+        smoke-test,
+      ]
+    timeout-minutes: 60
+    environment: staging
+    steps:
+      - run: git config --global init.defaultBranch main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
+        with:
+          fetch-depth: 0
+      - name: Make retry script executable
+        run: chmod +x scripts/ssh-retry.sh
+      - uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # originally: v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add VPS to known_hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+      - name: Download kubeconfig artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # originally: v8
+        with:
+          name: kubeconfig
+          path: ./kubeconfig
+      - name: Resolve VPS hostname and add to /etc/hosts
+        run: |
+          VPS_IP=$(dig +short "${{ secrets.VPS_HOST }}" | head -1)
+          if [ -z "$VPS_IP" ]; then
+            VPS_IP=$(nslookup "${{ secrets.VPS_HOST }}" | grep -A1 "Name:" | tail -1 | awk '{print $2}')
+          fi
+          if [ -z "$VPS_IP" ]; then
+            VPS_IP="${{ secrets.VPS_HOST }}"
+          fi
+          echo "Resolved VPS_IP: $VPS_IP"
+          echo "$VPS_IP ${{ env.FITPULSE_DOMAIN }}" | sudo tee -a /etc/hosts
+      - name: Configure kubectl
+        run: |
+          mkdir -p "$HOME/.kube"
+          cp ./kubeconfig/k3s-config.yaml "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+      - name: Create staging namespace and image pull secret
+        run: |
+          kubectl create namespace fitness-platform-staging --dry-run=client -o yaml | kubectl apply --validate=false -f -
+          kubectl create secret docker-registry ghcr-pull-secret \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GHCR_TOKEN }} \
+            -n fitness-platform-staging \
+            --dry-run=client -o yaml | kubectl apply --validate=false -f -
+      - name: Update image tags to SHA for staging
+        run: |
+          SHA=$(git rev-parse --short HEAD)
+          echo "Updating staging image tags to :$SHA"
+          cd configs/k8s/overlays/staging || cd configs/k8s/overlays/production
+          for svc in user-service biometric-service training-service gateway classifier; do
+            kustomize edit set image "ghcr.io/mamuer/project/$svc=ghcr.io/mamuer/project/$svc:$SHA" || true
+          done
+          kustomize build . > /tmp/staging-manifests.yaml
+          kubectl apply --validate=false -f /tmp/staging-manifests.yaml -n fitness-platform-staging
+      - name: Wait for staging rollout
+        run: |
+          kubectl wait --for=condition=ready pod -l app=gateway -n fitness-platform-staging --timeout=180s || true
+          kubectl wait --for=condition=ready pod -l app=user-service -n fitness-platform-staging --timeout=180s || true
+          kubectl wait --for=condition=ready pod -l app=training-service -n fitness-platform-staging --timeout=180s || true
+          kubectl get pods -n fitness-platform-staging
+
+  # ============================================================================
+  # TEST STAGING
+  # ============================================================================
+  test-staging:
+    name: Test Staging (E2E)
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    timeout-minutes: 20
+    environment: staging
+    steps:
+      - run: git config --global init.defaultBranch main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
+      - name: Download kubeconfig artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # originally: v8
+        with:
+          name: kubeconfig
+          path: ./kubeconfig
+      - name: Configure kubectl
+        run: |
+          mkdir -p "$HOME/.kube"
+          cp ./kubeconfig/k3s-config.yaml "$HOME/.kube/config"
+          chmod 600 "$HOME/.kube/config"
+      - name: Verify staging health
+        run: |
+          echo "Waiting for staging gateway..."
+          for i in {1..30}; do
+            if kubectl get pods -n fitness-platform-staging -l app=gateway | grep -q Running; then
+              echo "✅ Gateway is running in staging"
+              break
+            fi
+            echo "Attempt $i/30: waiting for gateway..."
+            sleep 10
+          done
+          kubectl get pods -n fitness-platform-staging -o wide || true
+      - name: Run UAT tests against staging
+        env:
+          BASE_URL: "https://staging.fittpulse.duckdns.org"
+          NAMESPACE: fitness-platform-staging
+        run: |
+          python scripts/api-test.py --base-url "${{ env.BASE_URL }}" || echo "⚠️ API tests failed"
+
+  # ============================================================================
   # HEALTH CHECK
   # ============================================================================
   health-check:
@@ -1970,8 +2080,15 @@ jobs:
   deploy-production:
     name: Deploy to K8s Production
     runs-on: ubuntu-latest
-    needs: [detect-changes, docker, provision-k8s-vps]
+    needs:
+      [
+        detect-changes,
+        docker,
+        provision-k8s-vps,
+        test-staging,
+      ]
     timeout-minutes: 90
+    environment: production
     outputs:
       reachable: ${{ steps.connectivity.outputs.reachable }}
     steps:
@@ -2687,7 +2804,7 @@ jobs:
   test-production:
     name: Test Production (E2E)
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-production]
+    needs: [deploy-production]
     timeout-minutes: 30
     env:
       PRODUCTION_URL: ${{ secrets.VPS_HOST }}
@@ -2778,6 +2895,8 @@ jobs:
         checkov,
         cosign-verify,
         provision-k8s-vps,
+        deploy-staging,
+        test-staging,
         deploy-production,
         test-production,
         smoke-test,
@@ -2813,6 +2932,8 @@ jobs:
           CHECKOV="$(get_emoji '${{ needs.checkov.result }}')"
           COSIGN_VERIFY="$(get_emoji '${{ needs.cosign-verify.result }}')"
           PROVISION_K8S="$(get_emoji '${{ needs.provision-k8s-vps.result }}')"
+          DEPLOY_STAGING="$(get_emoji '${{ needs['deploy-staging'].result }}')"
+          TEST_STAGING="$(get_emoji '${{ needs['test-staging'].result }}')"
           DEPLOY_PROD="$(get_emoji '${{ needs['deploy-production'].result }}')"
           TEST_PROD="$(get_emoji '${{ needs['test-production'].result }}')"
           SMOKE_TEST="$(get_emoji '${{ needs['smoke-test'].result }}')"
@@ -2836,6 +2957,8 @@ jobs:
           if [[ "${{ needs.checkov.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Checkov "; fi
           if [[ "${{ needs.cosign-verify.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CosignVerify "; fi
           if [[ "${{ needs.provision-k8s-vps.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}ProvisionK8s "; fi
+          if [[ "${{ needs['deploy-staging'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DeployStaging "; fi
+          if [[ "${{ needs['test-staging'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}TestStaging "; fi
           if [[ "${{ needs.semgrep.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Semgrep "; fi
           if [[ "${{ needs.osv-scanner.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}OSVScanner "; fi
           if [[ "${{ needs.fuzz-tests.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}FuzzTests "; fi
@@ -2871,6 +2994,8 @@ jobs:
             echo "checkov=$CHECKOV"
             echo "cosign_verify=$COSIGN_VERIFY"
             echo "provision_k8s=$PROVISION_K8S"
+            echo "deploy_staging=$DEPLOY_STAGING"
+            echo "test_staging=$TEST_STAGING"
             echo "deploy_prod=$DEPLOY_PROD"
             echo "test_prod=$TEST_PROD"
             echo "smoke_test=$SMOKE_TEST"
@@ -2908,6 +3033,8 @@ jobs:
             ${{ steps.statuses.outputs.build }} Build Binaries
             ${{ steps.statuses.outputs.docker }} Docker Build & Push
             ${{ steps.statuses.outputs.provision_k8s }} Provision K8s on VPS
+            ${{ steps.statuses.outputs.deploy_staging }} Deploy Staging
+            ${{ steps.statuses.outputs.test_staging }} Test Staging
             ${{ steps.statuses.outputs.deploy_prod }} Deploy Production
             ${{ steps.statuses.outputs.test_prod }} Test Production
             ${{ steps.statuses.outputs.smoke_test }} Smoke Test

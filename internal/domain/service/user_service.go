@@ -18,16 +18,7 @@ type userService struct {
 	bodyComp     port.BodyCompositionRepository
 	menstrual    port.MenstrualCycleRepository
 	achievements port.AchievementRepository
-}
-
-type Invite struct {
-	Code      string
-	Role      string
-	Specialty string
-	MaxUses   int
-	UsedCount int
-	IsActive  bool
-	CreatedAt time.Time
+	devices      port.DeviceRepository
 }
 
 func NewUserService(
@@ -38,6 +29,7 @@ func NewUserService(
 	bodyComp port.BodyCompositionRepository,
 	menstrual port.MenstrualCycleRepository,
 	achievements port.AchievementRepository,
+	devices port.DeviceRepository,
 ) UserService {
 	return &userService{
 		users:        users,
@@ -47,6 +39,7 @@ func NewUserService(
 		bodyComp:     bodyComp,
 		menstrual:    menstrual,
 		achievements: achievements,
+		devices:      devices,
 	}
 }
 
@@ -132,7 +125,7 @@ func (s *userService) ConfirmEmail(ctx context.Context, token string) error {
 
 func (s *userService) CreateInvite(ctx context.Context, role, specialty string, maxUses int) (string, error) {
 	code := generateInviteCode()
-	invite := &Invite{
+	invite := &port.Invite{
 		Code:      code,
 		Role:      role,
 		Specialty: specialty,
@@ -178,6 +171,29 @@ func (s *userService) ListUsers(ctx context.Context, page, pageSize int) ([]*ent
 	}
 
 	return users, total, nil
+}
+
+func (s *userService) ListDevices(ctx context.Context, userID string) ([]*entity.Device, error) {
+	return s.devices.List(ctx, userID)
+}
+
+func (s *userService) AddDevice(ctx context.Context, device *entity.Device) (*entity.Device, error) {
+	if device.UserID == "" || device.DeviceType == "" {
+		return nil, apperrors.Validation("user_id and device_type are required")
+	}
+	if device.DeviceName == "" {
+		device.DeviceName = device.DeviceType + " Device"
+	}
+	device.IsConnected = true
+	device.LastSync = time.Now()
+	return s.devices.Create(ctx, device)
+}
+
+func (s *userService) RemoveDevice(ctx context.Context, userID, deviceID string) error {
+	if userID == "" || deviceID == "" {
+		return apperrors.Validation("user_id and device_id are required")
+	}
+	return s.devices.Delete(ctx, userID, deviceID)
 }
 
 func generateID() string {

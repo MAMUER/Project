@@ -43,6 +43,9 @@ func main() {
 	log := logger.New(serviceName)
 	defer func() { _ = log.Sync() }()
 
+	config.InitViper("data-processor")
+	_ = config.GetViper()
+
 	port := config.GetEnv("DATA_PROCESSOR_PORT", "8084")
 	metricsPort := config.GetEnv("DATA_PROCESSOR_METRICS_PORT", "9092")
 

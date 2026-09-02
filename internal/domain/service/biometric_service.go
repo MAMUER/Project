@@ -54,3 +54,34 @@ func (s *biometricService) GetRecords(ctx context.Context, userID, metricType st
 	}
 	return s.biometrics.GetByUserID(ctx, userID, metricType, limit, 0)
 }
+
+func (s *biometricService) GetLatest(ctx context.Context, userID, metricType string) (*entity.BiometricRecord, error) {
+	if userID == "" || metricType == "" {
+		return nil, apperrors.Validation("user_id and metric_type are required")
+	}
+	records, err := s.biometrics.GetByUserID(ctx, userID, metricType, 1, 0)
+	if err != nil {
+		return nil, err
+	}
+	if len(records) == 0 {
+		return nil, apperrors.NotFound("no records found")
+	}
+	return records[0], nil
+}
+
+func (s *biometricService) UpdateRecord(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error) {
+	if record.ID == "" {
+		return nil, apperrors.Validation("id is required")
+	}
+	if record.Value < 0 {
+		return nil, apperrors.Validation("value cannot be negative")
+	}
+	return s.biometrics.Create(ctx, record)
+}
+
+func (s *biometricService) DeleteRecord(ctx context.Context, id string) error {
+	if id == "" {
+		return apperrors.Validation("id is required")
+	}
+	return s.biometrics.Delete(ctx, id)
+}

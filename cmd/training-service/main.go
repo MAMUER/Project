@@ -35,13 +35,16 @@ import (
 	"github.com/MAMUER/project/internal/sanitize"
 	"github.com/MAMUER/project/internal/telemetry"
 	"github.com/MAMUER/project/internal/validator"
+	"github.com/MAMUER/project/internal/domain/service"
+	"github.com/MAMUER/project/internal/repository/postgres"
 )
 
 type trainingServer struct {
 	pb.UnimplementedTrainingServiceServer
-	db          *sql.DB
-	log         *logger.Logger
-	rabbitQueue queue.Publisher
+	db           *sql.DB
+	trainingSvc  service.TrainingService
+	log          *logger.Logger
+	rabbitQueue  queue.Publisher
 }
 
 func (s *trainingServer) GeneratePlan(ctx context.Context, req *pb.GeneratePlanRequest) (*pb.GeneratePlanResponse, error) {
@@ -283,6 +286,35 @@ func (s *trainingServer) publishPlanEvent(ctx context.Context, userID, planID st
 func (s *trainingServer) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*pb.TrainingPlan, error) {
 	s.log.Debug("GetPlan", zap.String("plan_id", req.PlanId))
 
+	if s.trainingSvc != nil {
+		plan, err := s.trainingSvc.GetPlan(ctx, "", req.PlanId)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				return nil, status.Error(codes.NotFound, "plan not found")
+			}
+			s.log.Error("Failed to query plan", zap.Error(err), zap.String("plan_id", req.PlanId))
+			return nil, status.Error(codes.Internal, errDatabaseError)
+		}
+
+		planDataOut := &structpb.Struct{
+			Fields: make(map[string]*structpb.Value),
+		}
+		planDataOut.Fields["name"] = structpb.NewStringValue("Персонализированная программа")
+		planDataOut.Fields["training_goal"] = structpb.NewStringValue("recovery")
+		planDataOut.Fields["duration_weeks"] = structpb.NewNumberValue(float64(plan.DurationWeeks))
+		planDataOut.Fields["weeks"] = structpb.NewListValue(&structpb.ListValue{})
+
+		return &pb.TrainingPlan{
+			Id:          plan.ID,
+			UserId:      plan.UserID,
+			PlanData:    planDataOut,
+			GeneratedAt: timestamppb.New(plan.CreatedAt),
+			StartDate:   timestamppb.New(plan.CreatedAt),
+			EndDate:     timestamppb.New(plan.UpdatedAt),
+			Status:      "active",
+		}, nil
+	}
+
 	var planID, userID, planName, planStatus string
 	var generatedAt, startDate, endDate time.Time
 
@@ -335,6 +367,36 @@ func (s *trainingServer) ListPlans(ctx context.Context, req *pb.ListPlansRequest
 	}
 
 	s.log.Debug("ListPlans", zap.String("user_id", req.UserId))
+
+	if s.trainingSvc != nil {
+		plans, _, err := s.trainingSvc.ListPlans(ctx, req.UserId, int(req.Page), int(req.PageSize))
+		if err != nil {
+			s.log.Error("Failed to list plans", zap.Error(err))
+			return nil, status.Error(codes.Internal, errDatabaseError)
+		}
+
+		var pbPlans []*pb.TrainingPlan
+		for _, plan := range plans {
+			planData := map[string]interface{}{
+				"name":           "Персонализированная программа",
+				"training_goal":  "recovery",
+				"duration_weeks": int32(plan.DurationWeeks),
+			}
+			planDataStruct, _ := structpb.NewStruct(planData)
+
+			pbPlans = append(pbPlans, &pb.TrainingPlan{
+				Id:       plan.ID,
+				UserId:   plan.UserID,
+				PlanData: planDataStruct,
+				GeneratedAt: timestamppb.New(plan.CreatedAt),
+				StartDate:   timestamppb.New(plan.CreatedAt),
+				EndDate:     timestamppb.New(plan.UpdatedAt),
+				Status:     "active",
+			})
+		}
+
+		return &pb.ListPlansResponse{Plans: pbPlans, Total: int32(len(pbPlans))}, nil
+	}
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, user_id, name, training_goal, duration_weeks, generated_at, start_date, end_date, status
@@ -477,6 +539,34 @@ func (s *trainingServer) GetProgress(ctx context.Context, req *pb.GetProgressReq
 	}
 
 	s.log.Debug("GetProgress", zap.String("user_id", req.UserId))
+
+	if s.trainingSvc != nil {
+		progress, err := s.trainingSvc.GetProgress(ctx, req.UserId)
+		if err != nil {
+			s.log.Error("Failed to get progress", zap.Error(err))
+			return nil, status.Error(codes.Internal, errDatabaseError)
+		}
+
+		totalWorkouts := int32(0)
+		completedWorkouts := int32(0)
+		if total, ok := progress["total_plans"].(int64); ok {
+			totalWorkouts = int32(total)
+		}
+		if completed, ok := progress["completed_workouts"].(int64); ok {
+			completedWorkouts = int32(completed)
+		}
+		completionRate := 0.0
+		if rate, ok := progress["completion_rate"].(float64); ok {
+			completionRate = rate
+		}
+
+		return &pb.GetProgressResponse{
+			TotalWorkouts:     totalWorkouts,
+			CompletedWorkouts: completedWorkouts,
+			CompletionRate:    completionRate,
+			History:           []*pb.WorkoutCompletion{},
+		}, nil
+	}
 
 	var totalWorkouts, completedWorkouts int32
 	err := s.db.QueryRowContext(ctx, `
@@ -1014,7 +1104,7 @@ func createRabbitQueue(rabbitURL, queueName string, log *logger.Logger) queue.Pu
 	return rabbitQueue
 }
 
-func setupGRPCServer(log *logger.Logger, db *sql.DB, rabbitQueue queue.Publisher) *grpc.Server {
+func setupGRPCServer(log *logger.Logger, db *sql.DB, trainingSvc service.TrainingService, rabbitQueue queue.Publisher) *grpc.Server {
 	serverOpts := []grpc.ServerOption{grpc.ChainUnaryInterceptor(
 		middleware.RecoveryGRPC(log.Logger),
 		middleware.CorrelationIDGRPC(),
@@ -1022,6 +1112,7 @@ func setupGRPCServer(log *logger.Logger, db *sql.DB, rabbitQueue queue.Publisher
 	s := grpctls.NewServer(serverOpts...)
 	pb.RegisterTrainingServiceServer(s, &trainingServer{
 		db:          db,
+		trainingSvc: trainingSvc,
 		log:         log,
 		rabbitQueue: rabbitQueue,
 	})
@@ -1045,8 +1136,13 @@ func main() {
 		}
 	}()
 
+	config.InitViper("training-service")
+	v := config.GetViper()
+
 	port := config.GetEnv("TRAINING_SERVICE_PORT", "50053")
 	metricsPort := config.GetEnv("TRAINING_SERVICE_METRICS_PORT", "9095")
+
+	_ = v
 
 	metricsSrv := createMetricsServer(metricsPort)
 
@@ -1066,6 +1162,9 @@ func main() {
 		}
 	}()
 
+	trainingRepo := postgres.NewTrainingRepository(database)
+	trainingSvc := service.NewTrainingService(trainingRepo)
+
 	rabbitURL := config.GetEnv("RABBITMQ_URL")
 	queueName := "training_events"
 	rabbitQueue := createRabbitQueue(rabbitURL, queueName, log)
@@ -1073,7 +1172,7 @@ func main() {
 		defer func() { _ = rabbitQueue.Close() }()
 	}
 
-	s := setupGRPCServer(log, database, rabbitQueue)
+	s := setupGRPCServer(log, database, trainingSvc, rabbitQueue)
 
 	lc := net.ListenConfig{}
 	lis, err := lc.Listen(context.Background(), "tcp", ":"+port)

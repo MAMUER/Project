@@ -38,11 +38,14 @@ import (
 	"github.com/MAMUER/project/internal/config"
 	"github.com/MAMUER/project/internal/crypto"
 	"github.com/MAMUER/project/internal/db"
+	"github.com/MAMUER/project/internal/domain/entity"
+	"github.com/MAMUER/project/internal/domain/service"
 	"github.com/MAMUER/project/internal/email"
 	grpctls "github.com/MAMUER/project/internal/grpc"
 	"github.com/MAMUER/project/internal/logger"
 	"github.com/MAMUER/project/internal/metrics"
 	"github.com/MAMUER/project/internal/middleware"
+	"github.com/MAMUER/project/internal/repository/postgres"
 	"github.com/MAMUER/project/internal/sanitize"
 	"github.com/MAMUER/project/internal/telemetry"
 	"github.com/MAMUER/project/internal/totp"
@@ -60,6 +63,7 @@ type User struct {
 type userServer struct {
 	pb.UnimplementedUserServiceServer
 	db             *sql.DB
+	userSvc        service.UserService
 	log            *logger.Logger
 	tokenProvider  ports.TokenProvider
 	emailSender    email.EmailSender
@@ -994,7 +998,26 @@ func (s *userServer) ListDevices(ctx context.Context, req *pb.ListDevicesRequest
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
 
-	// Query devices
+	if s.userSvc != nil {
+		devices, err := s.userSvc.ListDevices(ctx, req.UserId)
+		if err != nil {
+			s.log.Error("Failed to list devices", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to list devices")
+		}
+
+		var pbDevices []*pb.Device
+		for _, d := range devices {
+			pbDevices = append(pbDevices, &pb.Device{
+				DeviceId:    d.ID,
+				DeviceType:  d.DeviceType,
+				DeviceName:  d.DeviceName,
+				IsConnected: d.IsConnected,
+				LastSync:    d.LastSync.Format(time.RFC3339),
+			})
+		}
+		return &pb.ListDevicesResponse{Devices: pbDevices}, nil
+	}
+
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id as device_id, device_type, device_name, is_connected, last_sync
 		FROM devices WHERE user_id = $1
@@ -1031,13 +1054,39 @@ func (s *userServer) AddDevice(ctx context.Context, req *pb.AddDeviceRequest) (*
 		return nil, status.Error(codes.InvalidArgument, "user_id and device_type are required")
 	}
 
+	if s.userSvc != nil {
+		device := &entity.Device{
+			ID:         uuid.New().String(),
+			UserID:     req.UserId,
+			DeviceType: req.DeviceType,
+			DeviceName: req.DeviceName,
+			Token:      uuid.New().String(),
+		}
+
+		_, err := s.userSvc.AddDevice(ctx, device)
+		if err != nil {
+			s.log.Error("Failed to add device", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to add device")
+		}
+
+		s.log.Info("Device added", zap.String("user_id", req.UserId), zap.String("device_id", device.ID))
+		return &pb.AddDeviceResponse{
+			Device: &pb.Device{
+				DeviceId:    device.ID,
+				DeviceType:  device.DeviceType,
+				DeviceName:  device.DeviceName,
+				IsConnected: true,
+				LastSync:    time.Now().Format(time.RFC3339),
+			},
+		}, nil
+	}
+
 	deviceID := uuid.New().String()
 	deviceName := req.DeviceName
 	if deviceName == "" {
 		deviceName = req.DeviceType + " Device"
 	}
 
-	// Insert device
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO devices (id, user_id, device_type, device_name, token, is_connected, last_sync)
 		VALUES ($1, $2, $3, $4, $5, true, NOW())
@@ -1047,16 +1096,16 @@ func (s *userServer) AddDevice(ctx context.Context, req *pb.AddDeviceRequest) (*
 		return nil, status.Error(codes.Internal, "failed to add device")
 	}
 
-	device := &pb.Device{
-		DeviceId:    deviceID,
-		DeviceType:  req.DeviceType,
-		DeviceName:  deviceName,
-		IsConnected: true,
-		LastSync:    time.Now().Format(time.RFC3339),
-	}
-
 	s.log.Info("Device added", zap.String("user_id", req.UserId), zap.String("device_id", deviceID))
-	return &pb.AddDeviceResponse{Device: device}, nil
+	return &pb.AddDeviceResponse{
+		Device: &pb.Device{
+			DeviceId:    deviceID,
+			DeviceType:  req.DeviceType,
+			DeviceName:  deviceName,
+			IsConnected: true,
+			LastSync:    time.Now().Format(time.RFC3339),
+		},
+	}, nil
 }
 
 // RemoveDevice removes a device from the user.
@@ -1065,7 +1114,15 @@ func (s *userServer) RemoveDevice(ctx context.Context, req *pb.RemoveDeviceReque
 		return nil, status.Error(codes.InvalidArgument, "user_id and device_id are required")
 	}
 
-	// Delete device
+	if s.userSvc != nil {
+		if err := s.userSvc.RemoveDevice(ctx, req.UserId, req.DeviceId); err != nil {
+			s.log.Error("Failed to remove device", zap.Error(err))
+			return nil, status.Error(codes.Internal, "failed to remove device")
+		}
+		s.log.Info("Device removed", zap.String("user_id", req.UserId), zap.String("device_id", req.DeviceId))
+		return &pb.RemoveDeviceResponse{Message: "Device removed successfully"}, nil
+	}
+
 	result, err := s.db.ExecContext(ctx, "DELETE FROM devices WHERE user_id = $1 AND id = $2", req.UserId, req.DeviceId)
 	if err != nil {
 		s.log.Error("Failed to remove device", zap.Error(err))
@@ -2418,9 +2475,10 @@ func (s *userServer) backfillEncryptedPII(ctx context.Context) {
 	}
 }
 
-func buildUserServer(database *sql.DB, log *logger.Logger, tokenProvider ports.TokenProvider, baseURL, googleClientID string, emailSender email.EmailSender, totpService *totp.Service) *userServer {
+func buildUserServer(database *sql.DB, log *logger.Logger, tokenProvider ports.TokenProvider, baseURL, googleClientID string, emailSender email.EmailSender, totpService *totp.Service, userSvc service.UserService) *userServer {
 	return &userServer{
 		db:             database,
+		userSvc:        userSvc,
 		log:            log,
 		tokenProvider:  tokenProvider,
 		emailSender:    emailSender,
@@ -2496,7 +2554,19 @@ func initializeUserService(ctx context.Context, log *logger.Logger, database *sq
 
 	tokenProvider := jwt.NewJWTAdapter(jwtPrivateKeyPEM, jwtPublicKeyPEM)
 
-	svc := buildUserServer(database, log, tokenProvider, baseURL, googleClientID, emailSender, totp.NewService(totpEncryptor))
+	deviceRepo := postgres.NewDeviceRepository(database)
+	userSvc := service.NewUserService(
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		deviceRepo,
+	)
+
+	svc := buildUserServer(database, log, tokenProvider, baseURL, googleClientID, emailSender, totp.NewService(totpEncryptor), userSvc)
 	if err := svc.ensurePgsodiumKey(ctx); err != nil {
 		log.Fatal("Failed to initialize pgsodium keyring", zap.Error(err))
 	}

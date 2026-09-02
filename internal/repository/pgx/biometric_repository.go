@@ -1,25 +1,26 @@
-package postgres
+package pgx
 
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
+	"time"
 
 	"github.com/MAMUER/project/internal/apperrors"
 	"github.com/MAMUER/project/internal/domain/entity"
-	"github.com/MAMUER/project/internal/domain/port"
 )
 
-type BiometricRepository struct {
+// BiometricRepositoryPGX implements biometric operations using database/sql for now.
+// This is a bridge to allow gradual migration to pgx.
+type BiometricRepositoryPGX struct {
 	db *sql.DB
 }
 
-func NewBiometricRepository(db *sql.DB) port.BiometricRepository {
-	return &BiometricRepository{db: db}
+func NewBiometricRepositoryPGX(db *sql.DB) *BiometricRepositoryPGX {
+	return &BiometricRepositoryPGX{db: db}
 }
 
-func (r *BiometricRepository) Create(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error) {
+func (r *BiometricRepositoryPGX) Create(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error) {
 	query := `
 		INSERT INTO biometric_data (id, user_id, metric_type, value, timestamp, device_type, source)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -35,7 +36,7 @@ func (r *BiometricRepository) Create(ctx context.Context, record *entity.Biometr
 	return record, nil
 }
 
-func (r *BiometricRepository) BatchCreate(ctx context.Context, records []*entity.BiometricRecord) (int, error) {
+func (r *BiometricRepositoryPGX) BatchCreate(ctx context.Context, records []*entity.BiometricRecord) (int, error) {
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, apperrors.Internal("failed to begin transaction", err)
@@ -71,7 +72,7 @@ func (r *BiometricRepository) BatchCreate(ctx context.Context, records []*entity
 	return inserted, nil
 }
 
-func (r *BiometricRepository) GetByUserID(ctx context.Context, userID, metricType string, limit, offset int) ([]*entity.BiometricRecord, error) {
+func (r *BiometricRepositoryPGX) GetByUserID(ctx context.Context, userID, metricType string, limit, offset int) ([]*entity.BiometricRecord, error) {
 	query := `
 		SELECT id, user_id, metric_type, value, timestamp, device_type, source, created_at
 		FROM biometric_data WHERE user_id = $1
@@ -115,16 +116,7 @@ func (r *BiometricRepository) GetByUserID(ctx context.Context, userID, metricTyp
 	return records, nil
 }
 
-func (r *BiometricRepository) Delete(ctx context.Context, id string) error {
-	query := `DELETE FROM biometric_data WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
-	if err != nil {
-		return apperrors.Internal("failed to delete biometric record", err)
-	}
-	return nil
-}
-
-func (r *BiometricRepository) GetLatest(ctx context.Context, userID, metricType string) (*entity.BiometricRecord, error) {
+func (r *BiometricRepositoryPGX) GetLatest(ctx context.Context, userID, metricType string) (*entity.BiometricRecord, error) {
 	query := `
 		SELECT id, user_id, metric_type, value, timestamp, device_type, source, created_at
 		FROM biometric_data
@@ -138,7 +130,7 @@ func (r *BiometricRepository) GetLatest(ctx context.Context, userID, metricType 
 		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
 	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if err == sql.ErrNoRows {
 			return nil, apperrors.NotFound("no records found")
 		}
 		return nil, apperrors.Internal("failed to get latest biometric record", err)
@@ -146,7 +138,7 @@ func (r *BiometricRepository) GetLatest(ctx context.Context, userID, metricType 
 	return record, nil
 }
 
-func (r *BiometricRepository) Update(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error) {
+func (r *BiometricRepositoryPGX) Update(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error) {
 	query := `
 		UPDATE biometric_data
 		SET value = $1, timestamp = $2, device_type = $3
@@ -160,10 +152,87 @@ func (r *BiometricRepository) Update(ctx context.Context, record *entity.Biometr
 		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
 	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if err == sql.ErrNoRows {
 			return nil, apperrors.NotFound("record not found")
 		}
 		return nil, apperrors.Internal("failed to update biometric record", err)
 	}
 	return record, nil
+}
+
+func (r *BiometricRepositoryPGX) Delete(ctx context.Context, id string) error {
+	query := `DELETE FROM biometric_data WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, id)
+	if err != nil {
+		return apperrors.Internal("failed to delete biometric record", err)
+	}
+	return nil
+}
+
+func (r *BiometricRepositoryPGX) GetByID(ctx context.Context, id string) (*entity.BiometricRecord, error) {
+	query := `
+		SELECT id, user_id, metric_type, value, timestamp, device_type, source, created_at
+		FROM biometric_data WHERE id = $1
+	`
+	record := &entity.BiometricRecord{}
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
+		&record.ID, &record.UserID, &record.MetricType, &record.Value,
+		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, apperrors.NotFound("record not found")
+		}
+		return nil, apperrors.Internal("failed to get biometric record", err)
+	}
+	return record, nil
+}
+
+func (r *BiometricRepositoryPGX) CountByUser(ctx context.Context, userID string) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM biometric_data WHERE user_id = $1`
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	if err != nil {
+		return 0, apperrors.Internal("failed to count biometric records", err)
+	}
+	return count, nil
+}
+
+func (r *BiometricRepositoryPGX) DeleteByUser(ctx context.Context, userID string) (int64, error) {
+	query := `DELETE FROM biometric_data WHERE user_id = $1`
+	result, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return 0, apperrors.Internal("failed to delete biometric records", err)
+	}
+	return result.RowsAffected()
+}
+
+func (r *BiometricRepositoryPGX) GetMetricsSummary(ctx context.Context, userID string) (map[string]interface{}, error) {
+	query := `
+		SELECT metric_type, COUNT(*) as count, MIN(timestamp) as first_seen, MAX(timestamp) as last_seen
+		FROM biometric_data
+		WHERE user_id = $1
+		GROUP BY metric_type
+	`
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, apperrors.Internal("failed to get metrics summary", err)
+	}
+	defer rows.Close()
+
+	summary := make(map[string]interface{})
+	for rows.Next() {
+		var metricType string
+		var count int
+		var firstSeen, lastSeen time.Time
+		if err := rows.Scan(&metricType, &count, &firstSeen, &lastSeen); err != nil {
+			return nil, apperrors.Internal("failed to scan metrics summary", err)
+		}
+		summary[metricType] = map[string]interface{}{
+			"count":     count,
+			"first_seen": firstSeen,
+			"last_seen":  lastSeen,
+		}
+	}
+	return summary, nil
 }

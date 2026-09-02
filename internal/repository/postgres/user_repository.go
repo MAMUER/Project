@@ -553,3 +553,66 @@ func (r *achievementRepository) List(ctx context.Context, userID string) ([]*ent
 	}
 	return achievements, nil
 }
+
+type DeviceRepository interface {
+	List(ctx context.Context, userID string) ([]*entity.Device, error)
+	Create(ctx context.Context, device *entity.Device) (*entity.Device, error)
+	Delete(ctx context.Context, userID, deviceID string) error
+}
+
+type deviceRepository struct {
+	db *sql.DB
+}
+
+func NewDeviceRepository(db *sql.DB) DeviceRepository {
+	return &deviceRepository{db: db}
+}
+
+func (r *deviceRepository) List(ctx context.Context, userID string) ([]*entity.Device, error) {
+	query := `
+		SELECT id, user_id, device_type, device_name, is_connected, last_sync
+		FROM devices WHERE user_id = $1
+	`
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, apperrors.Internal("failed to list devices", err)
+	}
+	defer rows.Close()
+
+	var devices []*entity.Device
+	for rows.Next() {
+		device := &entity.Device{}
+		if err := rows.Scan(
+			&device.ID, &device.UserID, &device.DeviceType, &device.DeviceName,
+			&device.IsConnected, &device.LastSync,
+		); err != nil {
+			return nil, apperrors.Internal("failed to scan device", err)
+		}
+		devices = append(devices, device)
+	}
+	return devices, nil
+}
+
+func (r *deviceRepository) Create(ctx context.Context, device *entity.Device) (*entity.Device, error) {
+	query := `
+		INSERT INTO devices (id, user_id, device_type, device_name, token, is_connected, last_sync)
+		VALUES ($1, $2, $3, $4, $5, true, NOW())
+		RETURNING id
+	`
+	err := r.db.QueryRowContext(ctx, query,
+		device.ID, device.UserID, device.DeviceType, device.DeviceName, device.Token,
+	).Scan(&device.ID)
+	if err != nil {
+		return nil, apperrors.Internal("failed to create device", err)
+	}
+	return device, nil
+}
+
+func (r *deviceRepository) Delete(ctx context.Context, userID, deviceID string) error {
+	query := `DELETE FROM devices WHERE user_id = $1 AND id = $2`
+	_, err := r.db.ExecContext(ctx, query, userID, deviceID)
+	if err != nil {
+		return apperrors.Internal("failed to delete device", err)
+	}
+	return nil
+}
