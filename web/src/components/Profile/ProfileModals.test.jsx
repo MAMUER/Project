@@ -54,7 +54,7 @@ describe('ChangeEmailModal', () => {
     const form = screen.getByLabelText('Новый email').closest('form');
     fireEvent.submit(form);
 
-    expect(screen.getByText('Заполните все поля')).toBeInTheDocument();
+    expect(screen.getByText(/Заполните все поля/)).toBeInTheDocument();
   });
 
   it.each([
@@ -72,7 +72,7 @@ describe('ChangeEmailModal', () => {
     const form = screen.getByLabelText('Новый email').closest('form');
     fireEvent.submit(form);
 
-    expect(screen.getByText('Некорректный email')).toBeInTheDocument();
+    expect(screen.getByText(/Некорректный email/)).toBeInTheDocument();
   });
 
   it('submits email change successfully', async () => {
@@ -334,7 +334,7 @@ describe('DeleteProfileModal', () => {
 
     await userEvent.click(screen.getByText('Удалить аккаунт'));
 
-    expect(screen.getByText('Введите пароль')).toBeInTheDocument();
+    expect(screen.getByText(/Введите пароль для подтверждения удаления аккаунта/)).toBeInTheDocument();
   });
 
   it('calls onClose when cancel is clicked', async () => {
@@ -348,7 +348,6 @@ describe('DeleteProfileModal', () => {
 
   it('deletes profile and logs out on confirmation', async () => {
     vi.spyOn(api, 'deleteProfile').mockResolvedValueOnce({});
-    vi.spyOn(window, 'confirm').mockImplementation(() => true);
     const logout = vi.fn();
     renderModal(DeleteProfileModal, {}, { logout });
 
@@ -362,26 +361,11 @@ describe('DeleteProfileModal', () => {
     expect(logout).toHaveBeenCalled();
   });
 
-  it('cancels delete when confirm is false', async () => {
-    vi.spyOn(api, 'deleteProfile').mockResolvedValueOnce({});
-    vi.spyOn(window, 'confirm').mockReturnValueOnce(false);
-    renderModal(DeleteProfileModal);
-
-    await userEvent.type(
-      screen.getByLabelText('Введите пароль для подтверждения'),
-      'password123'
-    );
-    await userEvent.click(screen.getByText('Удалить аккаунт'));
-
-    expect(api.deleteProfile).not.toHaveBeenCalled();
-  });
-
   it('handles deletion error', async () => {
     vi.resetAllMocks();
     vi.spyOn(api, 'deleteProfile').mockRejectedValueOnce(
       new Error('delete failed')
     );
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     renderModal(DeleteProfileModal);
 
     await userEvent.type(

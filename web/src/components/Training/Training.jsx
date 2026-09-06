@@ -55,7 +55,7 @@ export default function Training() {
       <div id='plansList' className='plans-list'>
         {plans.length === 0 ? (
           <div className='empty-state'>
-            <div className='empty-icon'>🏃</div>
+            <div className='empty-icon' aria-hidden='true'>🏃</div>
             <h3>Нет активных программ</h3>
             <p>AI создаст персональный план на основе ваших данных</p>
           </div>

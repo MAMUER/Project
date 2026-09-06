@@ -376,7 +376,9 @@ describe('useAuthForm', () => {
       );
     });
 
-    expect(result.current.generalError).toBe('Введите код');
+    expect(result.current.generalError).toBe(
+      'Введите код двухфакторной аутентификации. Используйте 6-значный код из приложения или резервный код.'
+    );
   });
 
   it('updates password checks', () => {

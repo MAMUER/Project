@@ -25,6 +25,7 @@
 | [Security Policy](SECURITY.md) | Меры безопасности, compliance, аудит |
 | [Architecture Decision Records](docs/adr/) | Обоснование архитектурных решений |
 | [UI Specification](docs/UI_SPECIFICATION.md) | Спецификация мобильного веб-интерфейса |
+| [Accessibility (a11y)](docs/A11Y.md) | Доступность интерфейса (WCAG 2.1 AA) |
 | [Runbooks](docs/runbooks/) | Операционные инструкции и response playbooks |
 | [Phase 2 Roadmap](docs/phase2-roadmap.md) | Бэклог инфраструктуры (план на Phase 2) |
 | [Bug Bounty Scope](BUG_BOUNTY_SCOPE.md) | Условия программы Bug Bounty, scope, severity tiers |

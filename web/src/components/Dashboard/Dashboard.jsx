@@ -7,6 +7,8 @@ import {
   getTrainingPlans,
 } from '../../utils/api';
 import { EXERCISE_NAME_MAP } from '../../utils/constants';
+import { usePauseState } from '../../hooks/useReducedMotion.jsx';
+import { PauseOverlay } from '../../hooks/useReducedMotion.jsx';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -23,6 +25,7 @@ export default function Dashboard() {
   const [todayWorkout, setTodayWorkout] = useState('');
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
+  const { effectivePaused, setPaused } = usePauseState();
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -59,8 +62,9 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
+    if (effectivePaused) return;
     loadDashboard();
-  }, [loadDashboard]);
+  }, [loadDashboard, effectivePaused]);
   const setSettledMetric = (settled, setter, formatFn) => {
     if (settled.status === 'fulfilled' && settled.value?.records?.length > 0) {
       setter(formatFn(settled.value.records[0].value));
@@ -251,42 +255,42 @@ export default function Dashboard() {
 
   return (
     <div className='view active'>
-      <section className='health-summary'>
+      <section className='health-summary' aria-label='Биометрические показатели'>
         <div className='summary-card heart-rate'>
-          <div className='card-icon'>❤️</div>
+          <div className='card-icon' aria-hidden='true'>❤️</div>
           <div className='card-data'>
             <span className='card-label'>Пульс</span>
-            <span className='card-value' id='hrValue'>
+            <span className='card-value' id='hrValue' aria-live='polite' aria-atomic='true'>
               {hrValue}
             </span>
             <span className='card-unit'>уд/мин</span>
           </div>
         </div>
         <div className='summary-card spo2'>
-          <div className='card-icon'>🫁</div>
+          <div className='card-icon' aria-hidden='true'>🫁</div>
           <div className='card-data'>
             <span className='card-label'>SpO₂</span>
-            <span className='card-value' id='spo2Value'>
+            <span className='card-value' id='spo2Value' aria-live='polite' aria-atomic='true'>
               {spo2Value}
             </span>
             <span className='card-unit'>%</span>
           </div>
         </div>
         <div className='summary-card sleep'>
-          <div className='card-icon'>🌙</div>
+          <div className='card-icon' aria-hidden='true'>🌙</div>
           <div className='card-data'>
             <span className='card-label'>Сон</span>
-            <span className='card-value' id='sleepValue'>
+            <span className='card-value' id='sleepValue' aria-live='polite' aria-atomic='true'>
               {sleepValue}
             </span>
             <span className='card-unit'>часов</span>
           </div>
         </div>
         <div className='summary-card bp'>
-          <div className='card-icon'>🩸</div>
+          <div className='card-icon' aria-hidden='true'>🩸</div>
           <div className='card-data'>
             <span className='card-label'>Давление</span>
-            <span className='card-value' id='bpValue'>
+            <span className='card-value' id='bpValue' aria-live='polite' aria-atomic='true'>
               {bpValue}
             </span>
             <span className='card-unit'>мм рт.ст.</span>
@@ -294,28 +298,37 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section className='chart-section'>
+      <section className='chart-section' aria-label='Динамика пульса'>
         <h3>Динамика пульса</h3>
         <div className='chart-container'>
-          <canvas ref={chartRef} id='heartChart' />
+          <canvas
+            ref={chartRef}
+            id='heartChart'
+            aria-label='График динамики пульса за последние измерения'
+            role='img'
+          />
+          <div id='chart-fallback' className='sr-only'>
+            График пульса за последние 20 измерений.
+          </div>
         </div>
       </section>
 
-      <section className='ai-section'>
+      <section className='ai-section' aria-label='AI-анализ'>
         <div className='ai-card'>
           <div className='ai-header'>
             <span className='ai-badge'>AI Анализ</span>
           </div>
-          <h3 id='aiRecommendation'>{aiRecommendation}</h3>
+          <h3 id='aiRecommendation' aria-live='polite'>{aiRecommendation}</h3>
           <p id='aiDescription'>{aiDescription}</p>
         </div>
       </section>
 
-      <section className='today-section'>
+      <section className='today-section' aria-label='Тренировка на сегодня'>
         <h3>🏋️ Тренировка на сегодня</h3>
         <div
           id='todayWorkout'
           className='workout-card'
+          aria-live='polite'
           dangerouslySetInnerHTML={{
             __html:
               todayWorkout ||

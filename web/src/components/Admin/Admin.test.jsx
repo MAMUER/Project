@@ -252,7 +252,9 @@ describe('Admin', () => {
 
     await userEvent.click(screen.getByText('Создать'));
 
-    expect(window.alert).toHaveBeenCalledWith('Ошибка: create failed');
+    expect(window.alert).toHaveBeenCalledWith(
+      'Ошибка: create failed. Проверьте ввод и попробуйте снова.'
+    );
   });
 
   it('handles load admin data error', async () => {
