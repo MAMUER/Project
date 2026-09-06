@@ -16,6 +16,7 @@ type UserRepository interface {
 	List(ctx context.Context, page, pageSize int) ([]*entity.User, error)
 	Count(ctx context.Context) (int, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
+	ListByRole(ctx context.Context, role string, page, pageSize int) ([]*entity.User, int, error)
 }
 
 type BiometricRepository interface {

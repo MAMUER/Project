@@ -43,6 +43,9 @@ func (r *DeviceRepositoryPGX) List(ctx context.Context, userID string) ([]*entit
 		}
 		devices = append(devices, device)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate devices", err)
+	}
 	return devices, nil
 }
 
@@ -148,6 +151,9 @@ func (r *DeviceRepositoryPGX) ListConnected(ctx context.Context, userID string) 
 			return nil, apperrors.Internal("failed to scan device", err)
 		}
 		devices = append(devices, device)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate connected devices", err)
 	}
 	return devices, nil
 }

@@ -100,6 +100,9 @@ func (r *TrainingRepositoryPGX) ListPlans(ctx context.Context, userID string, pa
 		}
 		plans = append(plans, plan)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperrors.Internal("failed to iterate training plans", err)
+	}
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM training_plans WHERE user_id = $1`, userID).Scan(&total); err != nil {
@@ -160,6 +163,9 @@ func (r *TrainingRepositoryPGX) GetAchievements(ctx context.Context, userID stri
 			return nil, apperrors.Internal("failed to scan achievement", err)
 		}
 		achievements = append(achievements, achievement)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate achievements", err)
 	}
 	return achievements, nil
 }

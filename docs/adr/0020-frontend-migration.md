@@ -7,6 +7,7 @@
 ## Контекст
 
 Frontend был реализован как набор vanilla JS-файлов (`web/static/js/api.js`, `app.js`, `modules.js`) с ручной маршрутизацией view и HTML-шаблонами в `web/templates/`. Это давало быстрый старт, но при росте экранов и логики возникли проблемы:
+
 - отсутствие компонентной переиспользуемости;
 - ручное управление DOM и state;
 - сложность поддержки при добавлении новых экранов (Auth, Dashboard, Profile, Training, Devices, Achievements, Diet, Health, ML, Admin);

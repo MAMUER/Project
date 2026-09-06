@@ -46,7 +46,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*entity.User, 
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound("user not found")
+			return nil, apperrors.NotFound(errUserNotFound)
 		}
 		return nil, apperrors.Internal("failed to get user", err)
 	}
@@ -65,7 +65,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*entity.
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound("user not found")
+			return nil, apperrors.NotFound(errUserNotFound)
 		}
 		return nil, apperrors.Internal("failed to get user by email", err)
 	}
@@ -115,7 +115,44 @@ func (r *UserRepository) List(ctx context.Context, page, pageSize int) ([]*entit
 		}
 		users = append(users, user)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate users", err)
+	}
 	return users, nil
+}
+
+func (r *UserRepository) ListByRole(ctx context.Context, role string, page, pageSize int) ([]*entity.User, int, error) {
+	offset := (page - 1) * pageSize
+	query := `
+		SELECT id, email, password_hash, full_name, role, email_verified, created_at, updated_at
+		FROM users WHERE role = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+	`
+	rows, err := r.db.QueryContext(ctx, query, role, pageSize, offset)
+	if err != nil {
+		return nil, 0, apperrors.Internal("failed to list users", err)
+	}
+	defer rows.Close()
+
+	var users []*entity.User
+	for rows.Next() {
+		user := &entity.User{}
+		if err := rows.Scan(
+			&user.ID, &user.Email, &user.PasswordHash, &user.FullName,
+			&user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
+		); err != nil {
+			return nil, 0, apperrors.Internal("failed to scan user", err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperrors.Internal("failed to iterate users", err)
+	}
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role = $1`, role).Scan(&total); err != nil {
+		return nil, 0, apperrors.Internal("failed to count users", err)
+	}
+	return users, total, nil
 }
 
 func (r *UserRepository) Count(ctx context.Context) (int, error) {
@@ -217,6 +254,9 @@ func (r *inviteRepository) List(ctx context.Context, page, pageSize int) ([]*Inv
 		}
 		invites = append(invites, invite)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperrors.Internal("failed to iterate invites", err)
+	}
 
 	var total int
 	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM invites`).Scan(&total); err != nil {
@@ -275,7 +315,7 @@ func (r *profileRepository) getUserByID(ctx context.Context, id string) (*entity
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound("user not found")
+			return nil, apperrors.NotFound(errUserNotFound)
 		}
 		return nil, apperrors.Internal("failed to get user", err)
 	}
@@ -346,6 +386,9 @@ func (r *healthConditionRepository) List(ctx context.Context, userID, conditionT
 			return nil, apperrors.Internal("failed to scan health condition", err)
 		}
 		conditions = append(conditions, condition)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate health conditions", err)
 	}
 	return conditions, nil
 }
@@ -424,6 +467,9 @@ func (r *bodyCompositionRepository) List(ctx context.Context, userID string, fro
 		}
 		records = append(records, bc)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate body composition", err)
+	}
 	return records, nil
 }
 
@@ -477,6 +523,9 @@ func (r *menstrualCycleRepository) List(ctx context.Context, userID string) ([]*
 			return nil, apperrors.Internal("failed to scan menstrual cycle", err)
 		}
 		cycles = append(cycles, cycle)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate menstrual cycles", err)
 	}
 	return cycles, nil
 }
@@ -551,6 +600,9 @@ func (r *achievementRepository) List(ctx context.Context, userID string) ([]*ent
 		}
 		achievements = append(achievements, achievement)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate achievements", err)
+	}
 	return achievements, nil
 }
 
@@ -589,6 +641,9 @@ func (r *deviceRepository) List(ctx context.Context, userID string) ([]*entity.D
 			return nil, apperrors.Internal("failed to scan device", err)
 		}
 		devices = append(devices, device)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate devices", err)
 	}
 	return devices, nil
 }

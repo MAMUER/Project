@@ -112,6 +112,9 @@ func (r *BiometricRepository) GetByUserID(ctx context.Context, userID, metricTyp
 		}
 		records = append(records, record)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate biometric records", err)
+	}
 	return records, nil
 }
 

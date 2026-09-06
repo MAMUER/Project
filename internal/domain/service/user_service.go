@@ -21,25 +21,27 @@ type userService struct {
 	devices      port.DeviceRepository
 }
 
-func NewUserService(
-	users port.UserRepository,
-	profiles port.ProfileRepository,
-	invites port.InviteRepository,
-	health port.HealthConditionRepository,
-	bodyComp port.BodyCompositionRepository,
-	menstrual port.MenstrualCycleRepository,
-	achievements port.AchievementRepository,
-	devices port.DeviceRepository,
-) UserService {
+type UserServiceConfig struct {
+	Users        port.UserRepository
+	Profiles     port.ProfileRepository
+	Invites      port.InviteRepository
+	Health       port.HealthConditionRepository
+	BodyComp     port.BodyCompositionRepository
+	Menstrual    port.MenstrualCycleRepository
+	Achievements port.AchievementRepository
+	Devices      port.DeviceRepository
+}
+
+func NewUserService(cfg UserServiceConfig) UserService {
 	return &userService{
-		users:        users,
-		profiles:     profiles,
-		invites:      invites,
-		health:       health,
-		bodyComp:     bodyComp,
-		menstrual:    menstrual,
-		achievements: achievements,
-		devices:      devices,
+		users:        cfg.Users,
+		profiles:     cfg.Profiles,
+		invites:      cfg.Invites,
+		health:       cfg.Health,
+		bodyComp:     cfg.BodyComp,
+		menstrual:    cfg.Menstrual,
+		achievements: cfg.Achievements,
+		devices:      cfg.Devices,
 	}
 }
 

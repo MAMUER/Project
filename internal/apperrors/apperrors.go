@@ -141,6 +141,10 @@ func IsValidation(err error) bool {
 	return Code(err) == "VALIDATION" || Code(err) == "INVALID_ARGUMENT"
 }
 
+func IsConflict(err error) bool {
+	return Code(err) == "CONFLICT"
+}
+
 func GRPCCode(err error) string {
 	switch Code(err) {
 	case "NOT_FOUND":

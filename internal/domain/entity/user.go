@@ -3,14 +3,24 @@ package entity
 import "time"
 
 type User struct {
-	ID            string
-	Email         string
-	PasswordHash  string
-	FullName      string
-	Role          string
-	EmailVerified bool
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID              string
+	Email           string
+	PasswordHash    string
+	FullName        string
+	Role            string
+	EmailVerified   bool
+	Nickname        string
+	ProfilePhotoURL string
+	Age             int32
+	Gender          string
+	HeightCm        int32
+	WeightKg        float64
+	FitnessLevel    string
+	Goals           []string
+	Nutrition       string
+	SleepHours      float32
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type BiometricRecord struct {

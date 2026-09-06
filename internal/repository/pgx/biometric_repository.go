@@ -113,6 +113,9 @@ func (r *BiometricRepositoryPGX) GetByUserID(ctx context.Context, userID, metric
 		}
 		records = append(records, record)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate biometric records", err)
+	}
 	return records, nil
 }
 
@@ -229,10 +232,13 @@ func (r *BiometricRepositoryPGX) GetMetricsSummary(ctx context.Context, userID s
 			return nil, apperrors.Internal("failed to scan metrics summary", err)
 		}
 		summary[metricType] = map[string]interface{}{
-			"count":     count,
+			"count":      count,
 			"first_seen": firstSeen,
 			"last_seen":  lastSeen,
 		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate metrics summary", err)
 	}
 	return summary, nil
 }

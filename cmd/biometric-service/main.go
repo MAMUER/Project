@@ -38,6 +38,11 @@ import (
 	"github.com/MAMUER/project/internal/repository/postgres"
 )
 
+const (
+	errRecordNotFound = "record not found"
+	serviceName       = "biometric-service"
+)
+
 type biometricServer struct {
 	pb.UnimplementedBiometricServiceServer
 	db           *sql.DB
@@ -484,7 +489,7 @@ func (s *biometricServer) UpdateRecord(ctx context.Context, req *pb.UpdateRecord
 		if err != nil {
 			s.log.Error("Failed to update record", zap.Error(err))
 			if apperrors.IsNotFound(err) {
-				return nil, status.Error(codes.NotFound, "record not found")
+				return nil, status.Error(codes.NotFound, errRecordNotFound)
 			}
 			return nil, status.Error(codes.Internal, "failed to update record")
 		}
@@ -529,7 +534,7 @@ func (s *biometricServer) UpdateRecord(ctx context.Context, req *pb.UpdateRecord
 		&timestamp, &record.DeviceType, &createdAt,
 	)
 	if err == sql.ErrNoRows {
-		return nil, status.Error(codes.NotFound, "record not found")
+		return nil, status.Error(codes.NotFound, errRecordNotFound)
 	}
 	if err != nil {
 		s.log.Error("Failed to update record", zap.Error(err))
@@ -557,7 +562,7 @@ func (s *biometricServer) DeleteRecord(ctx context.Context, req *pb.DeleteRecord
 		if err := s.biometricSvc.DeleteRecord(ctx, req.Id); err != nil {
 			s.log.Error("Failed to delete record", zap.Error(err))
 			if apperrors.IsNotFound(err) {
-				return nil, status.Error(codes.NotFound, "record not found")
+				return nil, status.Error(codes.NotFound, errRecordNotFound)
 			}
 			return nil, status.Error(codes.Internal, "failed to delete record")
 		}
@@ -582,7 +587,7 @@ func (s *biometricServer) DeleteRecord(ctx context.Context, req *pb.DeleteRecord
 
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
-		return nil, status.Error(codes.NotFound, "record not found")
+		return nil, status.Error(codes.NotFound, errRecordNotFound)
 	}
 
 	s.log.Info("BIOMETRIC_DELETED",
@@ -597,7 +602,7 @@ func createGRPCServer(log *logger.Logger, jwtPublicKeyPEM string) *grpc.Server {
 	serverOpts := []grpc.ServerOption{grpc.ChainUnaryInterceptor(
 		middleware.CorrelationIDGRPC(),
 		middleware.GRPCAuthInterceptor(jwtPublicKeyPEM, log.Logger),
-		metrics.UnaryServerInterceptor("biometric-service"),
+		metrics.UnaryServerInterceptor(serviceName),
 	), telemetry.ServerHandlerOption()}
 	return grpctls.NewServer(serverOpts...)
 }
@@ -651,7 +656,7 @@ func setupGracefulShutdown(log *logger.Logger, grpcServer *grpc.Server, metricsS
 }
 
 func main() {
-	log := logger.New("biometric-service")
+	log := logger.New(serviceName)
 
 	shutdownTraces := telemetry.InitTracer()
 	defer func() {
@@ -660,7 +665,7 @@ func main() {
 		}
 	}()
 
-	config.InitViper("biometric-service")
+	config.InitViper(serviceName)
 	v := config.GetViper()
 
 	port := config.GetEnv("BIOMETRIC_SERVICE_PORT", "50052")

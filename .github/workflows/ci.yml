@@ -66,14 +66,6 @@ on:
   issues:
     types: [opened, labeled, unlabeled]
 
-permissions:
-  contents: read
-  packages: write
-  actions: read
-  security-events: write
-  pull-requests: write
-  issues: write
-
 env:
   GO_VERSION: "1.26.5"
   REGISTRY: ghcr.io
@@ -296,10 +288,12 @@ jobs:
         if: github.event_name == 'issues' && github.event.action == 'opened'
         env:
           ISSUE_TITLE: "${{ github.event.issue.title }}"
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"🔴 Critical issue: #${{ github.event.issue.number }}\n$ISSUE_TITLE\n${{ github.event.issue.html_url }}\"}"
+            -d "{\"chat_id\": \"${TELEGRAM_CHAT_ID}\", \"text\": \"🔴 Critical issue: #${{ github.event.issue.number }}\n$ISSUE_TITLE\n${{ github.event.issue.html_url }}\"}"
 
   # ============================================================================
   # FRONTEND CHECKS
@@ -321,7 +315,7 @@ jobs:
       - name: Install dependencies
         run: |
           npm config set registry https://registry.npmjs.org
-          NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --legacy-peer-deps || NPM_CONFIG_MIN_RELEASE_AGE=0 npm install --legacy-peer-deps
+          NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --ignore-scripts --legacy-peer-deps
         working-directory: web
       - name: Lint frontend
         run: npm run lint
@@ -345,7 +339,9 @@ jobs:
         with:
           fetch-depth: 0
       - name: Validate workflow syntax
-        uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # originally: v1.7.12
+        run: |
+          bash <(curl -sSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
 
   # ============================================================================
   # DOCKERFILE LINT
@@ -512,7 +508,7 @@ jobs:
       - name: Install Kubescape
         run: |
           echo "Installing Kubescape via official installer..."
-          curl -fsSL https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh -o /tmp/install-kubescape.sh
+          curl --proto =https -fsSL https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh -o /tmp/install-kubescape.sh
           sudo bash /tmp/install-kubescape.sh -s -- --binary-folder /usr/local/bin
           rm -f /tmp/install-kubescape.sh
           echo "Verifying installation..."
@@ -571,7 +567,7 @@ jobs:
       - run: git config --global init.defaultBranch main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Install Semgrep
-        run: pip install 'semgrep==1.172.0'
+        run: "pip install --only-binary :all: 'semgrep==1.172.0'"
       - name: Run Semgrep scan
         run: |
           mkdir -p sarif-results
@@ -655,7 +651,7 @@ jobs:
           cache: true
       - name: Install osv-scanner
         run: |
-          GOBIN="$HOME/go/bin" go install github.com/google/osv-scanner/cmd/osv-scanner@latest
+          GOBIN="$HOME/go/bin" go install github.com/google/osv-scanner/cmd/osv-scanner@v2.5.1
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
       - name: Run osv-scanner
         run: |
@@ -669,6 +665,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate-workflow, dockerfile-lint]
     timeout-minutes: 45
+    permissions:
+      security-events: write
     steps:
       - name: Configure Git default branch
         run: git config --global init.defaultBranch main
@@ -733,13 +731,13 @@ jobs:
       - name: Install frontend dependencies for Trivy
         run: |
           npm config set registry https://registry.npmjs.org
-          NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --legacy-peer-deps || NPM_CONFIG_MIN_RELEASE_AGE=0 npm install --legacy-peer-deps
+          NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --ignore-scripts --legacy-peer-deps
         working-directory: web
 
       - name: Install Python dependencies for Trivy
         run: |
           python -m pip install --upgrade pip
-          pip install -r cmd/ml_generator/requirements.lock.txt
+          pip install --only-binary :all: -r cmd/ml_generator/requirements.lock.txt
 
       - name: Run Trivy filesystem scan (vulnerabilities + secrets + misconfig)
         id: trivy-fs
@@ -777,7 +775,7 @@ jobs:
       - name: Install Gitleaks
         run: |
           for attempt in 1 2 3 4 5; do
-            if curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz; then
+            if curl --proto =https -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz; then
               break
             fi
             echo "Gitleaks download failed (attempt $attempt), retrying..."
@@ -798,7 +796,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install TruffleHog
         run: |
-          curl -sSfL https://github.com/trufflesecurity/trufflehog/releases/download/v3.82.0/trufflehog_3.82.0_linux_amd64.tar.gz -o /tmp/trufflehog.tar.gz
+          curl --proto =https -sSfL https://github.com/trufflesecurity/trufflehog/releases/download/v3.82.0/trufflehog_3.82.0_linux_amd64.tar.gz -o /tmp/trufflehog.tar.gz
           tar -xzf /tmp/trufflehog.tar.gz -C /usr/local/bin trufflehog
           chmod +x /usr/local/bin/trufflehog
       - name: Run TruffleHog secret scan
@@ -811,7 +809,7 @@ jobs:
           fi
       - name: Install syft
         run: |
-          curl -fsSL https://raw.githubusercontent.com/anchore/syft/main/install.sh -o /tmp/install.sh
+          curl --proto =https -fsSL https://raw.githubusercontent.com/anchore/syft/main/install.sh -o /tmp/install.sh
           bash /tmp/install.sh -b /usr/local/bin
           rm -f /tmp/install.sh
       - name: Generate SBOM with syft
@@ -923,7 +921,7 @@ jobs:
       - name: Install frontend dependencies
         run: |
           npm config set registry https://registry.npmjs.org
-          NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --legacy-peer-deps || NPM_CONFIG_MIN_RELEASE_AGE=0 npm install --legacy-peer-deps
+          NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --ignore-scripts --legacy-peer-deps
         working-directory: web
       - name: Run tests and collect coverage
         continue-on-error: true
@@ -1029,7 +1027,7 @@ jobs:
         run: |
           echo "-> Running kube-hunter (passive scan)..."
           mkdir -p security-results
-          pip install kube-hunter
+          pip install --only-binary :all: kube-hunter==0.6.8
           kube-hunter --remote 127.0.0.1 --json > security-results/kube-hunter-results.json 2>&1 || true
           echo "✅ kube-hunter scan completed (results in security-results/kube-hunter-results.json)"
 
@@ -1051,7 +1049,7 @@ jobs:
         run: |
           echo "-> Running Checkov..."
           mkdir -p sarif-results
-          pip install 'checkov==3.3.9'
+          pip install --only-binary :all: 'checkov==3.3.9'
           checkov --directory configs/k8s --directory scripts --output sarif --output-file sarif-results/checkov-results.sarif || true
           echo "✅ Checkov scan completed"
       - name: Upload Checkov SARIF
@@ -1214,6 +1212,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [binary_build, security-scan]
     timeout-minutes: 60
+    permissions:
+      packages: write
     steps:
       - run: git config --global init.defaultBranch main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
@@ -1323,7 +1323,7 @@ jobs:
             digest=$(docker buildx imagetools inspect "$REGISTRY/mamuer/project/$svc:$IMAGE_TAG" --format '{{.Digest}}' 2>/dev/null || true)
             if [ -z "$digest" ]; then
               manifest_url="https://ghcr.io/v2/mamuer/project/$svc/manifests/$IMAGE_TAG"
-              digest=$(curl -s -L -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+              digest=$(curl --proto =https -s -L -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
                 -H "Authorization: Bearer $GITHUB_TOKEN" \
                 "$manifest_url" -I | grep -i 'docker-content-digest' | head -1 | awk '{print $2}' | tr -d '\r')
             fi
@@ -1404,39 +1404,55 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Add VPS to known_hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
       - name: Make retry script executable
         run: chmod +x scripts/ssh-retry.sh
       - name: Configure swap on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/configure-swap.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/configure-swap.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo chmod +x /tmp/configure-swap.sh && sudo /tmp/configure-swap.sh"
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/configure-swap.sh "${VPS_USER}@${VPS_HOST}:/tmp/configure-swap.sh"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo chmod +x /tmp/configure-swap.sh && sudo /tmp/configure-swap.sh"
       - name: Check disk space on VPS
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" <<'EOF'
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" <<'EOF'
           DISK_USAGE=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
           echo "Current disk usage: ${DISK_USAGE}%"
           if [ "$DISK_USAGE" -gt 90 ]; then
             echo "⚠️ WARNING: Disk usage is over 90%!"
-            curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+            curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
               -H "Content-Type: application/json" \
-              -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"⚠️ VPS Disk usage is ${DISK_USAGE}%!\"}" || true
+              -d "{\"chat_id\": \"${TELEGRAM_CHAT_ID}\", \"text\": \"⚠️ VPS Disk usage is ${DISK_USAGE}%!\"}" || true
           fi
           EOF
       - name: Install AmneziaWG systemd service
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/amneziawg-go.service "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/amneziawg-go.service"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/amneziawg-go.service "${VPS_USER}@${VPS_HOST}:/tmp/amneziawg-go.service"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
             sudo mv /tmp/amneziawg-go.service /etc/systemd/system/amneziawg-go.service
             sudo systemctl daemon-reload
             sudo systemctl enable --now amneziawg-go.service
             echo '✅ amneziawg-go systemd service installed and started'
           "
       - name: Configure CPU governor and k3s watchdog
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" <<'EOF'
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" <<'EOF'
           set -euo pipefail
           echo "-> Configuring CPU governor..."
           if [ -d /sys/devices/system/cpu/cpufreq ]; then
@@ -1460,8 +1476,11 @@ jobs:
           echo "✅ k3s watchdog and CPU quota configured"
           EOF
       - name: Configure Docker and System log rotation
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" <<'EOF'
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" <<'EOF'
           echo "-> Setting up Docker log rotation..."
           sudo mkdir -p /etc/docker
           cat <<EOT | sudo tee /etc/docker/daemon.json
@@ -1487,8 +1506,11 @@ jobs:
           EOF
       - name: Clean up old k3s
         if: github.event_name == 'workflow_dispatch' && inputs.run_mode == 'recreate-cluster'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           set -x
           echo \"-> Stopping k3s...\"
           systemctl stop k3s 2>/dev/null || true
@@ -1500,18 +1522,24 @@ jobs:
           echo \"Cleanup done\"
           "
       - name: Fix DNS resolv.conf permanently
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           echo "-> Uploading DNS fix script to VPS..."
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/fix-dns.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/fix-dns.sh"
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/fix-dns.sh "${VPS_USER}@${VPS_HOST}:/tmp/fix-dns.sh"
           echo "-> Running DNS fix script on VPS..."
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           sudo chmod +x /tmp/fix-dns.sh
           sudo /tmp/fix-dns.sh
           rm -f /tmp/fix-dns.sh
           "
       - name: Prepare k3s config on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./configs/k8s/scripts/generate-k3s-config.sh "${{ secrets.VPS_HOST }}" /tmp/k3s-config-remote.yaml
+          ./configs/k8s/scripts/generate-k3s-config.sh "${VPS_HOST}" /tmp/k3s-config-remote.yaml
           if command -v python3 &>/dev/null; then
             python3 -c "import yaml; yaml.safe_load(open('/tmp/k3s-config-remote.yaml'))" || {
               echo "❌ Generated config is invalid YAML"
@@ -1520,18 +1548,21 @@ jobs:
             }
             echo "✅ Config YAML is valid"
           fi
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           mkdir -p /etc/rancher/k3s
           echo 'Directory /etc/rancher/k3s created'
           "
-          ./scripts/ssh-retry.sh scp /tmp/k3s-config-remote.yaml "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/etc/rancher/k3s/config.yaml"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh scp /tmp/k3s-config-remote.yaml "${VPS_USER}@${VPS_HOST}:/etc/rancher/k3s/config.yaml"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           echo '=== Config written to /etc/rancher/k3s/config.yaml ==='
           cat /etc/rancher/k3s/config.yaml
           "
       - name: Restart k3s if config changed
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           set -euo pipefail
           if [ ! -f /etc/systemd/system/k3s.service ] && [ ! -f /usr/local/bin/k3s ]; then
             echo '✅ k3s is not installed yet, skipping restart (will be installed in next steps)'
@@ -1565,23 +1596,28 @@ jobs:
       - name: Download k3s binary and install script
         run: |
           echo "-> Downloading k3s binary and install script..."
-          curl -sfL -o /tmp/k3s https://github.com/k3s-io/k3s/releases/download/v1.36.2%2Bk3s1/k3s
+          curl --proto =https -sfL -o /tmp/k3s https://github.com/k3s-io/k3s/releases/download/v1.36.2%2Bk3s1/k3s
           chmod +x /tmp/k3s
-          curl -sfL -o /tmp/install.sh https://get.k3s.io
+          curl --proto =https -sfL -o /tmp/install.sh https://get.k3s.io
           chmod +x /tmp/install.sh
           echo "Download complete."
       - name: Upload k3s files to VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /tmp/k3s-install"
-          ./scripts/ssh-retry.sh scp /tmp/k3s "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/k3s-install/k3s"
-          ./scripts/ssh-retry.sh scp /tmp/install.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/k3s-install/install.sh"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "mkdir -p /tmp/k3s-install"
+          ./scripts/ssh-retry.sh scp /tmp/k3s "${VPS_USER}@${VPS_HOST}:/tmp/k3s-install/k3s"
+          ./scripts/ssh-retry.sh scp /tmp/install.sh "${VPS_USER}@${VPS_HOST}:/tmp/k3s-install/install.sh"
       - name: Install k3s on VPS
         env:
           SSH_RETRY_TIMEOUT: 600
           SSH_RETRY_MAX_ATTEMPTS: 5
           SSH_RETRY_DELAY_SECONDS: 15
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           set -euo pipefail
           echo \"-> Moving k3s binary to /usr/local/bin...\"
           sudo mv /tmp/k3s-install/k3s /usr/local/bin/k3s || mv /tmp/k3s-install/k3s /usr/local/bin/k3s
@@ -1594,13 +1630,19 @@ jobs:
           rm -rf /tmp/k3s-install
           "
       - name: Configure host-level disk encryption for k3s storage (fscrypt/dm-crypt)
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/configure-storage-encryption.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/configure-storage-encryption.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo chmod +x /tmp/configure-storage-encryption.sh && sudo /tmp/configure-storage-encryption.sh || true"
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/configure-storage-encryption.sh "${VPS_USER}@${VPS_HOST}:/tmp/configure-storage-encryption.sh"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo chmod +x /tmp/configure-storage-encryption.sh && sudo /tmp/configure-storage-encryption.sh || true"
       - name: Cleanup disk space on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           echo "-> Cleaning up disk space on VPS..."
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           echo '=== Disk usage before cleanup ==='
           df -h /
           echo ''
@@ -1646,8 +1688,11 @@ jobs:
           echo '✅ Disk cleanup completed'
           "
       - name: Pre-pull system images via Docker
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           echo \"-> Pre-pulling system images via Docker...\"
           docker pull rancher/mirrored-pause:3.6 || echo \"pause image pull failed, continuing\"
           docker pull rancher/mirrored-coredns-coredns:1.10.1 || echo \"coredns pull failed\"
@@ -1658,8 +1703,11 @@ jobs:
           docker images | head -10
           "
       - name: Start and verify k3s
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           echo \"-> Starting k3s...\"
           systemctl daemon-reload
           systemctl enable --now k3s
@@ -1677,18 +1725,27 @@ jobs:
           k3s kubectl get pods -A
           "
       - name: Limit k3s memory usage
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/k3s-memory-watchdog.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/k3s-memory-watchdog.sh"
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/setup-k3s-memory.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/setup-k3s-memory.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo chmod +x /tmp/setup-k3s-memory.sh && sudo /tmp/setup-k3s-memory.sh"
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/k3s-memory-watchdog.sh "${VPS_USER}@${VPS_HOST}:/tmp/k3s-memory-watchdog.sh"
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/setup-k3s-memory.sh "${VPS_USER}@${VPS_HOST}:/tmp/setup-k3s-memory.sh"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo chmod +x /tmp/setup-k3s-memory.sh && sudo /tmp/setup-k3s-memory.sh"
       - name: Fix local-path-provisioner RBAC and ensure WaitForFirstConsumer binding mode
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/fix-local-path.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/fix-local-path.sh"
-          ./scripts/ssh-retry.sh scp configs/k8s/base/local-path-provisioner.yaml "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/local-path-provisioner.yaml"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo chmod +x /tmp/fix-local-path.sh && sudo /tmp/fix-local-path.sh"
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/fix-local-path.sh "${VPS_USER}@${VPS_HOST}:/tmp/fix-local-path.sh"
+          ./scripts/ssh-retry.sh scp configs/k8s/base/local-path-provisioner.yaml "${VPS_USER}@${VPS_HOST}:/tmp/local-path-provisioner.yaml"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo chmod +x /tmp/fix-local-path.sh && sudo /tmp/fix-local-path.sh"
       - name: Ensure k3s certificates include domain and external IP
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           set -euo pipefail
           if ! k3s kubectl get --raw /livez &>/dev/null; then
             echo \"API не отвечает\"; exit 1
@@ -1741,31 +1798,41 @@ jobs:
 
           echo "✅ Certificate and WAF configuration complete"
       - name: Setup DuckDNS auto-updater
+        env:
+          DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           echo '-> Setting up DuckDNS auto-updater...'
-          echo '${{ secrets.DUCKDNS_TOKEN }}' | sudo tee /etc/duckdns/token > /dev/null
+          echo '${DUCKDNS_TOKEN}' | sudo tee /etc/duckdns/token > /dev/null
           sudo chmod 600 /etc/duckdns/token
           sudo mkdir -p /etc/duckdns
           "
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/duckdns-update.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/usr/local/bin/duckdns-update.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/duckdns-update.sh "${VPS_USER}@${VPS_HOST}:/usr/local/bin/duckdns-update.sh"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           sudo chmod +x /usr/local/bin/duckdns-update.sh
           (sudo crontab -l 2>/dev/null | grep -v duckdns-update; echo '*/5 * * * * /usr/local/bin/duckdns-update.sh >> /var/log/duckdns.log 2>&1') | sudo crontab -
           sudo /usr/local/bin/duckdns-update.sh
           echo '✅ DuckDNS auto-updater configured (every 5 minutes)'
           "
       - name: Setup ML infrastructure directories
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           echo "-> Creating directories for ML storage..."
           sudo mkdir -p /opt/fitpulse/mlflow-data
-          sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /opt/fitpulse
+          sudo chown -R ${VPS_USER}:${VPS_USER} /opt/fitpulse
           echo "✅ Directories created: /opt/fitpulse/mlflow-data"
           "
       - name: Deploy MLflow service
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           mkdir -p ~/fitpulse/deployments
           docker rm -f fitpulse-mlflow 2>/dev/null || true
           docker run -d \
@@ -1786,16 +1853,20 @@ jobs:
             fi
             sleep 2
           done
-          echo \"✅ MLflow deployed: http://${{ secrets.VPS_HOST }}:5000\"
+          echo \"✅ MLflow deployed: http://${VPS_HOST}:5000\"
           "
       - name: Setup Postgres automated backups
+        env:
+          BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          if [ -n "${{ secrets.BACKUP_KEY }}" ]; then
-            echo -n "${{ secrets.BACKUP_KEY }}" > /tmp/backup.key
+          if [ -n "${BACKUP_KEY}" ]; then
+            echo -n "${BACKUP_KEY}" > /tmp/backup.key
             chmod 600 /tmp/backup.key
-            ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo mkdir -p /etc/fitpulse"
-            ./scripts/ssh-retry.sh scp /tmp/backup.key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/backup.key"
-            ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+            ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo mkdir -p /etc/fitpulse"
+            ./scripts/ssh-retry.sh scp /tmp/backup.key "${VPS_USER}@${VPS_HOST}:/tmp/backup.key"
+            ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
             sudo mv /tmp/backup.key /etc/fitpulse/backup.key
             sudo chmod 600 /etc/fitpulse/backup.key
             sudo chown root:root /etc/fitpulse/backup.key
@@ -1804,9 +1875,9 @@ jobs:
             rm -f /tmp/backup.key
           else
             echo "⚠️ BACKUP_KEY secret is not set in GitHub. Backups will NOT be encrypted."
-            ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo rm -f /etc/fitpulse/backup.key || true"
+            ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo rm -f /etc/fitpulse/backup.key || true"
           fi
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           sudo mkdir -p /opt/fitpulse/backups
           cat <<'BACKUP_EOF' | sudo tee /usr/local/bin/backup-postgres.sh > /dev/null
           #!/bin/bash
@@ -1833,17 +1904,25 @@ jobs:
           echo '✅ Postgres backups configured (daily at 2 AM)'
           "
       - name: Deploy health check script
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/check-server-health.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/usr/local/bin/check-server-health.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/check-server-health.sh "${VPS_USER}@${VPS_HOST}:/usr/local/bin/check-server-health.sh"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           sudo chmod +x /usr/local/bin/check-server-health.sh
           (sudo crontab -l 2>/dev/null | grep -v check-server-health) | sudo crontab -
-          (sudo crontab -l 2>/dev/null; echo '0 9 * * * TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }} /usr/local/bin/check-server-health.sh --silent >> /var/log/server-health.log 2>&1') | sudo crontab -
+          (sudo crontab -l 2>/dev/null; echo '0 9 * * * TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN} TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID} /usr/local/bin/check-server-health.sh --silent >> /var/log/server-health.log 2>&1') | sudo crontab -
           echo '✅ Health check script deployed and cron configured'
           "
       - name: Generate kubeconfig with external domain
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           set -euo pipefail
           sudo cp /etc/rancher/k3s/k3s.yaml /tmp/k3s-domain.yaml
           sudo sed -i 's|0.0.0.0|${{ env.FITPULSE_DOMAIN }}|g' /tmp/k3s-domain.yaml
@@ -1854,9 +1933,12 @@ jobs:
           echo \"✅ Kubeconfig saved to ~/k3s-config.yaml\"
           "
       - name: Download kubeconfig artifact
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           ./scripts/ssh-retry.sh scp \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/k3s-config.yaml" \
+            "${VPS_USER}@${VPS_HOST}:~/k3s-config.yaml" \
             ./k3s-config.yaml
       - name: Upload kubeconfig artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # originally: v7
@@ -1894,22 +1976,26 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Add VPS to known_hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
       - name: Download kubeconfig artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # originally: v8
         with:
           name: kubeconfig
           path: ./kubeconfig
       - name: Resolve VPS hostname and add to /etc/hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          VPS_IP=$(dig +short "${{ secrets.VPS_HOST }}" | head -1)
+          VPS_IP=$(dig +short "${VPS_HOST}" | head -1)
           if [ -z "$VPS_IP" ]; then
-            VPS_IP=$(nslookup "${{ secrets.VPS_HOST }}" | grep -A1 "Name:" | tail -1 | awk '{print $2}')
+            VPS_IP=$(nslookup "${VPS_HOST}" | grep -A1 "Name:" | tail -1 | awk '{print $2}')
           fi
           if [ -z "$VPS_IP" ]; then
-            VPS_IP="${{ secrets.VPS_HOST }}"
+            VPS_IP="${VPS_HOST}"
           fi
           echo "Resolved VPS_IP: $VPS_IP"
           echo "$VPS_IP ${{ env.FITPULSE_DOMAIN }}" | sudo tee -a /etc/hosts
@@ -1919,12 +2005,15 @@ jobs:
           cp ./kubeconfig/k3s-config.yaml "$HOME/.kube/config"
           chmod 600 "$HOME/.kube/config"
       - name: Create staging namespace and image pull secret
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           kubectl create namespace fitness-platform-staging --dry-run=client -o yaml | kubectl apply --validate=false -f -
           kubectl create secret docker-registry ghcr-pull-secret \
             --docker-server=ghcr.io \
-            --docker-username=${{ github.actor }} \
-            --docker-password=${{ secrets.GHCR_TOKEN }} \
+            --docker-username=$GITHUB_ACTOR \
+            --docker-password=${GHCR_TOKEN} \
             -n fitness-platform-staging \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
       - name: Update image tags to SHA for staging
@@ -2000,13 +2089,18 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Add VPS to known_hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
       - name: Deploy health check script
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/check-server-health.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/usr/local/bin/check-server-health.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh scp configs/k8s/scripts/check-server-health.sh "${VPS_USER}@${VPS_HOST}:/usr/local/bin/check-server-health.sh"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           sudo chmod +x /usr/local/bin/check-server-health.sh
           echo '✅ Health check script deployed'
           "
@@ -2014,21 +2108,26 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" \
             "mkdir -p /etc/fitpulse && chmod 700 /etc/fitpulse"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "printf '%s\n' '${{ secrets.TELEGRAM_BOT_TOKEN }}' > /etc/fitpulse/telegram-bot-token && chmod 600 /etc/fitpulse/telegram-bot-token"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "printf '%s\n' '${{ secrets.TELEGRAM_CHAT_ID }}' > /etc/fitpulse/telegram-chat-id && chmod 600 /etc/fitpulse/telegram-chat-id"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" \
+            "printf '%s\n' '${TELEGRAM_BOT_TOKEN}' > /etc/fitpulse/telegram-bot-token && chmod 600 /etc/fitpulse/telegram-bot-token"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" \
+            "printf '%s\n' '${TELEGRAM_CHAT_ID}' > /etc/fitpulse/telegram-chat-id && chmod 600 /etc/fitpulse/telegram-chat-id"
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
             export TELEGRAM_BOT_TOKEN=\$(cat /etc/fitpulse/telegram-bot-token)
             export TELEGRAM_CHAT_ID=\$(cat /etc/fitpulse/telegram-chat-id)
             /usr/local/bin/check-server-health.sh || true
             "
       - name: Setup daily health check cron
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           (sudo crontab -l 2>/dev/null | grep -v check-server-health) | sudo crontab -
           cat <<'CRON' | sudo crontab -
           0 9 * * * /usr/local/bin/check-server-health.sh --silent >> /var/log/server-health.log 2>&1
@@ -2102,24 +2201,28 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Add VPS to known_hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
       - name: Download kubeconfig artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # originally: v8
         with:
           name: kubeconfig
           path: ./kubeconfig
       - name: Resolve VPS hostname and add to /etc/hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          VPS_IP=$(dig +short "${{ secrets.VPS_HOST }}" | head -1)
+          VPS_IP=$(dig +short "${VPS_HOST}" | head -1)
           if [ -z "$VPS_IP" ]; then
             echo "dig failed, trying nslookup..."
-            VPS_IP=$(nslookup "${{ secrets.VPS_HOST }}" | grep -A1 "Name:" | tail -1 | awk '{print $2}')
+            VPS_IP=$(nslookup "${VPS_HOST}" | grep -A1 "Name:" | tail -1 | awk '{print $2}')
           fi
           if [ -z "$VPS_IP" ]; then
             echo "Failed to resolve VPS_HOST, using VPS_HOST as IP (assuming it's an IP address)"
-            VPS_IP="${{ secrets.VPS_HOST }}"
+            VPS_IP="${VPS_HOST}"
           fi
           echo "Resolved VPS_IP: $VPS_IP"
           echo "$VPS_IP ${{ env.FITPULSE_DOMAIN }}" | sudo tee -a /etc/hosts
@@ -2153,9 +2256,11 @@ jobs:
           }
       - name: Check cluster connectivity
         id: connectivity
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
-          echo "Testing connectivity to ${{ secrets.VPS_HOST }}:6443..."
-          if timeout 10 bash -c "</dev/tcp/${{ secrets.VPS_HOST }}/6443" 2>/dev/null; then
+          echo "Testing connectivity to ${VPS_HOST}:6443..."
+          if timeout 10 bash -c "</dev/tcp/${VPS_HOST}/6443" 2>/dev/null; then
             echo "Cluster reachable"
             echo "reachable=true" >> "$GITHUB_OUTPUT"
           else
@@ -2165,13 +2270,16 @@ jobs:
           fi
       - name: Create image pull secret for GHCR
         if: steps.connectivity.outputs.reachable == 'true'
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
         run: |
           echo "Creating imagePullSecret for ghcr.io..."
           kubectl create namespace fitness-platform-production --dry-run=client -o yaml | kubectl apply --validate=false -f -
           kubectl create secret docker-registry ghcr-pull-secret \
             --docker-server=ghcr.io \
-            --docker-username=${{ github.actor }} \
-            --docker-password=${{ secrets.GHCR_TOKEN }} \
+            --docker-username=$GITHUB_ACTOR \
+            --docker-password=${GHCR_TOKEN} \
             -n fitness-platform-production \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
           echo "imagePullSecret created/updated"
@@ -2215,6 +2323,20 @@ jobs:
         env:
           RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
           RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          JWT_PRIVATE_KEY_PEM: ${{ secrets.JWT_PRIVATE_KEY_PEM }}
+          JWT_PUBLIC_KEY_PEM: ${{ secrets.JWT_PUBLIC_KEY_PEM }}
+          OPEN_WEARABLES_WEBHOOK_SECRET: ${{ secrets.OPEN_WEARABLES_WEBHOOK_SECRET }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          TOTP_ENCRYPTION_KEY: ${{ secrets.TOTP_ENCRYPTION_KEY }}
+          VALKEY_PASSWORD: ${{ secrets.VALKEY_PASSWORD }}
         run: |
           echo "Generating gRPC mTLS certificates..."
           mkdir -p /tmp/grpc-certs
@@ -2234,30 +2356,30 @@ jobs:
           echo "✅ gRPC mTLS certificates generated"
 
           echo "Creating app-secrets..."
-          RABBITMQ_URL="amqp://${{ secrets.RABBITMQ_USER }}:${{ secrets.RABBITMQ_PASS }}@rabbitmq:5672/"
+          RABBITMQ_URL="amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/"
           kubectl create secret generic app-secrets -n fitness-platform-production \
             --from-literal=POSTGRES_USER=postgres \
-            --from-literal=POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+            --from-literal=POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
             --from-literal=POSTGRES_DB=fitness \
-            --from-literal=JWT_PRIVATE_KEY_PEM=${{ secrets.JWT_PRIVATE_KEY_PEM }} \
-            --from-literal=JWT_PUBLIC_KEY_PEM=${{ secrets.JWT_PUBLIC_KEY_PEM }} \
-            --from-literal=RABBITMQ_USER=${{ secrets.RABBITMQ_USER }} \
-            --from-literal=RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }} \
-            --from-literal=VALKEY_PASSWORD=${{ secrets.VALKEY_PASSWORD }} \
+            --from-literal=JWT_PRIVATE_KEY_PEM=${JWT_PRIVATE_KEY_PEM} \
+            --from-literal=JWT_PUBLIC_KEY_PEM=${JWT_PUBLIC_KEY_PEM} \
+            --from-literal=RABBITMQ_USER=${RABBITMQ_USER} \
+            --from-literal=RABBITMQ_PASS=${RABBITMQ_PASS} \
+            --from-literal=VALKEY_PASSWORD=${VALKEY_PASSWORD} \
             --from-literal=RABBITMQ_URL="$RABBITMQ_URL" \
             --from-literal=SMTP_HOST=${{ vars.SMTP_HOST }} \
             --from-literal=SMTP_PORT=${{ vars.SMTP_PORT }} \
-            --from-literal=SMTP_USER=${{ secrets.SMTP_USER }} \
-            --from-literal=SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }} \
-            --from-literal=SMTP_FROM=${{ secrets.SMTP_FROM }} \
+            --from-literal=SMTP_USER=${SMTP_USER} \
+            --from-literal=SMTP_PASSWORD=${SMTP_PASSWORD} \
+            --from-literal=SMTP_FROM=${SMTP_FROM} \
             --from-literal=APP_BASE_URL=${{ vars.APP_BASE_URL }} \
-            --from-literal=SEED_ADMIN_EMAIL=${{ secrets.SEED_ADMIN_EMAIL }} \
-            --from-literal=SEED_ADMIN_PASSWORD=${{ secrets.SEED_ADMIN_PASSWORD }} \
-            --from-literal=OPEN_WEARABLES_WEBHOOK_SECRET=${{ secrets.OPEN_WEARABLES_WEBHOOK_SECRET }} \
-            --from-literal=GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
-            --from-literal=GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }} \
+            --from-literal=SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL} \
+            --from-literal=SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD} \
+            --from-literal=OPEN_WEARABLES_WEBHOOK_SECRET=${OPEN_WEARABLES_WEBHOOK_SECRET} \
+            --from-literal=GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID} \
+            --from-literal=GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET} \
             --from-literal=GOOGLE_REDIRECT_URL=${{ vars.GOOGLE_REDIRECT_URL }} \
-            --from-literal=TOTP_ENCRYPTION_KEY=${{ secrets.TOTP_ENCRYPTION_KEY }} \
+            --from-literal=TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY} \
             --from-file=GRPC_TLS_CERT=/tmp/grpc-certs/server.crt \
             --from-file=GRPC_TLS_KEY=/tmp/grpc-certs/server.key \
             --from-file=GRPC_TLS_CA_CERT=/tmp/grpc-certs/ca.crt \
@@ -2274,7 +2396,7 @@ jobs:
           sleep 10
           echo "Creating monitoring-secrets..."
           kubectl create secret generic monitoring-secrets -n fitness-platform-production \
-            --from-literal=grafana-admin-password=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
+            --from-literal=grafana-admin-password=${GRAFANA_ADMIN_PASSWORD} \
             --dry-run=client -o yaml | kubectl apply --validate=false -f -
           echo "✅ monitoring-secrets created"
       - name: Update image tags to SHA
@@ -2288,9 +2410,12 @@ jobs:
           done
       - name: Cleanup disk space on VPS
         if: steps.connectivity.outputs.reachable == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           echo "-> Cleaning up disk space on VPS..."
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           echo '=== Disk usage before cleanup ==='
           df -h /
           echo ''
@@ -2334,12 +2459,17 @@ jobs:
           "
       - name: Pre-pull application images on VPS
         if: steps.connectivity.outputs.reachable == 'true'
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           SHA=$(git rev-parse --short HEAD)
           echo "-> Pre-pulling application images with tag $SHA on VPS..."
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
+          ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
           echo 'Logging in to GHCR on VPS...'
-          echo '${{ secrets.GHCR_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin || true
+          echo '${GHCR_TOKEN}' | docker login ghcr.io -u '$GITHUB_ACTOR' --password-stdin || true
           for svc in user-service biometric-service training-service gateway device-aggregator classifier; do
             echo \"Pulling ghcr.io/mamuer/project/\$svc:$SHA...\"
             docker pull ghcr.io/mamuer/project/\$svc:$SHA || echo \"Failed to pull \$svc, continuing...\"
@@ -2402,6 +2532,9 @@ jobs:
           echo "✅ Traefik cleanup complete (non-fatal)"
       - name: Apply production overlay with Kustomize
         if: steps.connectivity.outputs.reachable == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           set -euo pipefail
           echo "Waiting for k8s API internal availability..."
@@ -2438,7 +2571,7 @@ jobs:
                 sleep 20
                 if ! kubectl get nodes >/dev/null 2>&1; then
                   echo "API server is unresponsive. Restarting k3s via SSH..."
-                  ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo systemctl restart k3s" || true
+                  ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo systemctl restart k3s" || true
                   echo "Waiting 40s for k3s to restart..."
                   sleep 40
                   for _j in {1..30}; do
@@ -2595,15 +2728,18 @@ jobs:
           done
       - name: Run seed-admin job
         if: steps.connectivity.outputs.reachable == 'true'
+        env:
+          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
         run: |
           echo "=== Running seed-admin job ==="
           echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
           echo "-> Checking required secrets..."
-          if [ -z "${{ secrets.SEED_ADMIN_EMAIL }}" ]; then
+          if [ -z "${SEED_ADMIN_EMAIL}" ]; then
             echo "❌ SEED_ADMIN_EMAIL is empty!"
             exit 1
           fi
-          if [ -z "${{ secrets.SEED_ADMIN_PASSWORD }}" ]; then
+          if [ -z "${SEED_ADMIN_PASSWORD}" ]; then
             echo "❌ SEED_ADMIN_PASSWORD is empty!"
             exit 1
           fi
@@ -2693,7 +2829,7 @@ jobs:
             echo "→ Checking if admin exists in database (idempotent check)..."
             DB_CHECK=$(kubectl exec -n fitness-platform-production postgres-0 -- \
               psql -U postgres -d fitness -tAc \
-              "SELECT COUNT(*) FROM users WHERE email='${{ secrets.SEED_ADMIN_EMAIL }}'" 2>/dev/null || echo "0")
+              "SELECT COUNT(*) FROM users WHERE email='${SEED_ADMIN_EMAIL}'" 2>/dev/null || echo "0")
             if [ "$DB_CHECK" = "1" ]; then
               echo "✅ Admin user already exists in database (idempotent check passed)"
             else
@@ -2741,6 +2877,9 @@ jobs:
           fi
       - name: Debug pod status after deploy
         if: always() && steps.connectivity.outputs.reachable == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           for i in {1..30}; do
             if kubectl get --raw=/healthz &>/dev/null; then
@@ -2748,7 +2887,7 @@ jobs:
             fi
             if [ "$i" -eq 30 ]; then
               echo "API not available, restarting k3s..."
-              ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo systemctl restart k3s"
+              ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo systemctl restart k3s"
               sleep 30
             fi
             sleep 5
@@ -2769,6 +2908,9 @@ jobs:
           kubectl get events -n fitness-platform-production --sort-by='.lastTimestamp' | tail -20 || true
       - name: Verify production deployment
         if: steps.connectivity.outputs.reachable == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
         run: |
           for i in {1..30}; do
             if kubectl get --raw=/healthz &>/dev/null; then
@@ -2776,7 +2918,7 @@ jobs:
             fi
             if [ "$i" -eq 30 ]; then
               echo "API not available, restarting k3s..."
-              ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo systemctl restart k3s"
+              ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo systemctl restart k3s"
               sleep 30
             fi
             sleep 5
@@ -2788,6 +2930,8 @@ jobs:
           sleep 30
       - name: Deploy Open Wearables
         if: steps.connectivity.outputs.reachable == 'true'
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
           echo "=== Deploying Open Wearables ==="
           kubectl apply -k configs/k8s/base/ -n fitness-platform-production
@@ -2807,7 +2951,7 @@ jobs:
     needs: [deploy-production]
     timeout-minutes: 30
     env:
-      PRODUCTION_URL: ${{ secrets.VPS_HOST }}
+      PRODUCTION_URL: ${VPS_HOST}
     steps:
       - run: git config --global init.defaultBranch main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
@@ -3050,15 +3194,19 @@ jobs:
     name: Dependabot auto-merge
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
+    permissions:
+      pull-requests: write
     steps:
       - name: Enable auto-merge for Dependabot PRs
-        run: gh pr merge --auto --squash "$PR_URL"
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${GITHUB_TOKEN}
+        run: gh pr merge --auto --squash "$PR_URL"
       - name: Auto-approve minor/patch updates
         if: contains(github.event.pull_request.title, 'minor') || contains(github.event.pull_request.title, 'patch')
-        run: gh pr review --approve "$PR_URL"
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${GITHUB_TOKEN}
+        run: gh pr review --approve "$PR_URL"

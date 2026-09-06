@@ -39,6 +39,8 @@ import (
 	"github.com/MAMUER/project/internal/repository/postgres"
 )
 
+const personalizedPlanName = "Персонализированная программа"
+
 type trainingServer struct {
 	pb.UnimplementedTrainingServiceServer
 	db           *sql.DB
@@ -129,7 +131,7 @@ func (s *trainingServer) deleteExistingActivePlan(ctx context.Context, userID st
 
 func (s *trainingServer) preparePlanData(classificationClass string, req *pb.GeneratePlanRequest) map[string]interface{} {
 	planData := map[string]interface{}{
-		"name":           "Персонализированная программа",
+		"name":           personalizedPlanName,
 		"class":          classificationClass,
 		"confidence":     req.Confidence,
 		"duration_weeks": int(req.DurationWeeks),
@@ -171,7 +173,7 @@ func (s *trainingServer) savePlanToDatabase(ctx context.Context, opts savePlanOp
 	_, err := opts.tx.ExecContext(ctx, `
 		INSERT INTO training_plans (id, user_id, name, training_goal, classification_class, duration_weeks, generated_at, start_date, end_date, status, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-	`, opts.planID, opts.userID, "Персонализированная программа", opts.classificationClass, opts.classificationClass, opts.durationWeeks, time.Now(), opts.startDate.Truncate(24*time.Hour), opts.endDate.Truncate(24*time.Hour), "active", time.Now())
+	`, opts.planID, opts.userID, personalizedPlanName, opts.classificationClass, opts.classificationClass, opts.durationWeeks, time.Now(), opts.startDate.Truncate(24*time.Hour), opts.endDate.Truncate(24*time.Hour), "active", time.Now())
 	if err != nil {
 		s.log.Error("Failed to insert plan", zap.Error(err), zap.String("planID", opts.planID))
 		return status.Error(codes.Internal, "failed to save plan")
@@ -299,7 +301,7 @@ func (s *trainingServer) GetPlan(ctx context.Context, req *pb.GetPlanRequest) (*
 		planDataOut := &structpb.Struct{
 			Fields: make(map[string]*structpb.Value),
 		}
-		planDataOut.Fields["name"] = structpb.NewStringValue("Персонализированная программа")
+		planDataOut.Fields["name"] = structpb.NewStringValue(personalizedPlanName)
 		planDataOut.Fields["training_goal"] = structpb.NewStringValue("recovery")
 		planDataOut.Fields["duration_weeks"] = structpb.NewNumberValue(float64(plan.DurationWeeks))
 		planDataOut.Fields["weeks"] = structpb.NewListValue(&structpb.ListValue{})
@@ -378,7 +380,7 @@ func (s *trainingServer) ListPlans(ctx context.Context, req *pb.ListPlansRequest
 		var pbPlans []*pb.TrainingPlan
 		for _, plan := range plans {
 			planData := map[string]interface{}{
-				"name":           "Персонализированная программа",
+				"name":           personalizedPlanName,
 				"training_goal":  "recovery",
 				"duration_weeks": int32(plan.DurationWeeks),
 			}

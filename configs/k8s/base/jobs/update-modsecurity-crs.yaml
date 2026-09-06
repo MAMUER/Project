@@ -27,9 +27,9 @@ spec:
               type: RuntimeDefault
           containers:
             - name: update-crs
-          # checkov:skip=CKV_K8S_43: CI-built image; digest resolved in deployment pipeline
-          image: ghcr.io/mamuer/project/crs-updater:v1
-          imagePullPolicy: Always
+              # checkov:skip=CKV_K8S_43: CI-built image; digest resolved in deployment pipeline
+              image: ghcr.io/mamuer/project/crs-updater:v1
+              imagePullPolicy: Always
               securityContext:
                 allowPrivilegeEscalation: false
                 runAsNonRoot: true
