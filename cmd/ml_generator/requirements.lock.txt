@@ -89,8 +89,9 @@ dynaconf==3.3.5
 evidently==0.7.21
     --hash=sha256:04e247de0ce8eabe618687770568ca06162e64a39ebf10e33ef6ea3aeda31187
     # via -r requirements.txt
-faker==40.36.0
-    --hash=sha256:82b9497d9cfe017048075bcf969298a74b1b6e39f5e4dad1211085d1133f7b62
+faker==40.37.0
+    --hash=sha256:a92dff7f310e61fb544c61720e15edb2e7448bc33d15a321a99e9ab7b94abf54
+    --hash=sha256:ddbafa55c94d5b69c08ced3a7f202614204a02e07ba6548c729b8d18acc0b490
     # via polyfactory
 fastapi==0.141.1
     --hash=sha256:bfb91aa2d334c61cb35ba9a116fc123b3d3df31640b801cf57a7a78ec3f603b3
@@ -604,11 +605,13 @@ tqdm==4.70.0
     #   nltk
     #   pytorch-lightning
     #   transformers
-transformers==5.15.0
-    --hash=sha256:d7f007736f67749ae9490c4f8cb5d30b452ae2d68c8675e50ba8d63ea7feb107
+transformers==5.16.1
+    --hash=sha256:17b0eac726ddc55e84ac58946063e0c6d37fd000c456b581f050ea0f4e822869
+    --hash=sha256:2f2d5b98a5ad3718713653734298fa620754ed683702a635ebb587df3ed29c7e
     # via optimum
-typer==0.27.1
-    --hash=sha256:53150287edd11baeb4e4722c8e394fcdf8181c0ae89485cba8d25c778d5edd56
+typer==0.27.2
+    --hash=sha256:269b7eb9d3c202ca84b4bc9618cb04ebb43d3d4d1e567e4c768607232c05f945
+    --hash=sha256:b3a5fc4342d5fc8fda8fc3010b1cf117e9249aab7fae800c2eff62fd3842d97d
     # via
     #   evidently
     #   transformers
