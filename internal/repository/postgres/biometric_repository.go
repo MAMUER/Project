@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 
 	"github.com/MAMUER/project/internal/apperrors"
@@ -111,6 +112,9 @@ func (r *BiometricRepository) GetByUserID(ctx context.Context, userID, metricTyp
 		}
 		records = append(records, record)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate biometric records", err)
+	}
 	return records, nil
 }
 
@@ -121,4 +125,48 @@ func (r *BiometricRepository) Delete(ctx context.Context, id string) error {
 		return apperrors.Internal("failed to delete biometric record", err)
 	}
 	return nil
+}
+
+func (r *BiometricRepository) GetLatest(ctx context.Context, userID, metricType string) (*entity.BiometricRecord, error) {
+	query := `
+		SELECT id, user_id, metric_type, value, timestamp, device_type, source, created_at
+		FROM biometric_data
+		WHERE user_id = $1 AND metric_type = $2
+		ORDER BY timestamp DESC
+		LIMIT 1
+	`
+	record := &entity.BiometricRecord{}
+	err := r.db.QueryRowContext(ctx, query, userID, metricType).Scan(
+		&record.ID, &record.UserID, &record.MetricType, &record.Value,
+		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, apperrors.NotFound("no records found")
+		}
+		return nil, apperrors.Internal("failed to get latest biometric record", err)
+	}
+	return record, nil
+}
+
+func (r *BiometricRepository) Update(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error) {
+	query := `
+		UPDATE biometric_data
+		SET value = $1, timestamp = $2, device_type = $3
+		WHERE id = $4
+		RETURNING id, user_id, metric_type, value, timestamp, device_type, source, created_at
+	`
+	err := r.db.QueryRowContext(ctx, query,
+		record.Value, record.Timestamp, record.DeviceType, record.ID,
+	).Scan(
+		&record.ID, &record.UserID, &record.MetricType, &record.Value,
+		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, apperrors.NotFound("record not found")
+		}
+		return nil, apperrors.Internal("failed to update biometric record", err)
+	}
+	return record, nil
 }

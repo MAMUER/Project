@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { changeEmail } from '../../utils/api';
+import Modal from './Modal';
 import './ProfileModals.css';
 
 export default function ChangeEmailModal({ onClose }) {
@@ -22,11 +23,11 @@ export default function ChangeEmailModal({ onClose }) {
     e.preventDefault();
     setError('');
     if (!newEmail || !password) {
-      setError('Заполните все поля');
+      setError('Заполните все поля. Email и текущий пароль обязательны для смены почты.');
       return;
     }
     if (!isValidEmail(newEmail)) {
-      setError('Некорректный email');
+      setError('Некорректный email. Используйте формат name@example.com.');
       return;
     }
     setSubmitting(true);
@@ -34,59 +35,52 @@ export default function ChangeEmailModal({ onClose }) {
       await changeEmail(newEmail, password);
       onClose();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'Не удалось сменить email. Проверьте текущий пароль и попробуйте снова.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const handleOverlayKeyDown = (e) => {
-    if (e.key === 'Escape') onClose();
-  };
-
   return (
-    <div className='modal'>
-      <button
-        type='button'
-        className='modal-overlay'
-        onClick={onClose}
-        onKeyDown={handleOverlayKeyDown}
-        aria-label='Закрыть'
-      />
-      <div className='modal-content'>
-        <h3>Сменить почту</h3>
-        <form onSubmit={handleSubmit}>
-          <div className='form-group'>
-            <label htmlFor='newEmail'>Новый email</label>
-            <input
-              id='newEmail'
-              type='email'
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.target.value)}
-              required
-            />
-            <div className='field-error'>{error}</div>
-          </div>
-          <div className='form-group'>
-            <label htmlFor='currentPassword'>Текущий пароль</label>
-            <input
-              id='currentPassword'
-              type='password'
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <div className='modal-actions'>
-            <button type='button' className='btn-secondary' onClick={onClose}>
-              Отмена
-            </button>
-            <button type='submit' className='btn-primary' disabled={submitting}>
-              {submitting ? 'Сохранение...' : 'Сохранить новую почту'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+    <Modal onClose={onClose} ariaLabel='Сменить почту' ariaDescribedby='email-modal-desc'>
+      <h3>Сменить почту</h3>
+      <p id='email-modal-desc' className='sr-only'>
+        Форма смены email. После успешной смены новый адрес будет подтверждён автоматически.
+      </p>
+      <form onSubmit={handleSubmit}>
+        <div className='form-group'>
+          <label htmlFor='newEmail'>Новый email</label>
+          <input
+            id='newEmail'
+            type='email'
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            required
+            aria-invalid={!!error}
+            aria-describedby={error ? 'email-error' : undefined}
+          />
+          <div className='field-error' id='email-error' role='alert'>{error}</div>
+        </div>
+        <div className='form-group'>
+          <label htmlFor='currentPassword'>Текущий пароль</label>
+          <input
+            id='currentPassword'
+            type='password'
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            aria-invalid={!!error}
+          />
+        </div>
+        <div className='modal-actions'>
+          <button type='button' className='btn-secondary' onClick={onClose}>
+            Отмена
+          </button>
+          <button type='submit' className='btn-primary' disabled={submitting}>
+            {submitting ? 'Сохранение...' : 'Сохранить новую почту'}
+          </button>
+        </div>
+      </form>
+    </Modal>
   );
 }

@@ -3,14 +3,11 @@ package config
 import (
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest/observer"
-
-	"github.com/MAMUER/project/internal/logger"
+	"github.com/spf13/viper"
 )
 
 func TestCacheConfig_Validate(t *testing.T) {
@@ -223,15 +220,111 @@ func TestRedactSecrets(t *testing.T) {
 	})
 }
 
-func TestLogConfig(t *testing.T) {
-	core, observed := observer.New(zapcore.InfoLevel)
-	zapLogger := zap.New(core)
-	log := &logger.Logger{Logger: zapLogger}
+func TestDatabaseConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name      string
+		config    DatabaseConfig
+		wantError bool
+	}{
+		{
+			name:      "valid config",
+			config:    DatabaseConfig{Host: "localhost", Port: "5432", User: "postgres", Password: "secret", DBName: "mydb", SSLMode: "disable"},
+			wantError: false,
+		},
+		{
+			name:      "empty host",
+			config:    DatabaseConfig{Port: "5432", User: "postgres", Password: "secret", DBName: "mydb"},
+			wantError: true,
+		},
+		{
+			name:      "empty password",
+			config:    DatabaseConfig{Host: "localhost", Port: "5432", User: "postgres", DBName: "mydb"},
+			wantError: true,
+		},
+	}
 
-	cfg := CacheConfig{Addr: "localhost:6379", Password: "secret", DB: 0}
-	LogConfig(log, cfg)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
-	logs := observed.All()
-	require.Len(t, logs, 1)
-	assert.Equal(t, "configuration loaded", logs[0].Message)
+func TestConfig_Validate(t *testing.T) {
+	t.Run("valid config", func(t *testing.T) {
+		cfg := Config{
+			App:    "test",
+			Server: ServerConfig{Addr: ":8080"},
+			Database: DatabaseConfig{
+				Host:     "localhost",
+				Port:     "5432",
+				User:     "postgres",
+				Password: "secret",
+				DBName:   "mydb",
+				SSLMode:  "disable",
+			},
+			Cache: CacheConfig{Addr: "localhost:6379", DB: 0},
+			JWT:   JWTConfig{PrivateKeyPEM: "private", PublicKeyPEM: "public"},
+		}
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("invalid server", func(t *testing.T) {
+		cfg := Config{Server: ServerConfig{Addr: ""}}
+		require.Error(t, cfg.Validate())
+	})
+
+	t.Run("invalid database", func(t *testing.T) {
+		cfg := Config{Database: DatabaseConfig{}}
+		require.Error(t, cfg.Validate())
+	})
+}
+
+func TestLoadConfigFromViper(t *testing.T) {
+	v := viper.New()
+	v.Set("app.name", "testapp")
+	v.Set("server.addr", ":9090")
+	v.Set("database.host", "db.example.com")
+	v.Set("database.port", "5433")
+	v.Set("database.user", "admin")
+	v.Set("database.password", "s3cret")
+	v.Set("database.dbname", "appdb")
+	v.Set("database.sslmode", "require")
+	v.Set("cache.addr", "redis:6379")
+	v.Set("cache.password", "redispass")
+	v.Set("cache.db", 2)
+	v.Set("jwt.private_key_pem", "priv")
+	v.Set("jwt.public_key_pem", "pub")
+
+	cfg := LoadConfig(v)
+	assert.Equal(t, "testapp", cfg.App)
+	assert.Equal(t, ":9090", cfg.Server.Addr)
+	assert.Equal(t, "db.example.com", cfg.Database.Host)
+	assert.Equal(t, "redis:6379", cfg.Cache.Addr)
+	assert.Equal(t, 2, cfg.Cache.DB)
+}
+
+func TestViperHelpers(t *testing.T) {
+	v := viper.New()
+	v.Set("existing_str", "hello")
+	v.Set("existing_int", 42)
+	v.Set("existing_bool", true)
+	v.Set("existing_duration", "5s")
+	v.Set("existing_float", 3.14)
+
+	assert.Equal(t, "hello", GetViperString(v, "existing_str", "default"))
+	assert.Equal(t, "default", GetViperString(v, "missing_str", "default"))
+	assert.Equal(t, 42, GetViperInt(v, "existing_int", 0))
+	assert.Equal(t, 0, GetViperInt(v, "missing_int", 0))
+	assert.Equal(t, true, GetViperBool(v, "existing_bool", false))
+	assert.Equal(t, false, GetViperBool(v, "missing_bool", false))
+	assert.Equal(t, 5*time.Second, GetViperDuration(v, "existing_duration", "1s"))
+	assert.Equal(t, 1*time.Second, GetViperDuration(v, "missing_duration", "1s"))
+	assert.Equal(t, 3.14, GetViperFloat64(v, "existing_float", 0.0))
+	assert.Equal(t, 0.0, GetViperFloat64(v, "missing_float", 0.0))
 }

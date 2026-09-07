@@ -18,6 +18,9 @@ func main() {
 	log := logger.New("device-aggregator")
 	defer func() { _ = log.Sync() }()
 
+	config.InitViper("device-aggregator")
+	_ = config.GetViper()
+
 	port := config.GetEnv("DEVICE_AGGREGATOR_PORT", "8083")
 
 	mux := http.NewServeMux()

@@ -14,6 +14,7 @@ import (
 
 	"github.com/MAMUER/project/internal/config"
 	"github.com/MAMUER/project/internal/metrics"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Config holds database connection settings.
@@ -67,7 +68,7 @@ func LoadConfig() Config {
 
 var poolMetricOnce sync.Once
 
-// NewConnection opens a new PostgreSQL connection and reports pool usage metrics.
+// NewConnection opens a new PostgreSQL connection using database/sql and reports pool usage metrics.
 func NewConnection(cfg Config) (*sql.DB, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid db config: %w", err)
@@ -104,4 +105,46 @@ func NewConnection(cfg Config) (*sql.DB, error) {
 	})
 
 	return db, nil
+}
+
+// PgxConfig returns a pgx connection config from the standard Config.
+func (c Config) PgxConfig() string {
+	return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s?sslmode=%s",
+		c.User, c.Password, c.Host, c.Port, c.DBName, c.SSLMode)
+}
+
+// NewPgxPool opens a new pgx connection pool and reports pool usage metrics.
+func NewPgxPool(cfg Config) (*pgxpool.Pool, error) {
+	if err := cfg.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid db config: %w", err)
+	}
+
+	connStr := cfg.PgxConfig()
+
+	pool, err := pgxpool.New(context.Background(), connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pgx pool: %w", err)
+	}
+
+	if err := pool.Ping(context.Background()); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	poolMetricOnce.Do(func() {
+		go func(dbName string) {
+			ticker := time.NewTicker(15 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				if pool == nil {
+					continue
+				}
+				stats := pool.Stat()
+				usage := float64(stats.AcquireCount()) / float64(max(int64(stats.MaxConns()), 1))
+				metrics.DBConnectionPoolUsage.WithLabelValues(dbName, "main").Set(usage)
+			}
+		}(cfg.DBName)
+	})
+
+	return pool, nil
 }

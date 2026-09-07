@@ -13,36 +13,41 @@ import (
 	"net"
 	"net/http"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"go.uber.org/zap"
 	"golang.org/x/crypto/argon2"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
+
+	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 
 	pb "github.com/MAMUER/project/api/gen/user"
 	"github.com/MAMUER/project/cmd/user-service/ports"
+	"github.com/MAMUER/project/internal/apperrors"
 	"github.com/MAMUER/project/internal/auth/jwt"
 	"github.com/MAMUER/project/internal/config"
 	"github.com/MAMUER/project/internal/crypto"
+	"github.com/MAMUER/project/internal/domain/port"
 	"github.com/MAMUER/project/internal/db"
+	"github.com/MAMUER/project/internal/domain/entity"
+	"github.com/MAMUER/project/internal/domain/service"
 	"github.com/MAMUER/project/internal/email"
 	grpctls "github.com/MAMUER/project/internal/grpc"
 	"github.com/MAMUER/project/internal/logger"
 	"github.com/MAMUER/project/internal/metrics"
 	"github.com/MAMUER/project/internal/middleware"
+	"github.com/MAMUER/project/internal/repository/postgres"
 	"github.com/MAMUER/project/internal/sanitize"
 	"github.com/MAMUER/project/internal/telemetry"
 	"github.com/MAMUER/project/internal/totp"
@@ -59,17 +64,28 @@ type User struct {
 
 type userServer struct {
 	pb.UnimplementedUserServiceServer
-	db             *sql.DB
-	log            *logger.Logger
-	tokenProvider  ports.TokenProvider
-	emailSender    email.EmailSender
-	baseURL        string
-	googleClientID string
-	totpService    *totp.Service
+	db                  *sql.DB
+	userSvc             service.UserService
+	userRepo            *postgres.PgsodiumUserRepository
+	profileRepo         port.ProfileRepository
+	emailVerifRepo      port.EmailVerificationRepository
+	refreshTokenRepo    port.RefreshTokenRepository
+	achievementExRepo   port.AchievementRepositoryEx
+	inviteCodeRepo      port.InviteCodeRepository
+	userHealthRepo      port.UserHealthConditionRepository
+	userBodyCompRepo    port.UserBodyCompositionRepository
+	userMenstrualRepo   port.UserMenstrualRepository
+	log                 *logger.Logger
+	tokenProvider       ports.TokenProvider
+	emailSender         email.EmailSender
+	baseURL             string
+	googleClientID      string
+	totpService         *totp.Service
 }
 
 const (
-	argon2idParams = "m=65536,t=3,p=1"
+	argon2idParams             = "m=65536,t=3,p=1"
+	dateFormat                 = "2006-01-02"
 
 	logFailedToGenerateNonce = "Failed to generate nonce"
 	errFailedToGenerateNonce = "failed to generate nonce"
@@ -86,6 +102,7 @@ const (
 	sqlSelectPrefix          = "SELECT "
 	sqlCommaNewlinePrefix    = ",\n               "
 	errFailedToValidateTOTP  = "failed to validate TOTP code"
+	errFailedToListDevices    = "failed to list devices"
 )
 
 func hashPasswordArgon2id(password string) (string, error) {
@@ -128,6 +145,31 @@ func toString(v *string) string {
 	return *v
 }
 
+func toInt32(v *int32) int32 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func toFloat64(v *float64) float64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func toFloat32(v *float32) float32 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func float64Ptr(v float64) *float64 {
+	return &v
+}
+
 func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	s.log.Info("Register request", zap.String("email", req.Email))
 
@@ -139,21 +181,11 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 	email := sanitize.String(req.Email)
 	fullName := sanitize.String(req.FullName)
 	emailHash := db.EmailHash(email)
-	fullNameHash := db.BlindIndex(fullName)
-	fullNameNonce, err := db.GenerateNonce()
-	if err != nil {
-		s.log.Error(logFailedToGenerateNonce, zap.Error(err))
-		return nil, status.Error(codes.Internal, errFailedToGenerateNonce)
-	}
-	emailNonce, err := db.GenerateNonce()
-	if err != nil {
-		s.log.Error(logFailedToGenerateNonce, zap.Error(err))
-		return nil, status.Error(codes.Internal, errFailedToGenerateNonce)
-	}
 
 	var exists bool
-	if queryErr := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE email_hash = $1)", emailHash).Scan(&exists); queryErr != nil {
-		s.log.Error("Database error checking user existence", zap.Error(queryErr))
+	exists, err := s.userRepo.ExistsByEmail(ctx, email)
+	if err != nil {
+		s.log.Error("Database error checking user existence", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 	if exists {
@@ -167,13 +199,15 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 	}
 
 	userID := uuid.New().String()
-	userQuery, userArgs := buildUserInsertQuery(userInsertData{
-		userID: userID, email: email, emailHash: emailHash, passwordHash: string(hashed),
-		fullName: fullName, emailNonce: emailNonce, fullNameNonce: fullNameNonce,
-		fullNameHash: fullNameHash, role: req.Role,
-	})
-	if _, execErr := s.db.ExecContext(ctx, userQuery, userArgs...); execErr != nil { // NOSONAR go:S2077 - query uses pgsodium encrypt expressions, no user input in structure
-		s.log.Error("Failed to create user", zap.Error(execErr))
+	user := &entity.User{
+		ID:           userID,
+		Email:        email,
+		PasswordHash: string(hashed),
+		FullName:      fullName,
+		Role:         req.Role,
+	}
+	if err := s.userRepo.Create(ctx, user); err != nil {
+		s.log.Error("Failed to create user", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to create user")
 	}
 
@@ -188,17 +222,16 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 		s.log.Error(logFailedToGenerateNonce, zap.Error(err))
 		return nil, status.Error(codes.Internal, errFailedToGenerateNonce)
 	}
-	verificationQuery, verificationArgs := buildEmailVerificationInsertQuery(userID, email, emailHash, verificationToken, emailVerificationNonce, tokenVerificationNonce)
-	if _, execErr := s.db.ExecContext(ctx, verificationQuery, verificationArgs...); execErr != nil { // NOSONAR go:S2077 - query uses pgsodium encrypt expressions, no user input in structure
-		s.log.Error("Failed to create email verification record", zap.Error(execErr))
+	if err := s.userRepo.CreateEmailVerification(ctx, userID, email, emailHash, verificationToken, emailVerificationNonce, tokenVerificationNonce); err != nil {
+		s.log.Error("Failed to create email verification record", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to create verification token")
 	}
 
 	sendVerificationEmailIfNeeded(ctx, s, email, verificationToken)
 
-	if _, profileErr := s.db.ExecContext(ctx, `INSERT INTO user_profiles (user_id) VALUES ($1)`, userID); profileErr != nil {
+	if err := s.profileRepo.CreateProfile(ctx, userID); err != nil {
 		s.log.Warn("Failed to create user profile, user will need to complete profile manually",
-			zap.Error(profileErr),
+			zap.Error(err),
 			zap.String("user_id", userID))
 	}
 
@@ -206,40 +239,6 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 		UserId:  userID,
 		Message: "user created successfully. Please check your email to verify your account.",
 	}, nil
-}
-
-type userInsertData struct {
-	userID, email, emailHash, passwordHash, fullName string
-	emailNonce, fullNameNonce                        []byte
-	fullNameHash, role                               string
-}
-
-func buildUserInsertQuery(p userInsertData) (string, []interface{}) {
-	var b strings.Builder
-	b.WriteString("INSERT INTO users (id, email_encrypted, email_nonce, email_hash, password_hash, full_name_encrypted, full_name_nonce, full_name_hash, role, created_at, updated_at) ")
-	b.WriteString(sqlValuesPrefix)
-	b.WriteString(db.PgsodiumRandomEncryptParam(2, 3))
-	b.WriteString(sqlComma4Prefix)
-	b.WriteString(sql56Prefix)
-	b.WriteString(db.PgsodiumRandomEncryptParam(7, 8))
-	b.WriteString(", $9, ")
-	b.WriteString("$10, ")
-	b.WriteString("$11, NOW(), NOW())")
-	args := []interface{}{p.userID, p.email, p.emailNonce, p.emailHash, p.passwordHash, p.fullName, p.fullNameNonce, p.fullNameHash, p.role}
-	return b.String(), args
-}
-
-func buildEmailVerificationInsertQuery(userID, email, emailHash, verificationToken string, emailNonce, tokenNonce []byte) (string, []interface{}) {
-	var b strings.Builder
-	b.WriteString("INSERT INTO email_verifications (user_id, email_encrypted, email_nonce, email_hash, token, token_encrypted, token_nonce, expires_at, used) ")
-	b.WriteString(sqlValuesPrefix)
-	b.WriteString(db.PgsodiumRandomEncryptParam(2, 3))
-	b.WriteString(sqlComma4Prefix)
-	b.WriteString(sql56Prefix)
-	b.WriteString(db.PgsodiumRandomEncryptParam(7, 8))
-	b.WriteString(", NOW() + INTERVAL '24 hours', false)")
-	args := []interface{}{userID, email, emailNonce, emailHash, verificationToken, verificationToken, tokenNonce}
-	return b.String(), args
 }
 
 func sendVerificationEmailIfNeeded(ctx context.Context, s *userServer, email, verificationToken string) {
@@ -262,46 +261,21 @@ func (s *userServer) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailReque
 		return nil, status.Error(codes.InvalidArgument, "token is required")
 	}
 
-	// Ищем запись о верификации
-	var userID, email string
-	var used bool
-	var expiresAt sql.NullTime
-	var confirmEmailQuery strings.Builder
-	confirmEmailQuery.WriteString("SELECT user_id, ")
-	confirmEmailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
-	confirmEmailQuery.WriteString("\n        FROM email_verifications \n        WHERE token = $1")
-	err := s.db.QueryRowContext(ctx, confirmEmailQuery.String(), req.Token).Scan(&userID, &email, &used, &expiresAt) // NOSONAR go:S2077 - query uses pgsodium decrypt expression, no user input in structure
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, status.Error(codes.InvalidArgument, "invalid verification token")
-	}
+	userID, email, err := s.userRepo.ConfirmEmailWithPgsodium(ctx, req.Token)
 	if err != nil {
+		if apperrors.IsValidation(err) {
+			return nil, status.Error(codes.InvalidArgument, err.Error())
+		}
 		s.log.Error("Database error checking verification token", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	// Проверяем, не использован ли токен
-	if used {
-		return nil, status.Error(codes.InvalidArgument, "verification token has already been used")
-	}
-
-	// Проверяем, не истёк ли токен
-	if expiresAt.Valid && expiresAt.Time.Before(time.Now()) {
-		return nil, status.Error(codes.InvalidArgument, "verification token has expired")
-	}
-
-	// Обновляем: помечаем токен как использованный и подтверждаем email
-	_, err = s.db.ExecContext(ctx, `
-        UPDATE email_verifications SET used = true WHERE token = $1
-    `, req.Token)
-	if err != nil {
+	if err := s.emailVerifRepo.MarkUsed(ctx, req.Token); err != nil {
 		s.log.Error("Failed to update verification token", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to confirm email")
 	}
 
-	_, err = s.db.ExecContext(ctx, `
-        UPDATE users SET email_confirmed = true WHERE id = $1
-    `, userID)
-	if err != nil {
+	if err := s.emailVerifRepo.MarkUserEmailVerified(ctx, userID); err != nil {
 		s.log.Error("Failed to update user email_confirmed", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to confirm email")
 	}
@@ -316,50 +290,29 @@ func (s *userServer) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailReque
 func (s *userServer) Login(ctx context.Context, req *pb.LoginRequest) (*pb.LoginResponse, error) {
 	s.log.Info("Login request", zap.String("email", req.Email))
 
-	// Валидация входных данных
 	if err := validator.ValidateLoginRequest(req); err != nil {
 		s.log.Warn("Invalid login request", zap.Error(err))
 		return nil, fmt.Errorf("validate login request: %w", err)
 	}
 
-	// Проверка подтверждения email
-	emailHash := db.EmailHash(sanitize.String(req.Email))
-	var emailConfirmed bool
-	err := s.db.QueryRowContext(ctx, "SELECT email_confirmed FROM users WHERE email_hash = $1", emailHash).Scan(&emailConfirmed)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, status.Error(codes.Unauthenticated, errInvalidCredentials)
-	}
+	user, err := s.userRepo.LoginWithPgsodium(ctx, sanitize.String(req.Email))
 	if err != nil {
-		s.log.Error("Database error checking email confirmation", zap.Error(err))
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	if !emailConfirmed {
-		s.log.Info("Login attempt with unconfirmed email", zap.String("email", req.Email))
-		return nil, status.Error(codes.Unauthenticated, "Email not confirmed. Please check your inbox.")
-	}
-
-	var user User
-	var loginQuery strings.Builder
-	loginQuery.WriteString("SELECT id, ")
-	loginQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
-	loginQuery.WriteString(", password_hash, role \n        FROM users \n        WHERE email_hash = $1")
-	err = s.db.QueryRowContext(ctx, loginQuery.String(), emailHash).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role) // NOSONAR go:S2077 - query uses pgsodium decrypt expression, no user input in structure
-	if errors.Is(err, sql.ErrNoRows) {
-		// Возвращаем Unauthenticated вместо NotFound для безопасности
-		return nil, status.Error(codes.Unauthenticated, errInvalidCredentials)
-	}
-	if err != nil {
+		if apperrors.IsUnauthorized(err) {
+			s.log.Info("Login attempt with unconfirmed email", zap.String("email", req.Email))
+			return nil, status.Error(codes.Unauthenticated, "Email not confirmed. Please check your inbox.")
+		}
+		if apperrors.IsNotFound(err) {
+			return nil, status.Error(codes.Unauthenticated, errInvalidCredentials)
+		}
 		s.log.Error("Database error during login", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	// Проверка пароля
 	if !verifyPasswordArgon2id(user.PasswordHash, req.Password) {
 		s.log.Info("Invalid login attempt", zap.String("email", req.Email))
 		return nil, status.Error(codes.Unauthenticated, errInvalidCredentials)
 	}
 
-	// Генерация JWT
 	token, err := s.tokenProvider.GenerateAccessToken(user.ID, user.Email, user.Role, 15*time.Minute)
 	if err != nil {
 		s.log.Error(logFailedToGenerateJWT, zap.Error(err))
@@ -447,31 +400,29 @@ func (s *userServer) findOrCreateGoogleUser(ctx context.Context, googleSub, emai
 }
 
 func (s *userServer) findGoogleUserBySub(ctx context.Context, googleSub string) (userID, role string, emailConfirmed bool, err error) {
-	err = s.db.QueryRowContext(ctx, `
-		SELECT id, role, email_confirmed FROM users WHERE provider = 'google' AND external_id = $1
-	`, googleSub).Scan(&userID, &role, &emailConfirmed)
+	user, err := s.userRepo.FindGoogleUser(ctx, googleSub)
 	if err == nil {
-		if !emailConfirmed {
-			_, _ = s.db.ExecContext(ctx, `UPDATE users SET email_confirmed = true, updated_at = NOW() WHERE id = $1`, userID)
+		if !user.EmailVerified {
+			if err := s.userRepo.MarkEmailVerified(ctx, user.ID); err != nil {
+				s.log.Warn("Failed to mark Google user email as confirmed", zap.Error(err), zap.String("user_id", user.ID))
+			} else {
+				emailConfirmed = true
+			}
+		} else {
 			emailConfirmed = true
 		}
-		return userID, role, emailConfirmed, nil
+		return user.ID, user.Role, emailConfirmed, nil
 	}
 	return "", "", false, err
 }
 
 func (s *userServer) linkGoogleToEmailUser(ctx context.Context, googleSub, emailHash string) (userID, role string, emailConfirmed bool, err error) {
-	err = s.db.QueryRowContext(ctx, `
-		SELECT id, role, email_confirmed FROM users WHERE email_hash = $1
-	`, emailHash).Scan(&userID, &role, &emailConfirmed)
+	user, err := s.userRepo.GetByEmailHash(ctx, emailHash)
 	if err == nil {
-		_, linkErr := s.db.ExecContext(ctx, `
-			UPDATE users SET provider = 'google', external_id = $1, email_confirmed = true, updated_at = NOW() WHERE id = $2
-		`, googleSub, userID)
-		if linkErr != nil {
-			s.log.Warn("Failed to link Google account", zap.Error(linkErr), zap.String("user_id", userID))
+		if linkErr := s.userRepo.LinkGoogleAccount(ctx, googleSub, user.ID); linkErr != nil {
+			s.log.Warn("Failed to link Google account", zap.Error(linkErr), zap.String("user_id", user.ID))
 		}
-		return userID, role, emailConfirmed, nil
+		return user.ID, user.Role, user.EmailVerified, nil
 	}
 	return "", "", false, err
 }
@@ -479,147 +430,50 @@ func (s *userServer) linkGoogleToEmailUser(ctx context.Context, googleSub, email
 func (s *userServer) createGoogleUser(ctx context.Context, googleSub, emailHash, emailVal string) (userID, role string, emailConfirmed bool, err error) {
 	nickname := extractLocalPart(emailVal)
 	nicknameHash := db.NicknameHash(nickname)
-	nicknameNonce, err := db.GenerateNonce()
-	if err != nil {
-		s.log.Error(logFailedToGenerateNonce, zap.Error(err))
-		return "", "", false, status.Error(codes.Internal, errFailedToGenerateNonce)
-	}
-	emailNonce, err := db.GenerateNonce()
-	if err != nil {
-		s.log.Error(logFailedToGenerateNonce, zap.Error(err))
-		return "", "", false, status.Error(codes.Internal, errFailedToGenerateNonce)
-	}
 
-	userID = uuid.New().String()
-	query, args := s.buildGoogleUserInsertQuery(googleUserInsertData{
-		userID: userID, emailVal: emailVal, emailHash: emailHash, emailNonce: emailNonce,
-		nickname: nickname, nicknameNonce: nicknameNonce, nicknameHash: nicknameHash, googleSub: googleSub,
-	})
-	_, insertErr := s.db.ExecContext(ctx, query, args...) // NOSONAR go:S2077 - query uses pgsodium encrypt expressions, no user input in structure
-	if insertErr != nil {
-		var pqErr *pq.Error
-		if errors.As(insertErr, &pqErr) && pqErr.Code == "23505" {
-			return "", "", false, status.Error(codes.AlreadyExists, "user already exists")
-		}
-		s.log.Error("Failed to create OAuth user", zap.Error(insertErr))
+	userID, role, emailConfirmed, err = s.userRepo.CreateGoogleUser(ctx, googleSub, emailHash, emailVal, nickname, nicknameHash)
+	if err != nil {
+		s.log.Error("Failed to create OAuth user", zap.Error(err))
 		return "", "", false, status.Error(codes.Internal, "failed to create user")
 	}
 
-	role = "client"
-	emailConfirmed = true
-
-	_, profileErr := s.db.ExecContext(ctx, `INSERT INTO user_profiles (user_id) VALUES ($1)`, userID)
-	if profileErr != nil {
-		s.log.Warn("Failed to create profile for OAuth user", zap.Error(profileErr), zap.String("user_id", userID))
+	if err := s.profileRepo.CreateProfile(ctx, userID); err != nil {
+		s.log.Warn("Failed to create profile for OAuth user", zap.Error(err), zap.String("user_id", userID))
 	}
 
 	return userID, role, emailConfirmed, nil
 }
 
-type googleUserInsertData struct {
-	userID, emailVal, emailHash, nickname, googleSub string
-	emailNonce, nicknameNonce                        []byte
-	nicknameHash                                     string
-}
-
-func (s *userServer) buildGoogleUserInsertQuery(p googleUserInsertData) (string, []interface{}) {
-	var b strings.Builder
-	b.WriteString("INSERT INTO users (id, email_encrypted, email_nonce, email_hash, password_hash, nickname_encrypted, nickname_nonce, nickname_hash, role, provider, external_id, email_confirmed, created_at, updated_at) ")
-	b.WriteString(sqlValuesPrefix)
-	b.WriteString(db.PgsodiumRandomEncryptParam(2, 3))
-	b.WriteString(sqlComma4Prefix)
-	b.WriteString("$5, NULL, ")
-	b.WriteString(db.PgsodiumRandomEncryptParam(6, 7))
-	b.WriteString(", $8, ")
-	b.WriteString("$9, ")
-	b.WriteString("'client', 'google', $10, true, NOW(), NOW())")
-	args := []interface{}{p.userID, p.emailVal, p.emailNonce, p.emailHash, p.nickname, p.nicknameNonce, p.nicknameHash, p.googleSub}
-	return b.String(), args
-}
-
 func (s *userServer) GetProfile(ctx context.Context, req *pb.GetProfileRequest) (*pb.UserProfile, error) {
-	var profile pb.UserProfile
-	var age sql.NullInt32
-	var gender sql.NullString
-	var heightCm sql.NullInt32
-	var weightKg sql.NullFloat64
-	var fitnessLevel sql.NullString
-	var nutrition sql.NullString
-	var sleepHours sql.NullFloat64
-
-	var nickname, profilePhotoURL sql.NullString
-
-	var err error
-	if db.PgsodiumKeyID() > 0 {
-		var getProfileQuery strings.Builder
-		getProfileQuery.WriteString("SELECT u.id, ")
-		getProfileQuery.WriteString(db.PgsodiumDecryptParam("u.email_encrypted", "u.email_nonce", "email"))
-		getProfileQuery.WriteString(sqlCommaNewlinePrefix)
-		getProfileQuery.WriteString(db.PgsodiumDecryptParam("u.full_name_encrypted", "u.full_name_nonce", "full_name"))
-		getProfileQuery.WriteString(sqlCommaNewlinePrefix)
-		getProfileQuery.WriteString(db.PgsodiumDecryptParam("u.nickname_encrypted", "u.nickname_nonce", "nickname"))
-		getProfileQuery.WriteString(",\n               u.profile_photo_url, u.role,\n               p.age, p.gender, p.height_cm, p.weight_kg, p.fitness_level,\n               p.goals, p.nutrition, p.sleep_hours,\n               u.created_at, u.updated_at\n            FROM users u\n            LEFT JOIN user_profiles_with_goals p ON u.id = p.user_id\n            WHERE u.id = $1")
-		err = s.db.QueryRowContext(ctx, getProfileQuery.String(), req.UserId).Scan( // NOSONAR go:S2077 - query uses pgsodium decrypt expressions, no user input in structure
-			&profile.UserId, &profile.Email, &profile.FullName, &nickname, &profilePhotoURL, &profile.Role,
-			&age, &gender, &heightCm, &weightKg, &fitnessLevel,
-			pq.Array(&profile.Goals),
-			&nutrition, &sleepHours,
-			&profile.CreatedAt, &profile.UpdatedAt,
-		)
-	} else {
-		err = s.db.QueryRowContext(ctx, `
-			SELECT u.id, u.email, u.full_name, u.nickname, u.profile_photo_url, u.role,
-			       p.age, p.gender, p.height_cm, p.weight_kg, p.fitness_level,
-			       p.goals, p.nutrition, p.sleep_hours,
-			       u.created_at, u.updated_at
-			FROM users u
-			LEFT JOIN user_profiles_with_goals p ON u.id = p.user_id
-			WHERE u.id = $1
-		`, req.UserId).Scan(
-			&profile.UserId, &profile.Email, &profile.FullName, &nickname, &profilePhotoURL, &profile.Role,
-			&age, &gender, &heightCm, &weightKg, &fitnessLevel,
-			pq.Array(&profile.Goals),
-			&nutrition, &sleepHours,
-			&profile.CreatedAt, &profile.UpdatedAt,
-		)
-	}
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, status.Error(codes.NotFound, errUserNotFound)
-	}
+	user, err := s.userRepo.GetProfileWithPgsodium(ctx, req.UserId)
 	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, errUserNotFound)
+		}
 		s.log.Error("Database error getting profile", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	if nickname.Valid {
-		profile.Nickname = nickname.String
-	}
-	if profilePhotoURL.Valid {
-		profile.ProfilePhotoUrl = profilePhotoURL.String
-	}
-	if age.Valid {
-		profile.Age = age.Int32
-	}
-	if gender.Valid {
-		profile.Gender = gender.String
-	}
-	if heightCm.Valid {
-		profile.HeightCm = heightCm.Int32
-	}
-	if weightKg.Valid {
-		profile.WeightKg = weightKg.Float64
-	}
-	if fitnessLevel.Valid {
-		profile.FitnessLevel = fitnessLevel.String
-	}
-	if nutrition.Valid {
-		profile.Nutrition = nutrition.String
-	}
-	if sleepHours.Valid {
-		profile.SleepHours = float32(sleepHours.Float64)
+	profile := &pb.UserProfile{
+		UserId:          user.ID,
+		Email:           user.Email,
+		FullName:        user.FullName,
+		Nickname:        user.Nickname,
+		ProfilePhotoUrl: user.ProfilePhotoURL,
+		Role:            user.Role,
+		Age:             user.Age,
+		Gender:          user.Gender,
+		HeightCm:        user.HeightCm,
+		WeightKg:        user.WeightKg,
+		FitnessLevel:    user.FitnessLevel,
+		Goals:           user.Goals,
+		Nutrition:       user.Nutrition,
+		SleepHours:      user.SleepHours,
+		CreatedAt:       user.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       user.UpdatedAt.Format(time.RFC3339),
 	}
 
-	return &profile, nil
+	return profile, nil
 }
 
 func (s *userServer) GetUserByEmail(ctx context.Context, req *pb.GetUserByEmailRequest) (*pb.UserProfile, error) {
@@ -627,46 +481,26 @@ func (s *userServer) GetUserByEmail(ctx context.Context, req *pb.GetUserByEmailR
 		return nil, status.Error(codes.InvalidArgument, "email is required")
 	}
 
-	emailHash := db.EmailHash(req.Email)
-	var profile pb.UserProfile
-	var emailConfirmed bool
-	var createdAt, updatedAt sql.NullTime
-
-	err := s.db.QueryRowContext(ctx, `
-		SELECT id, email_confirmed, created_at, updated_at
-		FROM users
-		WHERE email_hash = $1
-	`, emailHash).Scan(&profile.UserId, &emailConfirmed, &createdAt, &updatedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, status.Error(codes.NotFound, errUserNotFound)
-	}
+	user, err := s.userRepo.GetByEmail(ctx, req.Email)
 	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, errUserNotFound)
+		}
 		s.log.Error("Database error getting user by email", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	profile.EmailConfirmed = emailConfirmed
-	if createdAt.Valid {
-		profile.CreatedAt = createdAt.Time.Format(time.RFC3339)
-	}
-	if updatedAt.Valid {
-		profile.UpdatedAt = updatedAt.Time.Format(time.RFC3339)
-	}
-
-	if db.PgsodiumKeyID() > 0 {
-		var email string
-		emailQuery := strings.Builder{}
-		emailQuery.WriteString(sqlSelectPrefix)
-		emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
-		emailQuery.WriteString(" FROM users WHERE id = $1")
-		if err := s.db.QueryRowContext(ctx, emailQuery.String(), profile.UserId).Scan(&email); err != nil { // NOSONAR go:S2077 - query uses pgsodium decrypt expression, no user input in structure
-			s.log.Error("Failed to decrypt email", zap.Error(err))
-			return nil, status.Error(codes.Internal, "failed to decrypt email")
-		}
-		profile.Email = email
+	profile := &pb.UserProfile{
+		UserId:       user.ID,
+		Email:        user.Email,
+		FullName:     user.FullName,
+		Nickname:     user.Nickname,
+		Role:         user.Role,
+		CreatedAt:    user.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:    user.UpdatedAt.Format(time.RFC3339),
 	}
 
-	return &profile, nil
+	return profile, nil
 }
 
 func (s *userServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenRequest) (*pb.RefreshTokenResponse, error) {
@@ -674,45 +508,43 @@ func (s *userServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenReque
 		return nil, status.Error(codes.InvalidArgument, "refresh_token is required")
 	}
 
-	var userID string
-	var expiresAt time.Time
-	err := s.db.QueryRowContext(ctx, `
-		SELECT user_id, expires_at FROM refresh_tokens WHERE token = $1 AND used = FALSE
-	`, req.RefreshToken).Scan(&userID, &expiresAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
-	}
+	rt, err := s.refreshTokenRepo.GetValid(ctx, req.RefreshToken)
 	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
+		}
 		s.log.Error("Database error checking refresh token", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	if expiresAt.Before(time.Now()) {
+	if rt.ExpiresAt.Before(time.Now()) {
 		return nil, status.Error(codes.Unauthenticated, "refresh token expired")
 	}
 
-	_, err = s.db.ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE WHERE token = $1`, req.RefreshToken)
-	if err != nil {
+	if err := s.refreshTokenRepo.MarkUsed(ctx, req.RefreshToken); err != nil {
 		s.log.Error("Failed to mark refresh token as used", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	var email, role string
-	if err = s.db.QueryRowContext(ctx, `SELECT email, role FROM users WHERE id = $1`, userID).Scan(&email, &role); err != nil {
+	user, err := s.userRepo.GetByID(ctx, rt.UserID)
+	if err != nil {
 		s.log.Error("Failed to get user for refresh", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	accessToken, err := s.tokenProvider.GenerateAccessToken(userID, email, role, 15*time.Minute)
+	accessToken, err := s.tokenProvider.GenerateAccessToken(user.ID, user.Email, user.Role, 15*time.Minute)
 	if err != nil {
 		s.log.Error("Failed to generate access token", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to generate access token")
 	}
 
 	newRefresh := s.tokenProvider.GenerateRefreshToken()
-	if _, err := s.db.ExecContext(ctx, `
-		INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)
-	`, userID, newRefresh, time.Now().Add(7*24*time.Hour)); err != nil {
+	newRT := &port.RefreshToken{
+		UserID:    rt.UserID,
+		Token:     newRefresh,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+	if err := s.refreshTokenRepo.Create(ctx, newRT); err != nil {
 		s.log.Error("Failed to store new refresh token", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
@@ -721,8 +553,8 @@ func (s *userServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenReque
 		AccessToken:  accessToken,
 		TokenType:    "Bearer",
 		ExpiresIn:    900,
-		UserId:       userID,
-		Role:         role,
+		UserId:       user.ID,
+		Role:         user.Role,
 		RefreshToken: newRefresh,
 	}, nil
 }
@@ -733,29 +565,15 @@ func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReq
 		return nil, fmt.Errorf("validate profile update: %w", err)
 	}
 
-	// Обновляем full_name и nickname в users table (если передан)
 	if req.FullName != nil || req.Nickname != nil {
-		fullNameNonce, _ := db.GenerateNonce()
-		fullNameHash := db.BlindIndex(toString(req.FullName))
-		nicknameNonce, _ := db.GenerateNonce()
-		nicknameHash := db.BlindIndex(toString(req.Nickname))
-		var updateProfileQuery strings.Builder
-		updateProfileQuery.WriteString("UPDATE users SET\n\t\t\t\tfull_name_encrypted = CASE WHEN $1 IS NULL THEN full_name_encrypted ELSE ")
-		updateProfileQuery.WriteString(db.PgsodiumRandomEncryptParam(1, 2))
-		updateProfileQuery.WriteString(" END,\n\t\t\t\tfull_name_nonce = CASE WHEN $1 IS NULL THEN full_name_nonce ELSE $2 END,\n\t\t\t\tfull_name_hash = CASE WHEN $1 IS NULL THEN full_name_hash ELSE $3 END,\n\t\t\t\tnickname_encrypted = CASE WHEN $4 IS NULL THEN nickname_encrypted ELSE ")
-		updateProfileQuery.WriteString(db.PgsodiumRandomEncryptParam(4, 5))
-		updateProfileQuery.WriteString(" END,\n\t\t\t\tnickname_nonce = CASE WHEN $4 IS NULL THEN nickname_nonce ELSE $5 END,\n\t\t\t\tnickname_hash = CASE WHEN $4 IS NULL THEN nickname_hash ELSE $6 END,\n\t\t\t\tupdated_at = NOW()\n\t\t\tWHERE id = $7")
-		_, err := s.db.ExecContext(ctx, updateProfileQuery.String(), toString(req.FullName), fullNameNonce, fullNameHash, toString(req.Nickname), nicknameNonce, nicknameHash, req.UserId) // NOSONAR go:S2077 - query uses pgsodium encrypt expressions, no user input in structure
-		if err != nil {
+		if err := s.userRepo.UpdateUserDetails(ctx, req.UserId, toString(req.FullName), toString(req.Nickname)); err != nil {
 			s.log.Error("Failed to update user details", zap.Error(err), zap.String("user_id", req.UserId))
 			return nil, status.Error(codes.Internal, "failed to update user details")
 		}
 	}
 
-	// Обновляем user_profiles (без goals/contraindications — они в отдельных таблицах)
-	// Сначала проверяем что пользователь существует
 	var userExists bool
-	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", req.UserId).Scan(&userExists)
+	userExists, err := s.profileRepo.UserExists(ctx, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to check user existence", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, errDatabaseError)
@@ -765,83 +583,28 @@ func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReq
 		return nil, status.Error(codes.NotFound, errUserNotFound)
 	}
 
-	profileQuery := `
-        INSERT INTO user_profiles (user_id, age, gender, height_cm, weight_kg, fitness_level, nutrition, sleep_hours, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-        ON CONFLICT (user_id) DO UPDATE SET
-            age = COALESCE(EXCLUDED.age, user_profiles.age),
-            gender = COALESCE(EXCLUDED.gender, user_profiles.gender),
-            height_cm = COALESCE(EXCLUDED.height_cm, user_profiles.height_cm),
-            weight_kg = COALESCE(EXCLUDED.weight_kg, user_profiles.weight_kg),
-            fitness_level = COALESCE(EXCLUDED.fitness_level, user_profiles.fitness_level),
-            nutrition = COALESCE(EXCLUDED.nutrition, user_profiles.nutrition),
-            sleep_hours = COALESCE(EXCLUDED.sleep_hours, user_profiles.sleep_hours),
-            updated_at = NOW()
-    `
-
-	_, err = s.db.ExecContext(ctx, profileQuery,
-		req.UserId,
-		req.Age, req.Gender, req.HeightCm, req.WeightKg, req.FitnessLevel,
-		req.Nutrition, req.SleepHours,
-	)
-	if err != nil {
+	if err := s.profileRepo.UpsertProfile(ctx, req.UserId, &port.ProfileData{
+		Age:          toInt32(req.Age),
+		Gender:       toString(req.Gender),
+		HeightCm:     toInt32(req.HeightCm),
+		WeightKg:     toFloat64(req.WeightKg),
+		FitnessLevel: toString(req.FitnessLevel),
+		Nutrition:    toString(req.Nutrition),
+		SleepHours:   toFloat32(req.SleepHours),
+	}); err != nil {
 		s.log.Error("Failed to update profile", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to update profile")
 	}
 
-	// Обновляем goals
-	if err := s.updateUserList(ctx, req.UserId, "user_goals", "goal", req.Goals, "goals"); err != nil {
+	if err := s.userRepo.ReplaceUserGoals(ctx, req.UserId, req.Goals); err != nil {
 		return nil, err
 	}
 
-	// Обновляем contraindications
-	if err := s.updateUserList(ctx, req.UserId, "user_contraindications", "contraindication", req.Contraindications, "contraindications"); err != nil {
+	if err := s.userRepo.ReplaceUserContraindications(ctx, req.UserId, req.Contraindications); err != nil {
 		return nil, err
 	}
 
-	// Возвращаем обновленный профиль
 	return s.GetProfile(ctx, &pb.GetProfileRequest{UserId: req.UserId})
-}
-
-func (s *userServer) updateUserList(ctx context.Context, userID, tableName, columnName string, items []string, logMsg string) error {
-	if len(items) == 0 {
-		return nil
-	}
-	validTables := map[string]bool{
-		"user_goals":             true,
-		"user_contraindications": true,
-	}
-	validColumns := map[string]bool{
-		"goal":             true,
-		"contraindication": true,
-	}
-	if !validTables[tableName] || !validColumns[columnName] {
-		return status.Error(codes.Internal, "invalid table or column name")
-	}
-	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE user_id = $1`, tableName), userID) // NOSONAR go:S2077 - tableName validated against allow-list: user_goals, user_contraindications
-	if err != nil {
-		s.log.Error("Failed to delete old "+logMsg, zap.Error(err), zap.String("user_id", userID))
-		return status.Errorf(codes.Internal, "failed to update %s", logMsg)
-	}
-	for _, item := range items {
-		_, err = s.db.ExecContext(ctx, // NOSONAR go:S2077
-			fmt.Sprintf(`INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING`, tableName, columnName), // NOSONAR go:S2077 - tableName and columnName validated against allow-lists: user_goals/user_contraindications, goal/contraindication
-			userID, item)
-		if err != nil {
-			s.log.Error("Failed to insert "+logMsg, zap.Error(err), zap.String("user_id", userID))
-			return status.Errorf(codes.Internal, "failed to update %s", logMsg)
-		}
-	}
-	return nil
-}
-
-func (s *userServer) deleteRecord(ctx context.Context, tableName, idField, userID, recordID, logMsg string) error {
-	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE %s = $1 AND user_id = $2`, tableName, idField), recordID, userID) // NOSONAR go:S2077 - tableName and idField are validated constants, not user input
-	if err != nil {
-		s.log.Error("Failed to delete "+logMsg, zap.Error(err))
-		return status.Error(codes.Internal, errDatabaseError)
-	}
-	return nil
 }
 
 // ChangePassword changes the user's password after verifying the current one.
@@ -866,12 +629,11 @@ func (s *userServer) ChangePassword(ctx context.Context, req *pb.ChangePasswordR
 	}
 
 	// Fetch current password hash
-	var currentHash string
-	err := s.db.QueryRowContext(ctx, "SELECT password_hash FROM users WHERE id = $1", req.UserId).Scan(&currentHash)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, status.Error(codes.NotFound, errUserNotFound)
-	}
+	currentHash, err := s.userRepo.GetPasswordHash(ctx, req.UserId)
 	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, errUserNotFound)
+		}
 		s.log.Error("Failed to fetch password hash", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
@@ -890,8 +652,7 @@ func (s *userServer) ChangePassword(ctx context.Context, req *pb.ChangePasswordR
 	}
 
 	// Update password
-	_, err = s.db.ExecContext(ctx, "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2", string(newHash), req.UserId)
-	if err != nil {
+	if err := s.userRepo.UpdatePassword(ctx, req.UserId, string(newHash)); err != nil {
 		s.log.Error("Failed to update password", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to update password")
 	}
@@ -909,9 +670,9 @@ func (s *userServer) ChangeNickname(ctx context.Context, req *pb.ChangeNicknameR
 		return nil, status.Error(codes.InvalidArgument, "new_nickname is required")
 	}
 
-	// Check if nickname is unique (check plaintext column for existing plaintext rows)
 	var exists bool
-	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE nickname = $1 AND id != $2)", req.NewNickname, req.UserId).Scan(&exists)
+	var err error
+	exists, err = s.userRepo.NicknameExists(ctx, req.NewNickname, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to check nickname uniqueness", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
@@ -920,19 +681,13 @@ func (s *userServer) ChangeNickname(ctx context.Context, req *pb.ChangeNicknameR
 		return nil, status.Error(codes.AlreadyExists, "nickname already taken")
 	}
 
-	// Update nickname in both encrypted and plaintext columns
 	nicknameHash := db.NicknameHash(req.NewNickname)
 	nicknameNonce, err := db.GenerateNonce()
 	if err != nil {
 		s.log.Error(logFailedToGenerateNonce, zap.Error(err))
 		return nil, status.Error(codes.Internal, errFailedToGenerateNonce)
 	}
-	var nicknameQuery strings.Builder
-	nicknameQuery.WriteString("UPDATE users SET nickname_encrypted = ")
-	nicknameQuery.WriteString(db.PgsodiumRandomEncryptParam(1, 2))
-	nicknameQuery.WriteString(", nickname_nonce = $2, nickname_hash = $3, updated_at = NOW() WHERE id = $4")
-	_, err = s.db.ExecContext(ctx, nicknameQuery.String(), req.NewNickname, nicknameNonce, nicknameHash, req.UserId) // NOSONAR go:S2077 - query uses pgsodium encrypt expression, no user input in structure
-	if err != nil {
+	if err := s.userRepo.UpdateNicknameWithPgsodium(ctx, req.UserId, req.NewNickname, nicknameNonce, nicknameHash); err != nil {
 		s.log.Error("Failed to update nickname", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to update nickname")
 	}
@@ -961,8 +716,7 @@ func (s *userServer) UploadProfilePhoto(ctx context.Context, req *pb.UploadProfi
 	// For now, simulate by updating DB with URL
 	photoURL := s.baseURL + "/uploads/profile_photos/" + filename
 
-	_, err := s.db.ExecContext(ctx, "UPDATE users SET profile_photo_url = $1, updated_at = NOW() WHERE id = $2", photoURL, req.UserId)
-	if err != nil {
+	if err := s.userRepo.UpdateProfilePhoto(ctx, req.UserId, photoURL); err != nil {
 		s.log.Error("Failed to update profile photo URL", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to update profile photo")
 	}
@@ -978,8 +732,7 @@ func (s *userServer) RemoveProfilePhoto(ctx context.Context, req *pb.RemoveProfi
 	}
 
 	// Update DB to remove photo URL
-	_, err := s.db.ExecContext(ctx, "UPDATE users SET profile_photo_url = NULL, updated_at = NOW() WHERE id = $1", req.UserId)
-	if err != nil {
+	if err := s.userRepo.RemoveProfilePhoto(ctx, req.UserId); err != nil {
 		s.log.Error("Failed to remove profile photo", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to remove profile photo")
 	}
@@ -994,35 +747,43 @@ func (s *userServer) ListDevices(ctx context.Context, req *pb.ListDevicesRequest
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
 
-	// Query devices
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id as device_id, device_type, device_name, is_connected, last_sync
-		FROM devices WHERE user_id = $1
-	`, req.UserId)
-	if err != nil {
-		s.log.Error("Failed to list devices", zap.Error(err), zap.String("user_id", req.UserId))
-		return nil, status.Error(codes.Internal, "failed to list devices")
-	}
-	defer func() { _ = rows.Close() }()
-
-	var devices []*pb.Device
-	for rows.Next() {
-		var d pb.Device
-		var lastSync sql.NullString
-		err := rows.Scan(&d.DeviceId, &d.DeviceType, &d.DeviceName, &d.IsConnected, &lastSync)
+	if s.userSvc != nil {
+		devices, err := s.userSvc.ListDevices(ctx, req.UserId)
 		if err != nil {
-			s.log.Error("Failed to scan device", zap.Error(err))
-			continue
+			s.log.Error("Failed to list devices", zap.Error(err))
+			return nil, status.Error(codes.Internal, errFailedToListDevices)
 		}
-		if lastSync.Valid {
-			d.LastSync = lastSync.String
+
+		var pbDevices []*pb.Device
+		for _, d := range devices {
+			pbDevices = append(pbDevices, &pb.Device{
+				DeviceId:    d.ID,
+				DeviceType:  d.DeviceType,
+				DeviceName:  d.DeviceName,
+				IsConnected: d.IsConnected,
+				LastSync:    d.LastSync.Format(time.RFC3339),
+			})
 		}
-		devices = append(devices, &d)
+		return &pb.ListDevicesResponse{Devices: pbDevices}, nil
 	}
-	if err := rows.Err(); err != nil {
-		return nil, status.Error(codes.Internal, "failed to list devices")
+
+	devices, err := s.userSvc.ListDevices(ctx, req.UserId)
+	if err != nil {
+		s.log.Error("Failed to list devices", zap.Error(err))
+		return nil, status.Error(codes.Internal, errFailedToListDevices)
 	}
-	return &pb.ListDevicesResponse{Devices: devices}, nil
+
+	var pbDevices []*pb.Device
+	for _, d := range devices {
+		pbDevices = append(pbDevices, &pb.Device{
+			DeviceId:    d.ID,
+			DeviceType:  d.DeviceType,
+			DeviceName:  d.DeviceName,
+			IsConnected: d.IsConnected,
+			LastSync:    d.LastSync.Format(time.RFC3339),
+		})
+	}
+	return &pb.ListDevicesResponse{Devices: pbDevices}, nil
 }
 
 // AddDevice adds a new device for the user.
@@ -1031,49 +792,41 @@ func (s *userServer) AddDevice(ctx context.Context, req *pb.AddDeviceRequest) (*
 		return nil, status.Error(codes.InvalidArgument, "user_id and device_type are required")
 	}
 
-	deviceID := uuid.New().String()
-	deviceName := req.DeviceName
-	if deviceName == "" {
-		deviceName = req.DeviceType + " Device"
+	device := &entity.Device{
+		ID:         uuid.New().String(),
+		UserID:     req.UserId,
+		DeviceType: req.DeviceType,
+		DeviceName: req.DeviceName,
+		Token:      uuid.New().String(),
 	}
 
-	// Insert device
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO devices (id, user_id, device_type, device_name, token, is_connected, last_sync)
-		VALUES ($1, $2, $3, $4, $5, true, NOW())
-	`, deviceID, req.UserId, req.DeviceType, deviceName, uuid.New().String())
+	_, err := s.userSvc.AddDevice(ctx, device)
 	if err != nil {
 		s.log.Error("Failed to add device", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to add device")
 	}
 
-	device := &pb.Device{
-		DeviceId:    deviceID,
-		DeviceType:  req.DeviceType,
-		DeviceName:  deviceName,
-		IsConnected: true,
-		LastSync:    time.Now().Format(time.RFC3339),
-	}
-
-	s.log.Info("Device added", zap.String("user_id", req.UserId), zap.String("device_id", deviceID))
-	return &pb.AddDeviceResponse{Device: device}, nil
+	s.log.Info("Device added", zap.String("user_id", req.UserId), zap.String("device_id", device.ID))
+	return &pb.AddDeviceResponse{
+		Device: &pb.Device{
+			DeviceId:    device.ID,
+			DeviceType:  device.DeviceType,
+			DeviceName:  device.DeviceName,
+			IsConnected: true,
+			LastSync:    time.Now().Format(time.RFC3339),
+		},
+	}, nil
 }
 
-// RemoveDevice removes a device from the user.
+// RemoveDevice removes a device for the user.
 func (s *userServer) RemoveDevice(ctx context.Context, req *pb.RemoveDeviceRequest) (*pb.RemoveDeviceResponse, error) {
 	if req.UserId == "" || req.DeviceId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and device_id are required")
 	}
 
-	// Delete device
-	result, err := s.db.ExecContext(ctx, "DELETE FROM devices WHERE user_id = $1 AND id = $2", req.UserId, req.DeviceId)
-	if err != nil {
+	if err := s.userSvc.RemoveDevice(ctx, req.UserId, req.DeviceId); err != nil {
 		s.log.Error("Failed to remove device", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to remove device")
-	}
-
-	if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
-		return nil, status.Error(codes.NotFound, "device not found")
 	}
 
 	s.log.Info("Device removed", zap.String("user_id", req.UserId), zap.String("device_id", req.DeviceId))
@@ -1104,53 +857,32 @@ func (s *userServer) GetAchievements(ctx context.Context, req *pb.GetAchievement
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
 
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT a.id, a.name, a.description, a.icon_url, ua.earned_at
-		FROM achievements a
-		LEFT JOIN user_achievements ua ON ua.achievement_id = a.id AND ua.user_id = $1
-		ORDER BY a.created_at ASC
-	`, req.UserId)
+	achievements, err := s.achievementExRepo.ListWithEarnedStatus(ctx, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to query achievements", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to query achievements")
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Warn("Failed to close achievements rows", zap.Error(closeErr))
-		}
-	}()
 
-	var achievements []*pb.Achievement
-	for rows.Next() {
-		var id, name, description, iconURL string
-		var earnedAt sql.NullTime
-		if err := rows.Scan(&id, &name, &description, &iconURL, &earnedAt); err != nil {
-			s.log.Error("Failed to scan achievement", zap.Error(err))
-			continue
-		}
+	var pbAchievements []*pb.Achievement
+	for _, a := range achievements {
 		earnedDate := ""
-		if earnedAt.Valid {
-			earnedDate = earnedAt.Time.Format(time.RFC3339)
+		if a.EarnedAt != nil {
+			earnedDate = a.EarnedAt.Format(time.RFC3339)
 		}
-		achievements = append(achievements, &pb.Achievement{
-			AchievementId: id,
-			Title:         name,
-			Description:   description,
+		pbAchievements = append(pbAchievements, &pb.Achievement{
+			AchievementId: a.ID,
+			Title:         a.Name,
+			Description:   a.Description,
 			EarnedDate:    earnedDate,
-			IconUrl:       iconURL,
+			IconUrl:       a.IconURL,
 		})
 	}
 
-	if err := rows.Err(); err != nil {
-		s.log.Error("Achievement rows error", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to read achievements")
+	if pbAchievements == nil {
+		pbAchievements = []*pb.Achievement{}
 	}
 
-	if achievements == nil {
-		achievements = []*pb.Achievement{}
-	}
-
-	return &pb.GetAchievementsResponse{Achievements: achievements}, nil
+	return &pb.GetAchievementsResponse{Achievements: pbAchievements}, nil
 }
 
 // Helper functions for password validation
@@ -1212,16 +944,15 @@ func (s *userServer) RegisterWithInvite(ctx context.Context, req *pb.RegisterWit
 	s.log.Info("Register with invite code", zap.String("email", req.GetEmail()))
 
 	// Валидация invite-кода
-	result := s.db.QueryRowContext(ctx, `SELECT * FROM use_invite_code($1)`, req.GetInviteCode())
-	var isValid bool
-	var role, specialty, errMsg string
-	if err := result.Scan(&isValid, &role, &specialty, &errMsg); err != nil {
+	isValid, role, specialty, errMsg, err := s.inviteCodeRepo.ValidateInviteCodeUse(ctx, req.GetInviteCode())
+	if err != nil {
 		s.log.Error("Failed to validate invite code", zap.Error(err))
 		return nil, status.Error(codes.Internal, errInternalError)
 	}
 	if !isValid {
 		return nil, status.Errorf(codes.InvalidArgument, "invite code error: %s", errMsg)
 	}
+	_ = specialty
 
 	// Определяем роль: приоритет у invite_code role
 	finalRole := role
@@ -1237,32 +968,9 @@ func (s *userServer) RegisterWithInvite(ctx context.Context, req *pb.RegisterWit
 	userID := uuid.New().String()
 	emailVal := sanitize.String(req.GetEmail())
 	fullName := sanitize.String(req.GetFullName())
-	fullNameHash := db.BlindIndex(fullName)
-	fullNameNonce, err := db.GenerateNonce()
-	if err != nil {
-		s.log.Error(logFailedToGenerateNonce, zap.Error(err))
-		return nil, status.Error(codes.Internal, errInternalError)
-	}
-	emailNonce, err := db.GenerateNonce()
-	if err != nil {
-		s.log.Error(logFailedToGenerateNonce, zap.Error(err))
-		return nil, status.Error(codes.Internal, errInternalError)
-	}
-	emailHash := db.EmailHash(emailVal)
-	var registerWithInviteQuery strings.Builder
-	registerWithInviteQuery.WriteString("INSERT INTO users (id, email_encrypted, email_nonce, email_hash, password_hash, full_name_encrypted, full_name_nonce, full_name_hash, role, email_confirmed) ")
-	registerWithInviteQuery.WriteString(sqlValuesPrefix)
-	registerWithInviteQuery.WriteString(db.PgsodiumRandomEncryptParam(2, 3))
-	registerWithInviteQuery.WriteString(sqlComma4Prefix)
-	registerWithInviteQuery.WriteString(sql56Prefix)
-	registerWithInviteQuery.WriteString(db.PgsodiumRandomEncryptParam(7, 8))
-	registerWithInviteQuery.WriteString(", $9, ")
-	registerWithInviteQuery.WriteString("$10, true)")
-	_, err = s.db.ExecContext(ctx, registerWithInviteQuery.String(), userID, emailVal, emailNonce, emailHash, string(hashedPassword), fullName, fullNameNonce, fullNameHash, finalRole) // NOSONAR go:S2077 - query uses pgsodium encrypt expressions, no user input in structure
-
-	if err != nil {
-		var pqErr *pq.Error
-		if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+	hashedPasswordStr := string(hashedPassword)
+	if err := s.userRepo.CreateWithInvite(ctx, userID, emailVal, db.EmailHash(emailVal), hashedPasswordStr, fullName, finalRole); err != nil {
+		if apperrors.IsConflict(err) {
 			return nil, status.Error(codes.AlreadyExists, "email already exists")
 		}
 		s.log.Error("Failed to create user", zap.Error(err))
@@ -1293,10 +1001,8 @@ func (s *userServer) ValidateInviteCode(ctx context.Context, req *pb.ValidateInv
 		return nil, status.Error(codes.InvalidArgument, "code is required")
 	}
 
-	result := s.db.QueryRowContext(ctx, `SELECT * FROM use_invite_code($1)`, req.GetCode())
-	var isValid bool
-	var role, specialty, errMsg string
-	if err := result.Scan(&isValid, &role, &specialty, &errMsg); err != nil {
+	isValid, role, specialty, errMsg, err := s.inviteCodeRepo.ValidateInviteCodeUse(ctx, req.GetCode())
+	if err != nil {
 		s.log.Error("Failed to validate invite code", zap.Error(err))
 		return nil, status.Error(codes.Internal, errInternalError)
 	}
@@ -1314,17 +1020,12 @@ func (s *userServer) SetupTOTP(ctx context.Context, req *pb.SetupTOTPRequest) (*
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
 
-	var email string
-	var totpEnabled bool
-	var setupTOTPQuery strings.Builder
-	setupTOTPQuery.WriteString(sqlSelectPrefix)
-	setupTOTPQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
-	setupTOTPQuery.WriteString(", totp_enabled FROM users WHERE id = $1")
-	err := s.db.QueryRowContext(ctx, setupTOTPQuery.String(), req.UserId).Scan(&email, &totpEnabled) // NOSONAR go:S2077 - query uses pgsodium decrypt expression, no user input in structure
+	email, totpEnabled, err := s.userRepo.GetEmailByID(ctx, req.UserId)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if apperrors.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, errUserNotFound)
 		}
+		s.log.Error("Database error getting email for TOTP setup", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 	if totpEnabled {
@@ -1374,12 +1075,7 @@ func (s *userServer) ConfirmTOTP(ctx context.Context, req *pb.ConfirmTOTPRequest
 
 	hashedCodes := totp.HashBackupCodes(req.BackupCodes)
 
-	_, err = s.db.ExecContext(ctx, `
-		UPDATE users 
-		SET totp_secret_encrypted = $1, totp_enabled = true, totp_backup_codes_hash = $2, totp_backup_codes_remaining = $3, updated_at = NOW()
-		WHERE id = $4
-	`, encryptedSecret, pq.Array(hashedCodes), len(req.BackupCodes), req.UserId)
-	if err != nil {
+	if err := s.userRepo.EnableTOTP(ctx, req.UserId, encryptedSecret, hashedCodes, int32(len(req.BackupCodes))); err != nil {
 		s.log.Error("Failed to enable TOTP", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to enable TOTP")
 	}
@@ -1396,15 +1092,7 @@ func (s *userServer) VerifyTOTP(ctx context.Context, req *pb.VerifyTOTPRequest) 
 		return nil, status.Error(codes.InvalidArgument, "passcode is required")
 	}
 
-	var encryptedSecret []byte
-	var totpEnabled bool
-	var backupCodesHash []string
-	var backupCodesRemaining int32
-
-	err := s.db.QueryRowContext(ctx, `
-		SELECT totp_secret_encrypted, totp_enabled, totp_backup_codes_hash, totp_backup_codes_remaining
-		FROM users WHERE id = $1
-	`, req.UserId).Scan(&encryptedSecret, &totpEnabled, pq.Array(&backupCodesHash), &backupCodesRemaining)
+	encryptedSecret, totpEnabled, backupCodesHash, backupCodesRemaining, err := s.userRepo.GetTOTPState(ctx, req.UserId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, errUserNotFound)
@@ -1424,13 +1112,7 @@ func (s *userServer) VerifyTOTP(ctx context.Context, req *pb.VerifyTOTPRequest) 
 		}
 
 		remaining := backupCodesRemaining
-		_, err = s.db.ExecContext(ctx, `
-			UPDATE users 
-			SET totp_backup_codes_hash = array_remove(totp_backup_codes_hash, $1),
-			    totp_backup_codes_remaining = GREATEST(totp_backup_codes_remaining - 1, 0)
-			WHERE id = $2
-		`, backupCodesHash[idx], req.UserId)
-		if err != nil {
+		if err := s.userRepo.RemoveBackupCode(ctx, req.UserId, backupCodesHash[idx]); err != nil {
 			s.log.Warn("Failed to remove used backup code", zap.Error(err))
 		} else if remaining > 0 {
 			remaining--
@@ -1463,16 +1145,16 @@ func (s *userServer) DisableTOTP(ctx context.Context, req *pb.DisableTOTPRequest
 		return nil, status.Error(codes.InvalidArgument, "passcode is required")
 	}
 
-	var encryptedSecret []byte
-	err := s.db.QueryRowContext(ctx, `
-		SELECT totp_secret_encrypted FROM users 
-		WHERE id = $1 AND totp_enabled = true
-	`, req.UserId).Scan(&encryptedSecret)
+	encryptedSecret, totpEnabled, _, _, err := s.userRepo.GetTOTPState(ctx, req.UserId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "TOTP not enabled for user")
 		}
 		return nil, status.Error(codes.Internal, errDatabaseError)
+	}
+
+	if !totpEnabled {
+		return nil, status.Error(codes.NotFound, "TOTP not enabled for user")
 	}
 
 	secret, err := s.totpService.DecryptSecret(encryptedSecret)
@@ -1490,13 +1172,7 @@ func (s *userServer) DisableTOTP(ctx context.Context, req *pb.DisableTOTPRequest
 		return &pb.DisableTOTPResponse{Success: false, Message: "Invalid TOTP code"}, nil
 	}
 
-	_, err = s.db.ExecContext(ctx, `
-		UPDATE users 
-		SET totp_secret_encrypted = NULL, totp_enabled = false, 
-		    totp_backup_codes_hash = NULL, totp_backup_codes_remaining = 0, updated_at = NOW()
-		WHERE id = $1
-	`, req.UserId)
-	if err != nil {
+	if err := s.userRepo.DisableTOTP(ctx, req.UserId); err != nil {
 		s.log.Error("Failed to disable TOTP", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to disable TOTP")
 	}
@@ -1509,68 +1185,64 @@ func (s *userServer) ListHealthConditions(ctx context.Context, req *pb.ListHealt
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, user_id, condition_type, condition_name, severity, diagnosed_at, is_active, notes, created_at, updated_at
-		FROM user_health_conditions
-		WHERE user_id = $1
-		ORDER BY created_at DESC
-	`, req.UserId)
+	conditions, err := s.userHealthRepo.List(ctx, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to query health conditions", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Error("Failed to close rows for health conditions", zap.Error(closeErr))
-		}
-	}()
 
-	conditions := make([]*pb.HealthCondition, 0)
-	for rows.Next() {
-		var c pb.HealthCondition
-		var diagnosedAt sql.NullTime
-		var notes sql.NullString
-		if err := rows.Scan(&c.Id, &c.UserId, &c.ConditionType, &c.ConditionName, &c.Severity, &diagnosedAt, &c.IsActive, &notes, &c.CreatedAt, &c.UpdatedAt); err != nil {
-			s.log.Error("Failed to scan health condition", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
+	var pbConditions []*pb.HealthCondition
+	for _, c := range conditions {
+		diagnosedAt := ""
+		if c.DiagnosedAt != nil {
+			diagnosedAt = c.DiagnosedAt.Format(dateFormat)
 		}
-		if diagnosedAt.Valid {
-			c.DiagnosedAt = diagnosedAt.Time.Format("2006-01-02")
+		notes := ""
+		if c.Notes != nil {
+			notes = *c.Notes
 		}
-		if notes.Valid {
-			c.Notes = notes.String
-		}
-		conditions = append(conditions, &c)
+		pbConditions = append(pbConditions, &pb.HealthCondition{
+			Id: c.ID, UserId: c.UserID, ConditionType: c.ConditionType, ConditionName: c.ConditionName,
+			Severity: c.Severity, DiagnosedAt: diagnosedAt, IsActive: c.IsActive, Notes: notes,
+			CreatedAt: c.CreatedAt.Format(time.RFC3339), UpdatedAt: c.UpdatedAt.Format(time.RFC3339),
+		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
+	if pbConditions == nil {
+		pbConditions = []*pb.HealthCondition{}
 	}
-	return &pb.ListHealthConditionsResponse{Conditions: conditions, Total: safeInt32(len(conditions))}, nil
+	return &pb.ListHealthConditionsResponse{Conditions: pbConditions, Total: safeInt32(len(pbConditions))}, nil
 }
 
 func (s *userServer) UpsertHealthCondition(ctx context.Context, req *pb.UpsertHealthConditionRequest) (*pb.HealthCondition, error) {
 	if req.UserId == "" || req.ConditionName == "" || req.ConditionType == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id, condition_type and condition_name are required")
 	}
-	var id string
-	err := s.db.QueryRowContext(ctx, `
-		INSERT INTO user_health_conditions (user_id, condition_type, condition_name, severity, diagnosed_at, is_active, notes, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-		ON CONFLICT (user_id, condition_type, condition_name) DO UPDATE SET
-			severity = EXCLUDED.severity,
-			diagnosed_at = EXCLUDED.diagnosed_at,
-			is_active = EXCLUDED.is_active,
-			notes = EXCLUDED.notes,
-			updated_at = NOW()
-		RETURNING id
-	`, req.UserId, req.ConditionType, req.ConditionName, req.Severity, req.DiagnosedAt, req.IsActive, req.Notes).Scan(&id)
+	condition := &port.UserHealthCondition{
+		UserID:        req.UserId,
+		ConditionType: req.ConditionType,
+		ConditionName: req.ConditionName,
+		Severity:      req.Severity,
+		IsActive:      req.IsActive,
+	}
+	if req.DiagnosedAt != "" {
+		t, parseErr := time.Parse(dateFormat, req.DiagnosedAt)
+		if parseErr != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid diagnosed_at format, use YYYY-MM-DD")
+		}
+		condition.DiagnosedAt = &t
+	}
+	if req.Notes != "" {
+		notes := req.Notes
+		condition.Notes = &notes
+	}
+	result, err := s.userHealthRepo.Upsert(ctx, condition)
 	if err != nil {
 		s.log.Error("Failed to upsert health condition", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 	return &pb.HealthCondition{
-		Id: id, UserId: req.UserId, ConditionType: req.ConditionType, ConditionName: req.ConditionName,
-		Severity: req.Severity, DiagnosedAt: req.DiagnosedAt, IsActive: req.IsActive, Notes: req.Notes,
+		Id: result.ID, UserId: result.UserID, ConditionType: result.ConditionType, ConditionName: result.ConditionName,
+		Severity: result.Severity, DiagnosedAt: req.DiagnosedAt, IsActive: result.IsActive, Notes: req.Notes,
 	}, nil
 }
 
@@ -1578,10 +1250,24 @@ func (s *userServer) DeleteHealthCondition(ctx context.Context, req *pb.DeleteHe
 	if req.UserId == "" || req.ConditionId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and condition_id are required")
 	}
-	if err := s.deleteRecord(ctx, "user_health_conditions", "id", req.UserId, req.ConditionId, "health condition"); err != nil {
+	if err := s.userRepo.DeleteHealthCondition(ctx, req.ConditionId, req.UserId); err != nil {
 		return nil, err
 	}
 	return &pb.DeleteHealthConditionResponse{Success: true, Message: "Health condition deleted"}, nil
+}
+
+func parseTimeInput(value string) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t, err = time.Parse(dateFormat, value)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid date format")
+		}
+	}
+	return &t, nil
 }
 
 func (s *userServer) ListBodyComposition(ctx context.Context, req *pb.ListBodyCompositionRequest) (*pb.ListBodyCompositionResponse, error) {
@@ -1597,82 +1283,76 @@ func (s *userServer) ListBodyComposition(ctx context.Context, req *pb.ListBodyCo
 		limitClamped = 10000
 	}
 
-	var query string
-	var args []interface{}
-
-	switch {
-	case req.From != "" && req.To != "":
-		query = `SELECT id, user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source, created_at
-			FROM user_body_composition
-			WHERE user_id = $1 AND recorded_at >= $2 AND recorded_at <= $3
-			ORDER BY recorded_at DESC LIMIT $4`
-		args = []interface{}{req.UserId, req.From, req.To, limitClamped}
-	case req.From != "":
-		query = `SELECT id, user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source, created_at
-			FROM user_body_composition
-			WHERE user_id = $1 AND recorded_at >= $2
-			ORDER BY recorded_at DESC LIMIT $3`
-		args = []interface{}{req.UserId, req.From, limitClamped}
-	case req.To != "":
-		query = `SELECT id, user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source, created_at
-			FROM user_body_composition
-			WHERE user_id = $1 AND recorded_at <= $2
-			ORDER BY recorded_at DESC LIMIT $3`
-		args = []interface{}{req.UserId, req.To, limitClamped}
-	default:
-		query = `SELECT id, user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source, created_at
-			FROM user_body_composition
-			WHERE user_id = $1
-			ORDER BY recorded_at DESC LIMIT $2`
-		args = []interface{}{req.UserId, limitClamped}
+	from, err := parseTimeInput(req.From)
+	if err != nil {
+		return nil, err
+	}
+	to, err := parseTimeInput(req.To)
+	if err != nil {
+		return nil, err
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	records, err := s.userBodyCompRepo.List(ctx, req.UserId, from, to, int(limitClamped))
 	if err != nil {
 		s.log.Error("Failed to query body composition", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Error("Failed to close rows for body composition", zap.Error(closeErr))
-		}
-	}()
 
-	records := make([]*pb.BodyCompositionRecord, 0)
-	for rows.Next() {
-		var r pb.BodyCompositionRecord
-		if err := rows.Scan(&r.Id, &r.UserId, &r.RecordedAt, &r.WeightKg, &r.HeightCm, &r.Bmi, &r.BodyFatPercentage, &r.MuscleMassPercentage, &r.BoneMassPercentage, &r.WaterPercentage, &r.VisceralFatRating, &r.MetabolicAge, &r.Source, &r.CreatedAt); err != nil {
-			s.log.Error("Failed to scan body composition record", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-		records = append(records, &r)
+	pbRecords := make([]*pb.BodyCompositionRecord, 0)
+	for _, r := range records {
+		pbRecords = append(pbRecords, &pb.BodyCompositionRecord{
+			Id: r.ID, UserId: r.UserID, RecordedAt: r.RecordedAt.Format(time.RFC3339), WeightKg: r.WeightKG,
+			HeightCm: int32(r.HeightCM), Bmi: r.BMI,
+			BodyFatPercentage: toFloat64(r.BodyFatPercentage), MuscleMassPercentage: toFloat64(r.MuscleMassPercentage),
+			BoneMassPercentage: toFloat64(r.BoneMassPercentage), WaterPercentage: toFloat64(r.WaterPercentage),
+			VisceralFatRating: int32(toFloat64(r.VisceralFatRating)), MetabolicAge: int32(toFloat64(r.MetabolicAge)),
+			Source: r.Source,
+		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	return &pb.ListBodyCompositionResponse{Records: records, Total: safeInt32(len(records))}, nil
+	return &pb.ListBodyCompositionResponse{Records: pbRecords, Total: safeInt32(len(pbRecords))}, nil
 }
 
 func (s *userServer) CreateBodyComposition(ctx context.Context, req *pb.CreateBodyCompositionRequest) (*pb.BodyCompositionRecord, error) {
 	if req.UserId == "" || req.WeightKg <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "user_id and weight_kg are required")
 	}
-	var id string
-	var recordedAt string
-	err := s.db.QueryRowContext(ctx, `
-		INSERT INTO user_body_composition (user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source)
-		VALUES ($1, COALESCE($2, NOW()), $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12, 'manual'))
-		RETURNING id, recorded_at
-	`, req.UserId, req.RecordedAt, req.WeightKg, req.HeightCm, req.Bmi, req.BodyFatPercentage, req.MuscleMassPercentage, req.BoneMassPercentage, req.WaterPercentage, req.VisceralFatRating, req.MetabolicAge, req.Source).Scan(&id, &recordedAt)
+	bc := &port.UserBodyComposition{
+		UserID:                 req.UserId,
+		WeightKG:               req.WeightKg,
+		HeightCM:               float64(req.HeightCm),
+		BMI:                    req.Bmi,
+		BodyFatPercentage:      float64Ptr(req.BodyFatPercentage),
+		MuscleMassPercentage:   float64Ptr(req.MuscleMassPercentage),
+		BoneMassPercentage:     float64Ptr(req.BoneMassPercentage),
+		WaterPercentage:        float64Ptr(req.WaterPercentage),
+		VisceralFatRating:      float64Ptr(float64(req.VisceralFatRating)),
+		MetabolicAge:           float64Ptr(float64(req.MetabolicAge)),
+		Source:                 req.Source,
+	}
+	if req.RecordedAt != "" {
+		t, parseErr := time.Parse(time.RFC3339, req.RecordedAt)
+		if parseErr != nil {
+			t, parseErr = time.Parse(dateFormat, req.RecordedAt)
+			if parseErr != nil {
+				return nil, status.Error(codes.InvalidArgument, "invalid recorded_at format")
+			}
+		}
+		bc.RecordedAt = t
+	} else {
+		bc.RecordedAt = time.Now()
+	}
+	result, err := s.userBodyCompRepo.Create(ctx, bc)
 	if err != nil {
 		s.log.Error("Failed to create body composition record", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 	return &pb.BodyCompositionRecord{
-		Id: id, UserId: req.UserId, RecordedAt: recordedAt, WeightKg: req.WeightKg, HeightCm: req.HeightCm,
-		Bmi: req.Bmi, BodyFatPercentage: req.BodyFatPercentage, MuscleMassPercentage: req.MuscleMassPercentage,
-		BoneMassPercentage: req.BoneMassPercentage, WaterPercentage: req.WaterPercentage,
-		VisceralFatRating: req.VisceralFatRating, MetabolicAge: req.MetabolicAge, Source: req.Source,
+		Id: result.ID, UserId: result.UserID, RecordedAt: result.RecordedAt.Format(time.RFC3339), WeightKg: result.WeightKG,
+		HeightCm: int32(result.HeightCM), Bmi: result.BMI,
+		BodyFatPercentage: toFloat64(result.BodyFatPercentage), MuscleMassPercentage: toFloat64(result.MuscleMassPercentage),
+		BoneMassPercentage: toFloat64(result.BoneMassPercentage), WaterPercentage: toFloat64(result.WaterPercentage),
+		VisceralFatRating: int32(toFloat64(result.VisceralFatRating)), MetabolicAge: int32(toFloat64(result.MetabolicAge)),
+		Source: result.Source,
 	}, nil
 }
 
@@ -1680,133 +1360,56 @@ func (s *userServer) ListMenstrualCycles(ctx context.Context, req *pb.ListMenstr
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, user_id, cycle_start_date, cycle_end_date, flow_intensity, notes, created_at, updated_at
-		FROM user_menstrual_cycles
-		WHERE user_id = $1
-		ORDER BY cycle_start_date DESC
-	`, req.UserId)
+	cycles, err := s.userMenstrualRepo.ListCycles(ctx, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to query menstrual cycles", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Error("Failed to close rows for health conditions", zap.Error(closeErr))
-		}
-	}()
 
-	cycles := make([]*pb.MenstrualCycle, 0)
-	for rows.Next() {
-		cycle, err := s.scanMenstrualCycleRow(ctx, rows)
+	pbCycles := make([]*pb.MenstrualCycle, 0)
+	for _, c := range cycles {
+		symptoms, err := s.userMenstrualRepo.ListSymptoms(ctx, c.ID)
 		if err != nil {
-			return nil, err
+			s.log.Error("Failed to query menstrual symptoms", zap.Error(err), zap.String("cycle_id", c.ID))
+			return nil, status.Error(codes.Internal, errDatabaseError)
 		}
-		cycles = append(cycles, cycle)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	return &pb.ListMenstrualCyclesResponse{Cycles: cycles, Total: safeInt32(len(cycles))}, nil
-}
-
-func (s *userServer) scanMenstrualCycleRow(ctx context.Context, rows *sql.Rows) (*pb.MenstrualCycle, error) {
-	var c pb.MenstrualCycle
-	var cycleEndDate sql.NullTime
-	var notes sql.NullString
-	if err := rows.Scan(&c.Id, &c.UserId, &c.CycleStartDate, &cycleEndDate, &c.FlowIntensity, &notes, &c.CreatedAt, &c.UpdatedAt); err != nil {
-		s.log.Error("Failed to scan menstrual cycle", zap.Error(err))
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	if cycleEndDate.Valid {
-		c.CycleEndDate = cycleEndDate.Time.Format("2006-01-02")
-	}
-	if notes.Valid {
-		c.Notes = notes.String
-	}
-
-	symptoms, err := s.queryCycleItems(ctx, "user_menstrual_symptoms", "symptom", c.Id)
-	if err != nil {
-		return nil, err
-	}
-	c.Symptoms = symptoms
-
-	moods, err := s.queryCycleItems(ctx, "user_menstrual_moods", "mood", c.Id)
-	if err != nil {
-		return nil, err
-	}
-	c.Moods = moods
-
-	return &c, nil
-}
-
-func (s *userServer) queryCycleItems(ctx context.Context, table, column, cycleID string) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, fmt.Sprintf("SELECT %s FROM %s WHERE cycle_id = $1", column, table), cycleID) // NOSONAR go:S2077 - table and column are hardcoded constants, not user input
-	if err != nil {
-		s.log.Error("Failed to query cycle items", zap.Error(err), zap.String("table", table))
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	defer func() { _ = rows.Close() }()
-
-	items := make([]string, 0)
-	for rows.Next() {
-		var item string
-		if err := rows.Scan(&item); err == nil {
-			items = append(items, item)
+		moods, err := s.userMenstrualRepo.ListMoods(ctx, c.ID)
+		if err != nil {
+			s.log.Error("Failed to query menstrual moods", zap.Error(err), zap.String("cycle_id", c.ID))
+			return nil, status.Error(codes.Internal, errDatabaseError)
 		}
+		pbCycles = append(pbCycles, &pb.MenstrualCycle{
+			Id: c.ID, UserId: c.UserID, CycleStartDate: c.CycleStartDate,
+			CycleEndDate: c.CycleEndDate, FlowIntensity: c.FlowIntensity,
+			Notes: c.Notes, Symptoms: symptoms, Moods: moods,
+			CreatedAt: c.CreatedAt.Format(time.RFC3339), UpdatedAt: c.UpdatedAt.Format(time.RFC3339),
+		})
 	}
-	if err := rows.Err(); err != nil {
-		s.log.Error("Failed to iterate cycle item rows", zap.Error(err), zap.String("table", table))
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	return items, nil
+	return &pb.ListMenstrualCyclesResponse{Cycles: pbCycles, Total: safeInt32(len(pbCycles))}, nil
 }
 
 func (s *userServer) CreateMenstrualCycle(ctx context.Context, req *pb.CreateMenstrualCycleRequest) (*pb.MenstrualCycle, error) {
 	if req.UserId == "" || req.CycleStartDate == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and cycle_start_date are required")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
+	cycle := &port.UserMenstrualCycle{
+		UserID:         req.UserId,
+		CycleStartDate: req.CycleStartDate,
+		CycleEndDate:   req.CycleEndDate,
+		FlowIntensity:  req.FlowIntensity,
+		Notes:          req.Notes,
+		Symptoms:       req.Symptoms,
+		Moods:          req.Moods,
 	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			s.log.Error("Failed to rollback transaction", zap.Error(rollbackErr))
-		}
-	}()
-
-	var cycleID string
-	err = tx.QueryRowContext(ctx, `
-		INSERT INTO user_menstrual_cycles (user_id, cycle_start_date, cycle_end_date, flow_intensity, notes)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id
-	`, req.UserId, req.CycleStartDate, nullIfEmpty(req.CycleEndDate), nullIfEmpty(req.FlowIntensity), req.Notes).Scan(&cycleID)
+	result, err := s.userMenstrualRepo.CreateCycleWithDetails(ctx, cycle)
 	if err != nil {
 		s.log.Error("Failed to create menstrual cycle", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-
-	for _, symptom := range req.Symptoms {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO user_menstrual_symptoms (cycle_id, symptom) VALUES ($1, $2) ON CONFLICT DO NOTHING`, cycleID, symptom); err != nil {
-			s.log.Error("Failed to insert symptom", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-	}
-	for _, mood := range req.Moods {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO user_menstrual_moods (cycle_id, mood) VALUES ($1, $2) ON CONFLICT DO NOTHING`, cycleID, mood); err != nil {
-			s.log.Error("Failed to insert mood", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
 	return &pb.MenstrualCycle{
-		Id: cycleID, UserId: req.UserId, CycleStartDate: req.CycleStartDate,
-		CycleEndDate: req.CycleEndDate, FlowIntensity: req.FlowIntensity,
-		Notes: req.Notes, Symptoms: req.Symptoms, Moods: req.Moods,
+		Id: result.ID, UserId: result.UserID, CycleStartDate: result.CycleStartDate,
+		CycleEndDate: result.CycleEndDate, FlowIntensity: result.FlowIntensity,
+		Notes: result.Notes, Symptoms: result.Symptoms, Moods: result.Moods,
 	}, nil
 }
 
@@ -1814,48 +1417,25 @@ func (s *userServer) UpdateMenstrualCycle(ctx context.Context, req *pb.UpdateMen
 	if req.UserId == "" || req.CycleId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and cycle_id are required")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
+	cycle := &port.UserMenstrualCycle{
+		ID:             req.CycleId,
+		UserID:         req.UserId,
+		CycleStartDate: req.CycleStartDate,
+		CycleEndDate:   req.CycleEndDate,
+		FlowIntensity:  req.FlowIntensity,
+		Notes:          req.Notes,
+		Symptoms:       req.Symptoms,
+		Moods:          req.Moods,
 	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			s.log.Error("Failed to rollback transaction", zap.Error(rollbackErr))
-		}
-	}()
-
-	_, err = tx.ExecContext(ctx, `
-		UPDATE user_menstrual_cycles
-		SET cycle_end_date = $1, flow_intensity = $2, notes = $3, updated_at = NOW()
-		WHERE id = $4 AND user_id = $5
-	`, nullIfEmpty(req.CycleEndDate), nullIfEmpty(req.FlowIntensity), req.Notes, req.CycleId, req.UserId)
+	result, err := s.userMenstrualRepo.UpdateCycleWithDetails(ctx, cycle)
 	if err != nil {
 		s.log.Error("Failed to update menstrual cycle", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-
-	_, _ = tx.ExecContext(ctx, `DELETE FROM user_menstrual_symptoms WHERE cycle_id = $1`, req.CycleId)
-	for _, symptom := range req.Symptoms {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO user_menstrual_symptoms (cycle_id, symptom) VALUES ($1, $2) ON CONFLICT DO NOTHING`, req.CycleId, symptom); err != nil {
-			s.log.Error("Failed to update symptoms", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-	}
-	_, _ = tx.ExecContext(ctx, `DELETE FROM user_menstrual_moods WHERE cycle_id = $1`, req.CycleId)
-	for _, mood := range req.Moods {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO user_menstrual_moods (cycle_id, mood) VALUES ($1, $2) ON CONFLICT DO NOTHING`, req.CycleId, mood); err != nil {
-			s.log.Error("Failed to update moods", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
 	return &pb.MenstrualCycle{
-		Id: req.CycleId, UserId: req.UserId, CycleStartDate: req.CycleStartDate,
-		CycleEndDate: req.CycleEndDate, FlowIntensity: req.FlowIntensity,
-		Notes: req.Notes, Symptoms: req.Symptoms, Moods: req.Moods,
+		Id: result.ID, UserId: result.UserID, CycleStartDate: result.CycleStartDate,
+		CycleEndDate: result.CycleEndDate, FlowIntensity: result.FlowIntensity,
+		Notes: result.Notes, Symptoms: result.Symptoms, Moods: result.Moods,
 	}, nil
 }
 
@@ -1863,7 +1443,7 @@ func (s *userServer) DeleteMenstrualCycle(ctx context.Context, req *pb.DeleteMen
 	if req.UserId == "" || req.CycleId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and cycle_id are required")
 	}
-	if err := s.deleteRecord(ctx, "user_menstrual_cycles", "id", req.UserId, req.CycleId, "menstrual cycle"); err != nil {
+	if err := s.userRepo.DeleteMenstrualCycle(ctx, req.CycleId, req.UserId); err != nil {
 		return nil, err
 	}
 	return &pb.DeleteMenstrualCycleResponse{Success: true, Message: "Menstrual cycle deleted"}, nil
@@ -1874,19 +1454,9 @@ func (s *userServer) GetUserClaims(ctx context.Context, req *pb.GetUserClaimsReq
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
 
-	var email string
-	var role string
-	var totpEnabled bool
-	var backupCodesRemaining int32
-
-	query := strings.Builder{}
-	query.WriteString(sqlSelectPrefix)
-	query.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
-	query.WriteString(", role, totp_enabled, COALESCE(totp_backup_codes_remaining, 0) FROM users WHERE id = $1")
-
-	err := s.db.QueryRowContext(ctx, query.String(), req.UserId).Scan(&email, &role, &totpEnabled, &backupCodesRemaining) // NOSONAR go:S2077 - query uses pgsodium decrypt expression, no user input in structure
+	email, role, totpEnabled, backupCodesRemaining, err := s.userRepo.GetClaimsByID(ctx, req.UserId)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if apperrors.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, errUserNotFound)
 		}
 		s.log.Error("Failed to get user claims", zap.Error(err), zap.String("user_id", req.UserId))
@@ -1910,9 +1480,10 @@ func (s *userServer) DeleteProfile(ctx context.Context, req *pb.DeleteProfileReq
 	}
 
 	var passwordHash string
-	err := s.db.QueryRowContext(ctx, "SELECT password_hash FROM users WHERE id = $1", req.UserId).Scan(&passwordHash)
+	var err error
+	passwordHash, err = s.userRepo.GetPasswordHash(ctx, req.UserId)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if apperrors.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, errUserNotFound)
 		}
 		s.log.Error("Failed to load user for deletion", zap.Error(err), zap.String("user_id", req.UserId))
@@ -1923,41 +1494,9 @@ func (s *userServer) DeleteProfile(ctx context.Context, req *pb.DeleteProfileReq
 		return nil, status.Error(codes.Unauthenticated, "invalid password")
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		s.log.Error("Failed to begin delete profile transaction", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to begin transaction")
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			s.log.Warn("Failed to rollback delete profile transaction", zap.Error(rollbackErr))
-		}
-	}()
-
-	_, err = tx.ExecContext(ctx, `
-		UPDATE users SET
-			email_encrypted = NULL,
-			email_hash = NULL,
-			full_name_encrypted = NULL,
-			full_name_nonce = NULL,
-			full_name_hash = NULL,
-			nickname_encrypted = NULL,
-			nickname_nonce = NULL,
-			nickname_hash = NULL,
-			profile_photo_url = NULL,
-			password_hash = NULL,
-			email_confirmed = FALSE,
-			updated_at = NOW()
-		WHERE id = $1
-	`, req.UserId)
-	if err != nil {
+	if err := s.userRepo.DeleteProfileData(ctx, req.UserId); err != nil {
 		s.log.Error("Failed to delete profile", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to delete profile")
-	}
-
-	if err := tx.Commit(); err != nil {
-		s.log.Error("Failed to commit delete profile transaction", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to commit transaction")
 	}
 
 	s.log.Info("Profile deleted (GDPR)", zap.String("user_id", req.UserId))
@@ -1970,7 +1509,8 @@ func (s *userServer) requireAdminRole(ctx context.Context, requesterID string) e
 	}
 
 	var role string
-	err := s.db.QueryRowContext(ctx, "SELECT role FROM users WHERE id = $1", requesterID).Scan(&role)
+	var err error
+	role, err = s.userRepo.GetUserRole(ctx, requesterID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return status.Error(codes.NotFound, "requester not found")
@@ -1996,48 +1536,37 @@ func (s *userServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*
 		return nil, status.Error(codes.InvalidArgument, "page must be non-negative")
 	}
 
-	offset := req.Page * req.PageSize
-	var listUsersQuery strings.Builder
-	listUsersQuery.WriteString("SELECT u.id, ")
-	listUsersQuery.WriteString(db.PgsodiumDecryptParam("u.email_encrypted", "u.email_nonce", "email"))
-	listUsersQuery.WriteString(sqlCommaNewlinePrefix)
-	listUsersQuery.WriteString(db.PgsodiumDecryptParam("u.full_name_encrypted", "u.full_name_nonce", "full_name"))
-	listUsersQuery.WriteString(", u.role, u.created_at, u.updated_at\n        FROM users u\n        WHERE ($1 = '' OR u.role = $1)\n        ORDER BY u.created_at DESC\n        LIMIT $2 OFFSET $3")
-	rows, err := s.db.QueryContext(ctx, listUsersQuery.String(), req.Role, req.PageSize, offset) // NOSONAR go:S2077 - query uses pgsodium decrypt expressions with trusted constants, no user input in query structure
+	users, total, err := s.userRepo.ListByRole(ctx, req.Role, int(req.Page), int(req.PageSize))
 	if err != nil {
 		s.log.Error("Failed to list users", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Error("Failed to close rows for body composition", zap.Error(closeErr))
-		}
-	}()
 
-	var users []*pb.UserProfile
-	for rows.Next() {
-		var user pb.UserProfile
-		if scanErr := rows.Scan(&user.UserId, &user.Email, &user.FullName, &user.Role, &user.CreatedAt, &user.UpdatedAt); scanErr != nil {
-			s.log.Error("Failed to scan user", zap.Error(scanErr))
-			return nil, status.Error(codes.Internal, "failed to read user data")
-		}
-		users = append(users, &user)
-	}
-
-	if rowErr := rows.Err(); rowErr != nil {
-		s.log.Error("Row iteration error", zap.Error(rowErr))
-		return nil, status.Error(codes.Internal, "error reading users")
-	}
-
-	var total int32
-	err = s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM users WHERE ($1 = '' OR role = $1)", req.Role).Scan(&total)
-	if err != nil {
-		s.log.Warn("Failed to count users", zap.Error(err))
+	var pbUsers []*pb.UserProfile
+	for _, user := range users {
+		pbUsers = append(pbUsers, &pb.UserProfile{
+			UserId:          user.ID,
+			Email:           user.Email,
+			FullName:        user.FullName,
+			Nickname:        user.Nickname,
+			ProfilePhotoUrl: user.ProfilePhotoURL,
+			Role:            user.Role,
+			Age:             user.Age,
+			Gender:          user.Gender,
+			HeightCm:        user.HeightCm,
+			WeightKg:        user.WeightKg,
+			FitnessLevel:    user.FitnessLevel,
+			Goals:           user.Goals,
+			Nutrition:       user.Nutrition,
+			SleepHours:      user.SleepHours,
+			CreatedAt:       user.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:       user.UpdatedAt.Format(time.RFC3339),
+		})
 	}
 
 	return &pb.ListUsersResponse{
-		Users: users,
-		Total: total,
+		Users: pbUsers,
+		Total: int32(total),
 	}, nil
 }
 
@@ -2053,55 +1582,37 @@ func (s *userServer) AdminListInvites(ctx context.Context, req *pb.AdminListInvi
 		req.Page = 0
 	}
 
-	offset := req.Page * req.PageSize
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT code, role, specialty, max_uses, used_count, is_active, created_at
-		FROM invite_codes
-		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`, req.PageSize, offset)
+	inviteCodes, _, err := s.inviteCodeRepo.List(ctx, int(req.Page), int(req.PageSize))
 	if err != nil {
 		s.log.Error("Failed to list invites", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Warn("Failed to close rows", zap.Error(closeErr))
-		}
-	}()
 
 	var invites []*pb.InviteInfo
 	baseURL := s.baseURL
 	if baseURL == "" {
 		baseURL = "https://fittpulse.duckdns.org"
 	}
-	for rows.Next() {
-		var inv pb.InviteInfo
-		var specialty sql.NullString
-		if scanErr := rows.Scan(&inv.Code, &inv.Role, &specialty, &inv.MaxUses, &inv.UsedCount, &inv.IsActive, &inv.CreatedAt); scanErr != nil {
-			s.log.Error("Failed to scan invite", zap.Error(scanErr))
-			continue
+	for _, inv := range inviteCodes {
+		specialty := ""
+		if inv.Specialty != nil {
+			specialty = *inv.Specialty
 		}
-		if specialty.Valid {
-			inv.Specialty = specialty.String
-		}
-		inv.InviteUrl = fmt.Sprintf("%s/register?invite=%s", baseURL, inv.Code)
-		invites = append(invites, &inv)
-	}
-	if rows.Err() != nil {
-		s.log.Error("Rows iteration error", zap.Error(rows.Err()))
-		return nil, status.Error(codes.Internal, "error reading invites")
-	}
-
-	var total int32
-	err = s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM invite_codes").Scan(&total)
-	if err != nil {
-		s.log.Warn("Failed to count invites", zap.Error(err))
+		invites = append(invites, &pb.InviteInfo{
+			Code:      inv.Code,
+			Role:      inv.Role,
+			Specialty: specialty,
+			MaxUses:   int32(inv.MaxUses),
+			UsedCount: int32(inv.UsedCount),
+			IsActive:  inv.IsActive,
+			CreatedAt: inv.CreatedAt.Format(time.RFC3339),
+			InviteUrl: fmt.Sprintf("%s/register?invite=%s", baseURL, inv.Code),
+		})
 	}
 
 	return &pb.AdminListInvitesResponse{
 		Invites: invites,
-		Total:   total,
+		Total:   int32(len(inviteCodes)),
 	}, nil
 }
 
@@ -2128,16 +1639,23 @@ func (s *userServer) AdminCreateInvite(ctx context.Context, req *pb.AdminCreateI
 
 	code := "INV-" + generateInviteCode()
 
-	var specialty interface{}
+	var specialty *string
 	if req.GetSpecialty() != "" {
-		specialty = req.GetSpecialty()
+		s := req.GetSpecialty()
+		specialty = &s
 	}
 
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO invite_codes (code, role, specialty, max_uses, created_by, is_active, created_at)
-		VALUES ($1, $2, $3, $4, $5, TRUE, NOW())
-	`, code, role, specialty, maxUses, "")
-	if err != nil {
+	invite := &port.InviteCode{
+		Code:      code,
+		Role:      role,
+		Specialty: specialty,
+		MaxUses:   int(maxUses),
+		UsedCount: 0,
+		IsActive:  true,
+		CreatedBy: "",
+		CreatedAt: time.Now(),
+	}
+	if err := s.inviteCodeRepo.Create(ctx, invite); err != nil {
 		s.log.Error("Failed to create invite", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to create invite")
 	}
@@ -2173,260 +1691,54 @@ func (s *userServer) AdminRevokeInvite(ctx context.Context, req *pb.AdminRevokeI
 		return nil, status.Error(codes.InvalidArgument, "code is required")
 	}
 
-	result, err := s.db.ExecContext(ctx, `
-		UPDATE invite_codes SET is_active = FALSE WHERE code = $1
-	`, req.GetCode())
-	if err != nil {
+	if err := s.inviteCodeRepo.Revoke(ctx, req.GetCode()); err != nil {
 		s.log.Error("Failed to revoke invite", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to revoke invite")
-	}
-
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		return nil, status.Error(codes.NotFound, "invite not found")
 	}
 
 	s.log.Info("Invite code revoked", zap.String("code", req.GetCode()))
 	return &pb.AdminRevokeInviteResponse{Success: true, Message: "Invite revoked successfully"}, nil
 }
 
-func nullIfEmpty(v string) *string {
-	if v == "" {
-		return nil
-	}
-	return &v
+type userServerConfig struct {
+	database           *sql.DB
+	log                *logger.Logger
+	tokenProvider      ports.TokenProvider
+	baseURL            string
+	googleClientID     string
+	emailSender        email.EmailSender
+	totpService        *totp.Service
+	userSvc            service.UserService
+	userRepo           *postgres.PgsodiumUserRepository
+	profileRepo        port.ProfileRepository
+	emailVerifRepo     port.EmailVerificationRepository
+	refreshTokenRepo   port.RefreshTokenRepository
+	achievementExRepo  port.AchievementRepositoryEx
+	inviteCodeRepo     port.InviteCodeRepository
+	userHealthRepo     port.UserHealthConditionRepository
+	userBodyCompRepo   port.UserBodyCompositionRepository
+	userMenstrualRepo  port.UserMenstrualRepository
 }
 
-// ensurePgsodiumKey идемпотентно импортирует PII-ключ из DB_ENCRYPTION_KEY
-// в keyring pgsodium (таблица pgsodium.key) и фиксирует его идентификатор
-// в пакете db для использования в шифровании/расшифровке.
-func (s *userServer) ensurePgsodiumKey(ctx context.Context) error {
-	key := db.EncryptionKey()
-	if len(key) == 0 {
-		return errors.New("DB_ENCRYPTION_KEY not set; pgsodium keyring cannot be initialized")
-	}
-
-	var id int64
-	err := s.db.QueryRowContext(ctx, `SELECT id FROM pgsodium.key WHERE name = $1`, db.PgsodiumKeyringName()).Scan(&id)
-	if err == nil {
-		db.SetPgsodiumKeyID(id)
-		return nil
-	}
-	if err != sql.ErrNoRows {
-		return fmt.Errorf("query pgsodium key: %w", err)
-	}
-
-	hexKey := hex.EncodeToString(key)
-	err = s.db.QueryRowContext(ctx,
-		`SELECT pgsodium.import_key(CASE WHEN $1 ~ '^[0-9a-fA-F]{64}$' THEN decode($1, 'hex') ELSE convert_to($1, 'UTF8') END, $2)`,
-		hexKey, db.PgsodiumKeyringName(),
-	).Scan(&id)
-	if err != nil {
-		return fmt.Errorf("import pgsodium key: %w", err)
-	}
-	db.SetPgsodiumKeyID(id)
-	s.log.Info("Imported pgsodium PII key", zap.Int64("key_id", id))
-	return nil
-}
-
-type pair struct {
-	enc   string
-	plain string
-}
-
-type piiTable struct {
-	name  string
-	idCol string
-	pairs []pair
-}
-
-// reencryptPIIFromPgcrypto перекодирует существующие PII-поля,
-// зашифрованные ранее через pgcrypto (pgp_sym_encrypt), в pgsodium (libsodium AEAD).
-// Строки, уже зашифрованные через pgsodium, пропускаются.
-func (s *userServer) reencryptPIIFromPgcrypto(ctx context.Context) {
-	key := string(db.EncryptionKey())
-	if key == "" {
-		return
-	}
-	id := db.PgsodiumKeyID()
-	if id == 0 {
-		return
-	}
-
-	tables := []piiTable{
-		{"users", "id", []pair{
-			{"email_encrypted", "email"},
-			{"full_name_encrypted", "full_name"},
-			{"nickname_encrypted", "nickname"},
-		}},
-		{"email_verifications", "id", []pair{
-			{"email_encrypted", "email"},
-			{"token_encrypted", "token"},
-		}},
-	}
-
-	for _, t := range tables {
-		s.migrateTablePII(ctx, t, key, id)
-	}
-}
-
-func (s *userServer) migrateTablePII(ctx context.Context, t piiTable, key string, id int64) {
-	cols := []string{t.idCol}
-	for _, p := range t.pairs {
-		cols = append(cols, p.enc)
-	}
-	colList := strings.Join(cols, ", ")
-	var selectBuilder strings.Builder
-	selectBuilder.WriteString(sqlSelectPrefix)
-	selectBuilder.WriteString(colList)
-	selectBuilder.WriteString(" FROM ")
-	selectBuilder.WriteString(t.name)
-	selectBuilder.WriteString(" WHERE ")
-	selectBuilder.WriteString(t.pairs[0].enc)
-	selectBuilder.WriteString(" IS NOT NULL")
-	rows, err := s.db.QueryContext(ctx, selectBuilder.String()) // NOSONAR go:S2077 - table/column names are validated constants from trusted source, no user input in query structure
-	if err != nil {
-		s.log.Error("Failed to scan PII rows for migration", zap.Error(err), zap.String("table", t.name))
-		return
-	}
-
-	if err := rows.Err(); err != nil {
-		s.log.Error("Failed to iterate PII rows for migration", zap.Error(err), zap.String("table", t.name))
-		return
-	}
-
-	scanPtrs := make([]interface{}, len(cols))
-	rowVals := make([]interface{}, len(cols))
-	for i := range scanPtrs {
-		scanPtrs[i] = &rowVals[i]
-	}
-
-	migrated := int64(0)
-	for rows.Next() {
-		if err := rows.Scan(scanPtrs...); err != nil {
-			s.log.Error("Failed to scan PII row", zap.Error(err))
-			continue
-		}
-		rowID := fmt.Sprint(rowVals[0])
-
-		if s.migratePIIRow(ctx, t, key, id, rowID, rowVals) {
-			migrated++
-		}
-	}
-	if rowErr := rows.Err(); rowErr != nil {
-		s.log.Error("Failed to iterate PII rows for migration", zap.Error(rowErr), zap.String("table", t.name))
-		return
-	}
-	if closeErr := rows.Close(); closeErr != nil {
-		s.log.Error("Failed to close rows during PII migration", zap.Error(closeErr), zap.String("table", t.name))
-	}
-	if migrated > 0 {
-		s.log.Info("Re-encrypted PII from pgcrypto to pgsodium", zap.String("table", t.name), zap.Int64("rows", migrated))
-	}
-}
-
-func (s *userServer) migratePIIRow(ctx context.Context, t piiTable, key string, id int64, rowID string, rowVals []interface{}) bool {
-	var probe string
-	if s.db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT convert_from(pgsodium.crypto_aead_det_decrypt($1, '', %d), 'UTF8')", id), rowVals[1], // NOSONAR go:S2077 - id is pgsodium key ID from trusted source, not user input
-	).Scan(&probe) == nil {
-		return false
-	}
-
-	setParts := make([]string, 0, len(t.pairs))
-	args := make([]interface{}, 0, len(t.pairs)+1)
-	ai := 1
-	for i, p := range t.pairs {
-		var plain sql.NullString
-		if dErr := s.db.QueryRowContext(ctx, "SELECT pgp_sym_decrypt($1, $2)", rowVals[i+1], key).Scan(&plain); dErr != nil || !plain.Valid {
-			s.log.Warn("Failed to pgcrypto-decrypt during PII migration",
-				zap.Error(dErr), zap.String("table", t.name), zap.String("col", p.enc))
-			return false
-		}
-		args = append(args, plain.String)
-		setParts = append(setParts, fmt.Sprintf("%s = pgsodium.crypto_aead_det_encrypt($%d::text, '', %d)", p.enc, ai, id))
-		ai++
-	}
-	if len(setParts) == 0 {
-		return false
-	}
-	args = append(args, rowID)
-
-	var queryBuilder strings.Builder
-	queryBuilder.WriteString("UPDATE ")
-	queryBuilder.WriteString(t.name)
-	queryBuilder.WriteString(" SET ")
-	queryBuilder.WriteString(strings.Join(setParts, ", "))
-	queryBuilder.WriteString(" WHERE ")
-	queryBuilder.WriteString(t.idCol)
-	queryBuilder.WriteString(" = $")
-	queryBuilder.WriteString(strconv.Itoa(ai))
-	query := queryBuilder.String()
-
-	if _, uErr := s.db.ExecContext(ctx, query, args...); uErr != nil { // NOSONAR go:S2077 - table/column names are validated constants, no user input in query structure
-		s.log.Error("Failed to re-encrypt PII row", zap.Error(uErr), zap.String("table", t.name), zap.String("id", rowID))
-		return false
-	}
-	return true
-}
-
-func (s *userServer) backfillEncryptedPII(ctx context.Context) {
-	key := string(db.EncryptionKey())
-	if key == "" {
-		s.log.Warn("DB_ENCRYPTION_KEY not set; skipping PII backfill")
-		return
-	}
-	id := db.PgsodiumKeyID()
-	if id == 0 {
-		s.log.Warn("pgsodium key not initialized; skipping PII backfill")
-		return
-	}
-	enc := func(col string) string {
-		return fmt.Sprintf("pgsodium.crypto_aead_det_encrypt(%s::text, '', %d)", col, id)
-	}
-
-	var usersQuery strings.Builder
-	usersQuery.WriteString("UPDATE users SET ")
-	usersQuery.WriteString("email_encrypted = ")
-	usersQuery.WriteString(enc("email"))
-	usersQuery.WriteString(", email_hash = encode(digest(lower(email), 'sha256'), 'hex'), ")
-	usersQuery.WriteString("full_name_encrypted = ")
-	usersQuery.WriteString(enc("full_name"))
-	usersQuery.WriteString(", full_name_hash = encode(digest(lower(full_name), 'sha256'), 'hex'), ")
-	usersQuery.WriteString("nickname_encrypted = ")
-	usersQuery.WriteString(enc("nickname"))
-	usersQuery.WriteString(", nickname_hash = encode(digest(lower(nickname), 'sha256'), 'hex') ")
-	usersQuery.WriteString(" WHERE email_encrypted IS NULL")
-	res, err := s.db.ExecContext(ctx, usersQuery.String()) // NOSONAR go:S2077 - query uses pgsodium decrypt expressions, no user input in structure
-	if err != nil {
-		s.log.Error("Failed to backfill PII in users", zap.Error(err))
-	} else {
-		rows, _ := res.RowsAffected()
-		s.log.Info("PII backfill complete for users", zap.Int64("updated", rows))
-	}
-
-	var emailVerificationsQuery strings.Builder
-	emailVerificationsQuery.WriteString("UPDATE email_verifications SET ")
-	emailVerificationsQuery.WriteString("email_encrypted = ")
-	emailVerificationsQuery.WriteString(enc("email"))
-	emailVerificationsQuery.WriteString(", token_encrypted = ")
-	emailVerificationsQuery.WriteString(enc("token"))
-	emailVerificationsQuery.WriteString(" WHERE email_encrypted IS NULL")
-	_, err = s.db.ExecContext(ctx, emailVerificationsQuery.String()) // NOSONAR go:S2077 - query uses pgsodium decrypt expressions, no user input in structure
-	if err != nil {
-		s.log.Error("Failed to backfill PII in email_verifications", zap.Error(err))
-	}
-}
-
-func buildUserServer(database *sql.DB, log *logger.Logger, tokenProvider ports.TokenProvider, baseURL, googleClientID string, emailSender email.EmailSender, totpService *totp.Service) *userServer {
+func buildUserServer(cfg userServerConfig) *userServer {
 	return &userServer{
-		db:             database,
-		log:            log,
-		tokenProvider:  tokenProvider,
-		emailSender:    emailSender,
-		baseURL:        baseURL,
-		googleClientID: googleClientID,
-		totpService:    totpService,
+		db:                  cfg.database,
+		userSvc:             cfg.userSvc,
+		userRepo:            cfg.userRepo,
+		profileRepo:         cfg.profileRepo,
+		emailVerifRepo:      cfg.emailVerifRepo,
+		refreshTokenRepo:    cfg.refreshTokenRepo,
+		achievementExRepo:   cfg.achievementExRepo,
+		inviteCodeRepo:      cfg.inviteCodeRepo,
+		userHealthRepo:      cfg.userHealthRepo,
+		userBodyCompRepo:    cfg.userBodyCompRepo,
+		userMenstrualRepo:   cfg.userMenstrualRepo,
+		log:                 cfg.log,
+		tokenProvider:       cfg.tokenProvider,
+		emailSender:         cfg.emailSender,
+		baseURL:             cfg.baseURL,
+		googleClientID:      cfg.googleClientID,
+		totpService:         cfg.totpService,
 	}
 }
 
@@ -2496,12 +1808,64 @@ func initializeUserService(ctx context.Context, log *logger.Logger, database *sq
 
 	tokenProvider := jwt.NewJWTAdapter(jwtPrivateKeyPEM, jwtPublicKeyPEM)
 
-	svc := buildUserServer(database, log, tokenProvider, baseURL, googleClientID, emailSender, totp.NewService(totpEncryptor))
-	if err := svc.ensurePgsodiumKey(ctx); err != nil {
+	deviceRepo := postgres.NewDeviceRepository(database)
+	userRepo := postgres.NewPgsodiumUserRepository(database)
+	profileRepo := postgres.NewProfileRepository(database)
+	inviteRepo := postgres.NewInviteRepository(database)
+	inviteCodeRepo := postgres.NewInviteCodeRepository(database)
+	healthRepo := postgres.NewHealthConditionRepository(database)
+	userHealthRepo := postgres.NewUserHealthConditionRepository(database)
+	bodyCompRepo := postgres.NewBodyCompositionRepository(database)
+	userBodyCompRepo := postgres.NewUserBodyCompositionRepository(database)
+	menstrualRepo := postgres.NewMenstrualCycleRepository(database)
+	userMenstrualRepo := postgres.NewUserMenstrualRepository(database)
+	achievementRepo := postgres.NewAchievementRepository(database)
+	achievementExRepo := postgres.NewAchievementRepositoryEx(database)
+	emailVerifRepo := postgres.NewEmailVerificationRepository(database)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(database)
+
+	userSvc := service.NewUserService(service.UserServiceConfig{
+		Users:          userRepo,
+		Profiles:       profileRepo,
+		Invites:        inviteRepo,
+		InviteCodes:    inviteCodeRepo,
+		Health:         healthRepo,
+		UserHealth:     userHealthRepo,
+		BodyComp:       bodyCompRepo,
+		UserBodyComp:   userBodyCompRepo,
+		Menstrual:      menstrualRepo,
+		UserMenstrual:  userMenstrualRepo,
+		Achievements:   achievementRepo,
+		AchievementsEx: achievementExRepo,
+		Devices:        deviceRepo,
+		EmailVerifs:    emailVerifRepo,
+		RefreshTokens:  refreshTokenRepo,
+	})
+
+	svc := buildUserServer(userServerConfig{
+		database:           database,
+		log:                log,
+		tokenProvider:      tokenProvider,
+		baseURL:            baseURL,
+		googleClientID:     googleClientID,
+		emailSender:        emailSender,
+		totpService:        totp.NewService(totpEncryptor),
+		userSvc:            userSvc,
+		userRepo:           userRepo,
+		profileRepo:        profileRepo,
+		emailVerifRepo:     emailVerifRepo,
+		refreshTokenRepo:   refreshTokenRepo,
+		achievementExRepo:  achievementExRepo,
+		inviteCodeRepo:     inviteCodeRepo,
+		userHealthRepo:     userHealthRepo,
+		userBodyCompRepo:   userBodyCompRepo,
+		userMenstrualRepo:  userMenstrualRepo,
+	})
+	if err := ensurePgsodiumKey(ctx, database, log); err != nil {
 		log.Fatal("Failed to initialize pgsodium keyring", zap.Error(err))
 	}
-	svc.reencryptPIIFromPgcrypto(ctx)
-	svc.backfillEncryptedPII(ctx)
+	reencryptPIIFromPgcrypto(ctx, database, log)
+	backfillEncryptedPII(ctx, database, log)
 
 	return svc
 }

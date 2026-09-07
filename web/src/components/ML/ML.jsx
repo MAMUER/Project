@@ -146,7 +146,7 @@ export default function ML() {
     if (weeks.length === 0) {
       return (
         <div className='empty-state'>
-          <div className='empty-icon'>📋</div>
+          <div className='empty-icon' aria-hidden='true'>📋</div>
           <h3>План пуст</h3>
           <p>Попробуйте сгенерировать план с другими параметрами</p>
         </div>

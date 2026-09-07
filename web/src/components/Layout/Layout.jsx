@@ -36,6 +36,9 @@ export default function Layout() {
 
   return (
     <div className='app-layout'>
+      <a href='#main-content' className='sr-only skip-link'>
+        Перейти к основному содержимому
+      </a>
       <header className='top-bar'>
         <h2>{getPageTitle()}</h2>
         <button
@@ -43,7 +46,7 @@ export default function Layout() {
           id='logoutBtn'
           className='btn-icon'
           onClick={logout}
-          aria-label='Выйти'
+          aria-label='Выйти из аккаунта'
         >
           <svg
             width='24'
@@ -52,6 +55,7 @@ export default function Layout() {
             fill='none'
             stroke='currentColor'
             strokeWidth='2'
+            aria-hidden='true'
           >
             <path d='M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4' />
             <polyline points='16 17 21 12 16 7' />
@@ -59,15 +63,16 @@ export default function Layout() {
           </svg>
         </button>
       </header>
-      <main className='content'>
+      <main id='main-content' className='content'>
         <Outlet />
       </main>
-      <nav className='tab-bar'>
+      <nav className='tab-bar' aria-label='Основная навигация'>
         {tabs.map((tab) => (
           <NavLink
             key={tab.path}
             to={tab.path}
             className={({ isActive }) => `tab ${isActive ? 'active' : ''}`}
+            aria-label={tab.label}
           >
             {tab.icon === 'dashboard' && (
               <svg
@@ -77,6 +82,7 @@ export default function Layout() {
                 fill='none'
                 stroke='currentColor'
                 strokeWidth='2'
+                aria-hidden='true'
               >
                 <rect x='3' y='3' width='7' height='7' rx='1' />
                 <rect x='14' y='3' width='7' height='7' rx='1' />
@@ -92,6 +98,7 @@ export default function Layout() {
                 fill='none'
                 stroke='currentColor'
                 strokeWidth='2'
+                aria-hidden='true'
               >
                 <path d='M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2' />
                 <circle cx='12' cy='7' r='4' />
@@ -105,6 +112,7 @@ export default function Layout() {
                 fill='none'
                 stroke='currentColor'
                 strokeWidth='2'
+                aria-hidden='true'
               >
                 <polygon points='13 2 3 14 12 14 11 22 21 10 12 10 13 2' />
               </svg>
@@ -117,6 +125,7 @@ export default function Layout() {
                 fill='none'
                 stroke='currentColor'
                 strokeWidth='2'
+                aria-hidden='true'
               >
                 <rect x='5' y='2' width='14' height='20' rx='2' />
                 <line x1='12' y1='18' x2='12' y2='18.01' />
@@ -130,6 +139,7 @@ export default function Layout() {
                 fill='none'
                 stroke='currentColor'
                 strokeWidth='2'
+                aria-hidden='true'
               >
                 <circle cx='12' cy='8' r='7' />
                 <polyline points='8.21 13.89 7 23 12 20 17 23 15.79 13.88' />
@@ -143,6 +153,7 @@ export default function Layout() {
                 fill='none'
                 stroke='currentColor'
                 strokeWidth='2'
+                aria-hidden='true'
               >
                 <path d='M18 8h1a4 4 0 010 8h-1' />
                 <path d='M2 8h16v9a4 4 0 01-4 4H6a4 4 0 01-4-4V8z' />
@@ -159,8 +170,9 @@ export default function Layout() {
                 fill='none'
                 stroke='currentColor'
                 strokeWidth='2'
+                aria-hidden='true'
               >
-                <path d='M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z' />
+                <path d='M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06 1.06a5.5 5.5 0 000-7.78z' />
               </svg>
             )}
             <span>{tab.label}</span>
@@ -170,6 +182,7 @@ export default function Layout() {
           <NavLink
             to='/admin'
             className={({ isActive }) => `tab ${isActive ? 'active' : ''}`}
+            aria-label='Админка'
           >
             <svg
               width='24'
@@ -178,6 +191,7 @@ export default function Layout() {
               fill='none'
               stroke='currentColor'
               strokeWidth='2'
+              aria-hidden='true'
             >
               <path d='M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z' />
             </svg>

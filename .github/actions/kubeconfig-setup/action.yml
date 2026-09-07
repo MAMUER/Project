@@ -1,0 +1,23 @@
+name: "Kubeconfig Setup"
+description: "Download and configure kubeconfig"
+inputs:
+  artifact-name:
+    description: "Artifact name containing kubeconfig"
+    required: false
+    default: "kubeconfig"
+  kubeconfig-path:
+    description: "Path to kubeconfig file in artifact"
+    required: false
+    default: "k3s-config.yaml"
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ./kubeconfig
+    - run: |
+        mkdir -p "$HOME/.kube"
+        cp ./kubeconfig/${{ inputs.kubeconfig-path }} "$HOME/.kube/config"
+        chmod 600 "$HOME/.kube/config"
+      shell: bash

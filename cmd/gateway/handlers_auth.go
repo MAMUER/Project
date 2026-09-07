@@ -33,6 +33,11 @@ import (
 const (
 	totpRateLimitAttempts = 5
 
+	errUnauthorized            = "Unauthorized access"
+	errGoogleOAuthNotConfigured = "Google OAuth not configured"
+	errCriticalSessionRequired  = "Critical session required"
+	errTOTPRateLimitExceeded    = "TOTP rate limit exceeded"
+
 	googleOAuthStateCookie   = "google_oauth_state"
 	headerContentType        = "Content-Type"
 	contentTypeJSON          = "application/json"
@@ -254,7 +259,7 @@ func (g *gateway) requireCriticalSession(r *http.Request, userID string) error {
 func (g *gateway) criticalSessionHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "criticalSession"))
+		g.log.Error(errUnauthorized, zap.String("handler", "criticalSession"))
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -654,8 +659,8 @@ func (g *gateway) emailConfirmPageHandler(w http.ResponseWriter, r *http.Request
 
 func (g *gateway) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
 	if g.googleOAuthConfig == nil {
-		g.log.Error("Google OAuth not configured")
-		http.Error(w, "Google OAuth not configured", http.StatusNotImplemented)
+		g.log.Error(errGoogleOAuthNotConfigured)
+		http.Error(w, errGoogleOAuthNotConfigured, http.StatusNotImplemented)
 		return
 	}
 
@@ -698,8 +703,8 @@ func (g *gateway) googleLoginHandler(w http.ResponseWriter, r *http.Request) {
 
 func (g *gateway) googleCallbackHandler(w http.ResponseWriter, r *http.Request) {
 	if g.googleOAuthConfig == nil {
-		g.log.Error("Google OAuth not configured")
-		http.Error(w, "Google OAuth not configured", http.StatusNotImplemented)
+		g.log.Error(errGoogleOAuthNotConfigured)
+		http.Error(w, errGoogleOAuthNotConfigured, http.StatusNotImplemented)
 		return
 	}
 
@@ -802,19 +807,19 @@ func (g *gateway) googleCallbackHandler(w http.ResponseWriter, r *http.Request) 
 func (g *gateway) setupTOTPHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "setupTOTP"))
+		g.log.Error(errUnauthorized, zap.String("handler", "setupTOTP"))
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	if err := g.requireCriticalSession(r, userID); err != nil {
-		g.log.Error("Critical session required", zap.Error(err))
+		g.log.Error(errCriticalSessionRequired, zap.Error(err))
 		http.Error(w, err.Error(), http.StatusPreconditionRequired)
 		return
 	}
 
 	if err := g.enforceTOTPRateLimit(r.Context(), "setup:"+userID); err != nil {
-		g.log.Error("TOTP rate limit exceeded", zap.Error(err))
+		g.log.Error(errTOTPRateLimitExceeded, zap.Error(err))
 		http.Error(w, err.Error(), http.StatusTooManyRequests)
 		return
 	}
@@ -863,19 +868,19 @@ func (g *gateway) setupTOTPHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) confirmTOTPHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "confirmTOTP"))
+		g.log.Error(errUnauthorized, zap.String("handler", "confirmTOTP"))
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	if err := g.requireCriticalSession(r, userID); err != nil {
-		g.log.Error("Critical session required", zap.Error(err))
+		g.log.Error(errCriticalSessionRequired, zap.Error(err))
 		http.Error(w, err.Error(), http.StatusPreconditionRequired)
 		return
 	}
 
 	if err := g.enforceTOTPRateLimit(r.Context(), "confirm:"+userID); err != nil {
-		g.log.Error("TOTP rate limit exceeded", zap.Error(err))
+		g.log.Error(errTOTPRateLimitExceeded, zap.Error(err))
 		http.Error(w, err.Error(), http.StatusTooManyRequests)
 		return
 	}
@@ -954,7 +959,7 @@ func (g *gateway) verifyTOTPHandler(w http.ResponseWriter, r *http.Request) {
 
 	rateLimitErr := g.enforceTOTPRateLimit(r.Context(), "verify:"+userID)
 	if rateLimitErr != nil {
-		g.log.Error("TOTP rate limit exceeded", zap.Error(rateLimitErr))
+		g.log.Error(errTOTPRateLimitExceeded, zap.Error(rateLimitErr))
 		http.Error(w, rateLimitErr.Error(), http.StatusTooManyRequests)
 		return
 	}
@@ -1023,19 +1028,19 @@ func (g *gateway) verifyTOTPHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) disableTOTPHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "disableTOTP"))
+		g.log.Error(errUnauthorized, zap.String("handler", "disableTOTP"))
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	if err := g.requireCriticalSession(r, userID); err != nil {
-		g.log.Error("Critical session required", zap.Error(err))
+		g.log.Error(errCriticalSessionRequired, zap.Error(err))
 		http.Error(w, err.Error(), http.StatusPreconditionRequired)
 		return
 	}
 
 	if err := g.enforceTOTPRateLimit(r.Context(), "disable:"+userID); err != nil {
-		g.log.Error("TOTP rate limit exceeded", zap.Error(err))
+		g.log.Error(errTOTPRateLimitExceeded, zap.Error(err))
 		http.Error(w, err.Error(), http.StatusTooManyRequests)
 		return
 	}
@@ -1084,7 +1089,7 @@ func (g *gateway) disableTOTPHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) totpStatusHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok || userID == "" {
-		g.log.Error("Unauthorized access", zap.String("handler", "totpStatus"))
+		g.log.Error(errUnauthorized, zap.String("handler", "totpStatus"))
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

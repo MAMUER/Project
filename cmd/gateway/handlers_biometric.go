@@ -27,7 +27,7 @@ import (
 func (g *gateway) proxyToBiometricWithUser(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok || userID == "" {
-		g.log.Error("Unauthorized access", zap.String("handler", "proxyToBiometricWithUser"))
+		g.log.Error(errUnauthorized, zap.String("handler", "proxyToBiometricWithUser"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -57,7 +57,7 @@ func (g *gateway) proxyToBiometricWithUser(w http.ResponseWriter, r *http.Reques
 func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "addBiometricRecord"))
+		g.log.Error(errUnauthorized, zap.String("handler", "addBiometricRecord"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -128,7 +128,7 @@ func (g *gateway) addBiometricRecordHandler(w http.ResponseWriter, r *http.Reque
 func (g *gateway) getBiometricRecordsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "getBiometricRecords"))
+		g.log.Error(errUnauthorized, zap.String("handler", "getBiometricRecords"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}

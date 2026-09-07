@@ -9,6 +9,8 @@ import (
 	"github.com/MAMUER/project/internal/domain/port"
 )
 
+const errUserIDRequired = "user_id is required"
+
 type trainingService struct {
 	training port.TrainingRepository
 }
@@ -19,7 +21,7 @@ func NewTrainingService(training port.TrainingRepository) TrainingService {
 
 func (s *trainingService) GeneratePlan(ctx context.Context, userID, classification string, durationWeeks int, availableDays []int) (*entity.TrainingPlan, error) {
 	if userID == "" {
-		return nil, apperrors.Validation("user_id is required")
+		return nil, apperrors.Validation(errUserIDRequired)
 	}
 	if classification == "" {
 		return nil, apperrors.Validation("classification is required")
@@ -54,7 +56,7 @@ func (s *trainingService) GetPlan(ctx context.Context, userID, planID string) (*
 
 func (s *trainingService) ListPlans(ctx context.Context, userID string, page, pageSize int) ([]*entity.TrainingPlan, int, error) {
 	if userID == "" {
-		return nil, 0, apperrors.Validation("user_id is required")
+		return nil, 0, apperrors.Validation(errUserIDRequired)
 	}
 	if page <= 0 {
 		page = 1
@@ -74,14 +76,14 @@ func (s *trainingService) CompleteWorkout(ctx context.Context, userID, planID st
 
 func (s *trainingService) GetProgress(ctx context.Context, userID string) (map[string]interface{}, error) {
 	if userID == "" {
-		return nil, apperrors.Validation("user_id is required")
+		return nil, apperrors.Validation(errUserIDRequired)
 	}
 	return s.training.GetProgress(ctx, userID)
 }
 
 func (s *trainingService) GetAchievements(ctx context.Context, userID string) ([]*entity.Achievement, error) {
 	if userID == "" {
-		return nil, apperrors.Validation("user_id is required")
+		return nil, apperrors.Validation(errUserIDRequired)
 	}
 	return s.training.GetAchievements(ctx, userID)
 }

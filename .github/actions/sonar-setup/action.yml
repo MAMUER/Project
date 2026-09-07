@@ -1,0 +1,52 @@
+name: "Sonar Setup"
+description: "Set up environment for SonarCloud scan with coverage"
+inputs:
+  go-version:
+    description: "Go version"
+    required: false
+    default: "1.26.5"
+  node-version:
+    description: "Node.js version"
+    required: false
+    default: "26"
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: true
+    - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: "npm"
+        cache-dependency-path: web/package-lock.json
+    - run: sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libpixman-1-dev
+      shell: bash
+    - run: |
+        npm config set registry https://registry.npmjs.org
+        NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --ignore-scripts --legacy-peer-deps
+      working-directory: web
+      shell: bash
+    - run: |
+        mkdir -p coverage
+        go test -coverprofile=coverage/coverage.out ./...
+        cd web && npm run test
+        pwd
+        ls -la coverage || true
+        if [ -f coverage/lcov.info ]; then
+          echo "--- original lcov head ---"
+          head -20 coverage/lcov.info || true
+          sed -e 's|\\|/|g' -e 's|^SF:src/|SF:web/src/|' -e 's|^SF:/|SF:|' coverage/lcov.info > ../coverage/lcov.info
+          echo "--- transformed lcov head ---"
+          head -20 ../coverage/lcov.info || true
+        else
+          echo "lcov.info not found in web/coverage"
+        fi
+        if [ -f coverage/coverage.out ]; then
+          echo "--- fixing Go coverage paths ---"
+          sed -i 's|github.com/MAMUER/project/||g' coverage/coverage.out
+          sed -i '/^api\/gen\//d' coverage/coverage.out
+          head -5 coverage/coverage.out || true
+        fi
+      shell: bash

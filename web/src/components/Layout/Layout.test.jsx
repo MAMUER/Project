@@ -74,7 +74,7 @@ describe('Layout', () => {
 
   it('shows logout button', () => {
     renderLayout('/');
-    expect(screen.getByLabelText('Выйти')).toBeInTheDocument();
+    expect(screen.getByLabelText('Выйти из аккаунта')).toBeInTheDocument();
   });
 
   it('shows admin tab when user is admin', () => {
@@ -90,7 +90,7 @@ describe('Layout', () => {
   it('calls logout when logout button is clicked', () => {
     const mockLogout = vi.fn();
     renderLayout('/', { logout: mockLogout });
-    screen.getByLabelText('Выйти').click();
+    screen.getByLabelText('Выйти из аккаунта').click();
     expect(mockLogout).toHaveBeenCalledTimes(1);
   });
 
