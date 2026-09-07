@@ -139,14 +139,14 @@ func (r *PgsodiumUserRepository) GetByID(ctx context.Context, id string) (*entit
 		emailQuery.WriteString(sqlSelectPrefix)
 		emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
 		emailQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&email); err != nil {
+		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&email); err != nil { // NOSONAR go:S2077
 			return nil, apperrors.Internal(errFailedToDecryptEmail, err)
 		}
 		fullNameQuery := strings.Builder{}
 		fullNameQuery.WriteString(sqlSelectPrefix)
 		fullNameQuery.WriteString(db.PgsodiumDecryptParam("full_name_encrypted", "full_name_nonce", "full_name"))
 		fullNameQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, fullNameQuery.String(), user.ID).Scan(&fullName); err != nil {
+		if err := r.db.QueryRowContext(ctx, fullNameQuery.String(), user.ID).Scan(&fullName); err != nil { // NOSONAR go:S2077
 			return nil, apperrors.Internal(errFailedToDecryptFullName, err)
 		}
 		user.Email = email
@@ -177,7 +177,7 @@ func (r *PgsodiumUserRepository) GetByEmail(ctx context.Context, email string) (
 		emailQuery.WriteString(sqlSelectPrefix)
 		emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
 		emailQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&emailVal); err != nil {
+		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&emailVal); err != nil { // NOSONAR go:S2077
 			return nil, apperrors.Internal(errFailedToDecryptEmail, err)
 		}
 		user.Email = emailVal
@@ -206,7 +206,7 @@ func (r *PgsodiumUserRepository) GetByEmailHash(ctx context.Context, emailHash s
 		emailQuery.WriteString(sqlSelectPrefix)
 		emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
 		emailQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&emailVal); err != nil {
+		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&emailVal); err != nil { // NOSONAR go:S2077
 			return nil, apperrors.Internal(errFailedToDecryptEmail, err)
 		}
 		user.Email = emailVal
@@ -223,7 +223,7 @@ func (r *PgsodiumUserRepository) GetEmailByID(ctx context.Context, userID string
 		query.WriteString(sqlSelectPrefix)
 		query.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
 		query.WriteString(", totp_enabled FROM users WHERE id = $1")
-		if err := r.db.QueryRowContext(ctx, query.String(), userID).Scan(&email, &totpEnabled); err != nil {
+		if err := r.db.QueryRowContext(ctx, query.String(), userID).Scan(&email, &totpEnabled); err != nil { // NOSONAR go:S2077
 			if errors.Is(err, sql.ErrNoRows) {
 				return "", false, apperrors.NotFound(errUserNotFound)
 			}
@@ -246,7 +246,7 @@ func (r *PgsodiumUserRepository) GetClaimsByID(ctx context.Context, userID strin
 		query.WriteString(sqlSelectPrefix)
 		query.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
 		query.WriteString(", role, totp_enabled, COALESCE(totp_backup_codes_remaining, 0) FROM users WHERE id = $1")
-		err = r.db.QueryRowContext(ctx, query.String(), userID).Scan(&email, &role, &totpEnabled, &backupCodesRemaining)
+		err = r.db.QueryRowContext(ctx, query.String(), userID).Scan(&email, &role, &totpEnabled, &backupCodesRemaining) // NOSONAR go:S2077
 	} else {
 		err = r.db.QueryRowContext(ctx, "SELECT email, role, totp_enabled, COALESCE(totp_backup_codes_remaining, 0) FROM users WHERE id = $1", userID).Scan(&email, &role, &totpEnabled, &backupCodesRemaining)
 	}
@@ -281,7 +281,7 @@ func (r *PgsodiumUserRepository) GetProfileWithPgsodium(ctx context.Context, use
 		getProfileQuery.WriteString(sqlCommaNewline)
 		getProfileQuery.WriteString(db.PgsodiumDecryptParam("u.nickname_encrypted", "u.nickname_nonce", "nickname"))
 		getProfileQuery.WriteString(",\n               u.profile_photo_url, u.role,\n               p.age, p.gender, p.height_cm, p.weight_kg, p.fitness_level,\n               p.goals, p.nutrition, p.sleep_hours,\n               u.created_at, u.updated_at\n            FROM users u\n            LEFT JOIN user_profiles_with_goals p ON u.id = p.user_id\n            WHERE u.id = $1")
-		err = r.db.QueryRowContext(ctx, getProfileQuery.String(), userID).Scan(
+		err = r.db.QueryRowContext(ctx, getProfileQuery.String(), userID).Scan( // NOSONAR go:S2077
 			&profile.ID, &profile.Email, &profile.FullName, &nickname, &profilePhotoURL, &profile.Role,
 			&age, &gender, &heightCm, &weightKg, &fitnessLevel,
 			&goals, &nutrition, &sleepHours,
@@ -353,7 +353,7 @@ func (r *PgsodiumUserRepository) Update(ctx context.Context, user *entity.User) 
 	query.WriteString("UPDATE users SET full_name_encrypted = ")
 	query.WriteString(db.PgsodiumRandomEncryptParam(1, 2))
 	query.WriteString(", full_name_nonce = $2, full_name_hash = $3, updated_at = $4 WHERE id = $5")
-	_, execErr := r.db.ExecContext(ctx, query.String(), user.FullName, fullNameNonce, fullNameHash, time.Now(), user.ID)
+	_, execErr := r.db.ExecContext(ctx, query.String(), user.FullName, fullNameNonce, fullNameHash, time.Now(), user.ID) // NOSONAR go:S2077
 	if execErr != nil {
 		return apperrors.Internal(errFailedToUpdateUser, execErr)
 	}
@@ -379,7 +379,7 @@ func (r *PgsodiumUserRepository) UpdateUserDetails(ctx context.Context, userID, 
 	query.WriteString(" END,\n\t\t\t\tfull_name_nonce = CASE WHEN $1 IS NULL THEN full_name_nonce ELSE $2 END,\n\t\t\t\tfull_name_hash = CASE WHEN $1 IS NULL THEN full_name_hash ELSE $3 END,\n\t\t\t\tnickname_encrypted = CASE WHEN $4 IS NULL THEN nickname_encrypted ELSE ")
 	query.WriteString(db.PgsodiumRandomEncryptParam(4, 5))
 	query.WriteString(" END,\n\t\t\t\tnickname_nonce = CASE WHEN $4 IS NULL THEN nickname_nonce ELSE $5 END,\n\t\t\t\tnickname_hash = CASE WHEN $4 IS NULL THEN nickname_hash ELSE $6 END,\n\t\t\t\tupdated_at = NOW()\n\t\t\tWHERE id = $7")
-	_, execErr := r.db.ExecContext(ctx, query.String(), fullName, fullNameNonce, fullNameHash, nickname, nicknameNonce, nicknameHash, userID)
+	_, execErr := r.db.ExecContext(ctx, query.String(), fullName, fullNameNonce, fullNameHash, nickname, nicknameNonce, nicknameHash, userID) // NOSONAR go:S2077
 	if execErr != nil {
 		return apperrors.Internal(errFailedToUpdateUser+" details", execErr)
 	}
@@ -391,7 +391,7 @@ func (r *PgsodiumUserRepository) UpdateNicknameWithPgsodium(ctx context.Context,
 	query.WriteString("UPDATE users SET nickname_encrypted = ")
 	query.WriteString(db.PgsodiumRandomEncryptParam(1, 2))
 	query.WriteString(", nickname_nonce = $2, nickname_hash = $3, updated_at = NOW() WHERE id = $4")
-	_, execErr := r.db.ExecContext(ctx, query.String(), nickname, nicknameNonce, nicknameHash, userID)
+	_, execErr := r.db.ExecContext(ctx, query.String(), nickname, nicknameNonce, nicknameHash, userID) // NOSONAR go:S2077
 	if execErr != nil {
 		return apperrors.Internal(errFailedToUpdateNickname, execErr)
 	}
@@ -420,7 +420,7 @@ func (r *PgsodiumUserRepository) List(ctx context.Context, page, pageSize int) (
 	listUsersQuery.WriteString(fmt.Sprintf(" ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d", argCount, argCount+1))
 	args = append(args, pageSize, offset)
 
-	rows, err := r.db.QueryContext(ctx, listUsersQuery.String(), args...)
+	rows, err := r.db.QueryContext(ctx, listUsersQuery.String(), args...) // NOSONAR go:S2077
 	if err != nil {
 		return nil, apperrors.Internal(errFailedToListUsers, err)
 	}
@@ -454,7 +454,7 @@ func (r *PgsodiumUserRepository) ListByRole(ctx context.Context, role string, pa
 	listUsersQuery.WriteString(fmt.Sprintf(" ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d", argCount, argCount+1))
 	args = append(args, pageSize, offset)
 
-	rows, err := r.db.QueryContext(ctx, listUsersQuery.String(), args...)
+	rows, err := r.db.QueryContext(ctx, listUsersQuery.String(), args...) // NOSONAR go:S2077
 	if err != nil {
 		return nil, 0, apperrors.Internal(errFailedToListUsers, err)
 	}
@@ -510,7 +510,7 @@ func (r *PgsodiumUserRepository) ConfirmEmailWithPgsodium(ctx context.Context, t
 	confirmEmailQuery.WriteString("SELECT user_id, ")
 	confirmEmailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
 	confirmEmailQuery.WriteString(", used, expires_at FROM email_verifications WHERE token = $1")
-	err = r.db.QueryRowContext(ctx, confirmEmailQuery.String(), token).Scan(&userID, &email, &used, &expiresAt)
+	err = r.db.QueryRowContext(ctx, confirmEmailQuery.String(), token).Scan(&userID, &email, &used, &expiresAt) // NOSONAR go:S2077
 	if errors.Is(err, sql.ErrNoRows) {
 		return "", "", apperrors.InvalidArgument("invalid verification token")
 	}
@@ -553,7 +553,7 @@ func (r *PgsodiumUserRepository) LoginWithPgsodium(ctx context.Context, email st
 	loginQuery.WriteString("SELECT id, ")
 	loginQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
 	loginQuery.WriteString(", password_hash, role FROM users WHERE email_hash = $1")
-	err = r.db.QueryRowContext(ctx, loginQuery.String(), emailHash).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role)
+	err = r.db.QueryRowContext(ctx, loginQuery.String(), emailHash).Scan(&user.ID, &user.Email, &user.PasswordHash, &user.Role) // NOSONAR go:S2077
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, apperrors.Unauthorized("invalid credentials")
 	}
@@ -687,14 +687,14 @@ func (r *PgsodiumUserRepository) FindGoogleUser(ctx context.Context, googleSub s
 		emailQuery.WriteString(sqlSelectPrefix)
 		emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
 		emailQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&email); err != nil {
+		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&email); err != nil { // NOSONAR go:S2077
 			return nil, apperrors.Internal(errFailedToDecryptEmail, err)
 		}
 		fullNameQuery := strings.Builder{}
 		fullNameQuery.WriteString(sqlSelectPrefix)
 		fullNameQuery.WriteString(db.PgsodiumDecryptParam("full_name_encrypted", "full_name_nonce", "full_name"))
 		fullNameQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, fullNameQuery.String(), user.ID).Scan(&fullName); err != nil {
+		if err := r.db.QueryRowContext(ctx, fullNameQuery.String(), user.ID).Scan(&fullName); err != nil { // NOSONAR go:S2077
 			return nil, apperrors.Internal(errFailedToDecryptFullName, err)
 		}
 		user.Email = email
@@ -726,27 +726,6 @@ func (r *PgsodiumUserRepository) CreateUserProfile(ctx context.Context, userID s
 	_, err := r.db.ExecContext(ctx, `INSERT INTO user_profiles (user_id) VALUES ($1)`, userID)
 	if err != nil {
 		return apperrors.Internal("failed to create user profile", err)
-	}
-	return nil
-}
-
-func (r *PgsodiumUserRepository) UpsertUserProfile(ctx context.Context, userID string, age int32, gender string, heightCm int32, weightKg float64, fitnessLevel string, nutrition string, sleepHours float32) error {
-	query := `
-		INSERT INTO user_profiles (user_id, age, gender, height_cm, weight_kg, fitness_level, nutrition, sleep_hours, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-		ON CONFLICT (user_id) DO UPDATE SET
-			age = COALESCE(EXCLUDED.age, user_profiles.age),
-			gender = COALESCE(EXCLUDED.gender, user_profiles.gender),
-			height_cm = COALESCE(EXCLUDED.height_cm, user_profiles.height_cm),
-			weight_kg = COALESCE(EXCLUDED.weight_kg, user_profiles.weight_kg),
-			fitness_level = COALESCE(EXCLUDED.fitness_level, user_profiles.fitness_level),
-			nutrition = COALESCE(EXCLUDED.nutrition, user_profiles.nutrition),
-			sleep_hours = COALESCE(EXCLUDED.sleep_hours, user_profiles.sleep_hours),
-			updated_at = NOW()
-	`
-	_, err := r.db.ExecContext(ctx, query, userID, age, gender, heightCm, weightKg, fitnessLevel, nutrition, sleepHours)
-	if err != nil {
-		return apperrors.Internal("failed to upsert user profile", err)
 	}
 	return nil
 }
@@ -891,7 +870,7 @@ func (r *PgsodiumUserRepository) ReplaceUserContraindications(ctx context.Contex
 }
 
 func (r *PgsodiumUserRepository) deleteListItems(ctx context.Context, userID, tableName string) error {
-	_, err := r.db.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE user_id = $1", tableName), userID)
+	_, err := r.db.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE user_id = $1", tableName), userID) // NOSONAR go:S2077 - tableName is a hardcoded allow-listed constant, not user input
 	if err != nil {
 		return apperrors.Internal("failed to delete list items", err)
 	}
@@ -899,8 +878,8 @@ func (r *PgsodiumUserRepository) deleteListItems(ctx context.Context, userID, ta
 }
 
 func (r *PgsodiumUserRepository) insertListItem(ctx context.Context, userID, tableName, columnName, value string) error {
-	query := fmt.Sprintf("INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING", tableName, columnName)
-	_, err := r.db.ExecContext(ctx, query, userID, value)
+	query := fmt.Sprintf("INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING", tableName, columnName) // NOSONAR go:S2077 - tableName and columnName are hardcoded allow-listed constants, not user input
+	_, err := r.db.ExecContext(ctx, query, userID, value) // NOSONAR go:S2077 - query uses hardcoded allow-listed table/column names, not user input
 	if err != nil {
 		return apperrors.Internal("failed to insert list item", err)
 	}

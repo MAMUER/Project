@@ -13,6 +13,8 @@ type InviteCodeRepository interface {
 	Create(ctx context.Context, invite *port.InviteCode) error
 	Revoke(ctx context.Context, code string) error
 	Validate(ctx context.Context, code string) (*port.InviteCode, error)
+	ValidateInviteCodeUse(ctx context.Context, code string) (bool, string, string, string, error)
+	LogInviteCodeUse(ctx context.Context, code, userID string) error
 }
 
 type inviteCodeRepository struct {
@@ -122,6 +124,36 @@ func (r *inviteCodeRepository) UseInviteCode(ctx context.Context, code string) e
 	rowsAffected, _ := result.RowsAffected()
 	if rowsAffected == 0 {
 		return apperrors.NotFound("invite code not found or invalid")
+	}
+	return nil
+}
+
+func (r *inviteCodeRepository) ValidateInviteCodeUse(ctx context.Context, code string) (bool, string, string, string, error) {
+	var isValid bool
+	var role, specialty, errMsg sql.NullString
+	err := r.db.QueryRowContext(ctx, `SELECT * FROM use_invite_code($1)`, code).Scan(&isValid, &role, &specialty, &errMsg)
+	if err != nil {
+		return false, "", "", "", apperrors.Internal("failed to validate invite code", err)
+	}
+	roleStr := ""
+	if role.Valid {
+		roleStr = role.String
+	}
+	specialtyStr := ""
+	if specialty.Valid {
+		specialtyStr = specialty.String
+	}
+	errMsgStr := ""
+	if errMsg.Valid {
+		errMsgStr = errMsg.String
+	}
+	return isValid, roleStr, specialtyStr, errMsgStr, nil
+}
+
+func (r *inviteCodeRepository) LogInviteCodeUse(ctx context.Context, code, userID string) error {
+	_, err := r.db.ExecContext(ctx, `SELECT log_invite_code_use($1, $2)`, code, userID)
+	if err != nil {
+		return apperrors.Internal("failed to log invite code use", err)
 	}
 	return nil
 }

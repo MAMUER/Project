@@ -65,7 +65,7 @@ func (r *profileRepository) CreateProfile(ctx context.Context, userID string) er
 	return nil
 }
 
-func (r *profileRepository) UpsertProfile(ctx context.Context, userID string, age int32, gender string, heightCm int32, weightKg float64, fitnessLevel string, nutrition string, sleepHours float32) error {
+func (r *profileRepository) UpsertProfile(ctx context.Context, userID string, data *port.ProfileData) error {
 	query := `
 		INSERT INTO user_profiles (user_id, age, gender, height_cm, weight_kg, fitness_level, nutrition, sleep_hours, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
@@ -80,49 +80,10 @@ func (r *profileRepository) UpsertProfile(ctx context.Context, userID string, ag
 			updated_at = NOW()
 	`
 	_, err := r.db.ExecContext(ctx, query,
-		userID, age, gender, heightCm, weightKg, fitnessLevel, nutrition, sleepHours,
+		userID, data.Age, data.Gender, data.HeightCm, data.WeightKg, data.FitnessLevel, data.Nutrition, data.SleepHours,
 	)
 	if err != nil {
 		return apperrors.Internal("failed to upsert user profile", err)
-	}
-	return nil
-}
-
-func (r *profileRepository) GetListItems(ctx context.Context, userID, tableName, columnName string) ([]string, error) {
-	query := `SELECT ` + columnName + ` FROM ` + tableName + ` WHERE user_id = $1`
-	rows, err := r.db.QueryContext(ctx, query, userID)
-	if err != nil {
-		return nil, apperrors.Internal("failed to query list items", err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	items := make([]string, 0)
-	for rows.Next() {
-		var item string
-		if err := rows.Scan(&item); err != nil {
-			return nil, apperrors.Internal("failed to scan list item", err)
-		}
-		items = append(items, item)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperrors.Internal("failed to iterate list items", err)
-	}
-	return items, nil
-}
-
-func (r *profileRepository) ReplaceListItems(ctx context.Context, userID, tableName, columnName string, items []string) error {
-	_, err := r.db.ExecContext(ctx, "DELETE FROM "+tableName+" WHERE user_id = $1", userID)
-	if err != nil {
-		return apperrors.Internal("failed to delete old list items", err)
-	}
-	for _, item := range items {
-		_, err = r.db.ExecContext(ctx,
-			"INSERT INTO "+tableName+" (user_id, "+columnName+") VALUES ($1, $2) ON CONFLICT DO NOTHING",
-			userID, item,
-		)
-		if err != nil {
-			return apperrors.Internal("failed to insert list item", err)
-		}
 	}
 	return nil
 }

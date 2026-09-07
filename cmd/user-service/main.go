@@ -13,7 +13,6 @@ import (
 	"net"
 	"net/http"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -28,9 +27,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/health/grpc_health_v1"
-	"google.golang.org/grpc/reflection"
 	"google.golang.org/grpc/status"
+
+	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
+	"google.golang.org/grpc/reflection"
 
 	pb "github.com/MAMUER/project/api/gen/user"
 	"github.com/MAMUER/project/cmd/user-service/ports"
@@ -84,7 +84,8 @@ type userServer struct {
 }
 
 const (
-	argon2idParams = "m=65536,t=3,p=1"
+	argon2idParams             = "m=65536,t=3,p=1"
+	dateFormat                 = "2006-01-02"
 
 	logFailedToGenerateNonce = "Failed to generate nonce"
 	errFailedToGenerateNonce = "failed to generate nonce"
@@ -163,6 +164,10 @@ func toFloat32(v *float32) float32 {
 		return 0
 	}
 	return *v
+}
+
+func float64Ptr(v float64) *float64 {
+	return &v
 }
 
 func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
@@ -578,10 +583,15 @@ func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReq
 		return nil, status.Error(codes.NotFound, errUserNotFound)
 	}
 
-	if err := s.profileRepo.UpsertProfile(ctx, req.UserId,
-		toInt32(req.Age), toString(req.Gender), toInt32(req.HeightCm), toFloat64(req.WeightKg), toString(req.FitnessLevel),
-		toString(req.Nutrition), toFloat32(req.SleepHours),
-	); err != nil {
+	if err := s.profileRepo.UpsertProfile(ctx, req.UserId, &port.ProfileData{
+		Age:          toInt32(req.Age),
+		Gender:       toString(req.Gender),
+		HeightCm:     toInt32(req.HeightCm),
+		WeightKg:     toFloat64(req.WeightKg),
+		FitnessLevel: toString(req.FitnessLevel),
+		Nutrition:    toString(req.Nutrition),
+		SleepHours:   toFloat32(req.SleepHours),
+	}); err != nil {
 		s.log.Error("Failed to update profile", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to update profile")
 	}
@@ -934,16 +944,15 @@ func (s *userServer) RegisterWithInvite(ctx context.Context, req *pb.RegisterWit
 	s.log.Info("Register with invite code", zap.String("email", req.GetEmail()))
 
 	// Валидация invite-кода
-	result := s.db.QueryRowContext(ctx, `SELECT * FROM use_invite_code($1)`, req.GetInviteCode())
-	var isValid bool
-	var role, specialty, errMsg string
-	if err := result.Scan(&isValid, &role, &specialty, &errMsg); err != nil {
+	isValid, role, specialty, errMsg, err := s.inviteCodeRepo.ValidateInviteCodeUse(ctx, req.GetInviteCode())
+	if err != nil {
 		s.log.Error("Failed to validate invite code", zap.Error(err))
 		return nil, status.Error(codes.Internal, errInternalError)
 	}
 	if !isValid {
 		return nil, status.Errorf(codes.InvalidArgument, "invite code error: %s", errMsg)
 	}
+	_ = specialty
 
 	// Определяем роль: приоритет у invite_code role
 	finalRole := role
@@ -992,10 +1001,8 @@ func (s *userServer) ValidateInviteCode(ctx context.Context, req *pb.ValidateInv
 		return nil, status.Error(codes.InvalidArgument, "code is required")
 	}
 
-	result := s.db.QueryRowContext(ctx, `SELECT * FROM use_invite_code($1)`, req.GetCode())
-	var isValid bool
-	var role, specialty, errMsg string
-	if err := result.Scan(&isValid, &role, &specialty, &errMsg); err != nil {
+	isValid, role, specialty, errMsg, err := s.inviteCodeRepo.ValidateInviteCodeUse(ctx, req.GetCode())
+	if err != nil {
 		s.log.Error("Failed to validate invite code", zap.Error(err))
 		return nil, status.Error(codes.Internal, errInternalError)
 	}
@@ -1188,7 +1195,7 @@ func (s *userServer) ListHealthConditions(ctx context.Context, req *pb.ListHealt
 	for _, c := range conditions {
 		diagnosedAt := ""
 		if c.DiagnosedAt != nil {
-			diagnosedAt = c.DiagnosedAt.Format("2006-01-02")
+			diagnosedAt = c.DiagnosedAt.Format(dateFormat)
 		}
 		notes := ""
 		if c.Notes != nil {
@@ -1218,7 +1225,7 @@ func (s *userServer) UpsertHealthCondition(ctx context.Context, req *pb.UpsertHe
 		IsActive:      req.IsActive,
 	}
 	if req.DiagnosedAt != "" {
-		t, parseErr := time.Parse("2006-01-02", req.DiagnosedAt)
+		t, parseErr := time.Parse(dateFormat, req.DiagnosedAt)
 		if parseErr != nil {
 			return nil, status.Error(codes.InvalidArgument, "invalid diagnosed_at format, use YYYY-MM-DD")
 		}
@@ -1249,6 +1256,20 @@ func (s *userServer) DeleteHealthCondition(ctx context.Context, req *pb.DeleteHe
 	return &pb.DeleteHealthConditionResponse{Success: true, Message: "Health condition deleted"}, nil
 }
 
+func parseTimeInput(value string) (*time.Time, error) {
+	if value == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		t, err = time.Parse(dateFormat, value)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid date format")
+		}
+	}
+	return &t, nil
+}
+
 func (s *userServer) ListBodyComposition(ctx context.Context, req *pb.ListBodyCompositionRequest) (*pb.ListBodyCompositionResponse, error) {
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
@@ -1262,60 +1283,33 @@ func (s *userServer) ListBodyComposition(ctx context.Context, req *pb.ListBodyCo
 		limitClamped = 10000
 	}
 
-	var query string
-	var args []interface{}
-
-	switch {
-	case req.From != "" && req.To != "":
-		query = `SELECT id, user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source, created_at
-			FROM user_body_composition
-			WHERE user_id = $1 AND recorded_at >= $2 AND recorded_at <= $3
-			ORDER BY recorded_at DESC LIMIT $4`
-		args = []interface{}{req.UserId, req.From, req.To, limitClamped}
-	case req.From != "":
-		query = `SELECT id, user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source, created_at
-			FROM user_body_composition
-			WHERE user_id = $1 AND recorded_at >= $2
-			ORDER BY recorded_at DESC LIMIT $3`
-		args = []interface{}{req.UserId, req.From, limitClamped}
-	case req.To != "":
-		query = `SELECT id, user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source, created_at
-			FROM user_body_composition
-			WHERE user_id = $1 AND recorded_at <= $2
-			ORDER BY recorded_at DESC LIMIT $3`
-		args = []interface{}{req.UserId, req.To, limitClamped}
-	default:
-		query = `SELECT id, user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source, created_at
-			FROM user_body_composition
-			WHERE user_id = $1
-			ORDER BY recorded_at DESC LIMIT $2`
-		args = []interface{}{req.UserId, limitClamped}
+	from, err := parseTimeInput(req.From)
+	if err != nil {
+		return nil, err
+	}
+	to, err := parseTimeInput(req.To)
+	if err != nil {
+		return nil, err
 	}
 
-	rows, err := s.db.QueryContext(ctx, query, args...)
+	records, err := s.userBodyCompRepo.List(ctx, req.UserId, from, to, int(limitClamped))
 	if err != nil {
 		s.log.Error("Failed to query body composition", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Error("Failed to close rows for body composition", zap.Error(closeErr))
-		}
-	}()
 
-	records := make([]*pb.BodyCompositionRecord, 0)
-	for rows.Next() {
-		var r pb.BodyCompositionRecord
-		if err := rows.Scan(&r.Id, &r.UserId, &r.RecordedAt, &r.WeightKg, &r.HeightCm, &r.Bmi, &r.BodyFatPercentage, &r.MuscleMassPercentage, &r.BoneMassPercentage, &r.WaterPercentage, &r.VisceralFatRating, &r.MetabolicAge, &r.Source, &r.CreatedAt); err != nil {
-			s.log.Error("Failed to scan body composition record", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-		records = append(records, &r)
+	pbRecords := make([]*pb.BodyCompositionRecord, 0)
+	for _, r := range records {
+		pbRecords = append(pbRecords, &pb.BodyCompositionRecord{
+			Id: r.ID, UserId: r.UserID, RecordedAt: r.RecordedAt.Format(time.RFC3339), WeightKg: r.WeightKG,
+			HeightCm: int32(r.HeightCM), Bmi: r.BMI,
+			BodyFatPercentage: toFloat64(r.BodyFatPercentage), MuscleMassPercentage: toFloat64(r.MuscleMassPercentage),
+			BoneMassPercentage: toFloat64(r.BoneMassPercentage), WaterPercentage: toFloat64(r.WaterPercentage),
+			VisceralFatRating: int32(toFloat64(r.VisceralFatRating)), MetabolicAge: int32(toFloat64(r.MetabolicAge)),
+			Source: r.Source,
+		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	return &pb.ListBodyCompositionResponse{Records: records, Total: safeInt32(len(records))}, nil
+	return &pb.ListBodyCompositionResponse{Records: pbRecords, Total: safeInt32(len(pbRecords))}, nil
 }
 
 func (s *userServer) CreateBodyComposition(ctx context.Context, req *pb.CreateBodyCompositionRequest) (*pb.BodyCompositionRecord, error) {
@@ -1325,20 +1319,20 @@ func (s *userServer) CreateBodyComposition(ctx context.Context, req *pb.CreateBo
 	bc := &port.UserBodyComposition{
 		UserID:                 req.UserId,
 		WeightKG:               req.WeightKg,
-		HeightCM:               req.HeightCm,
+		HeightCM:               float64(req.HeightCm),
 		BMI:                    req.Bmi,
-		BodyFatPercentage:      req.BodyFatPercentage,
-		MuscleMassPercentage:   req.MuscleMassPercentage,
-		BoneMassPercentage:     req.BoneMassPercentage,
-		WaterPercentage:        req.WaterPercentage,
-		VisceralFatRating:      req.VisceralFatRating,
-		MetabolicAge:           req.MetabolicAge,
+		BodyFatPercentage:      float64Ptr(req.BodyFatPercentage),
+		MuscleMassPercentage:   float64Ptr(req.MuscleMassPercentage),
+		BoneMassPercentage:     float64Ptr(req.BoneMassPercentage),
+		WaterPercentage:        float64Ptr(req.WaterPercentage),
+		VisceralFatRating:      float64Ptr(float64(req.VisceralFatRating)),
+		MetabolicAge:           float64Ptr(float64(req.MetabolicAge)),
 		Source:                 req.Source,
 	}
 	if req.RecordedAt != "" {
 		t, parseErr := time.Parse(time.RFC3339, req.RecordedAt)
 		if parseErr != nil {
-			t, parseErr = time.Parse("2006-01-02", req.RecordedAt)
+			t, parseErr = time.Parse(dateFormat, req.RecordedAt)
 			if parseErr != nil {
 				return nil, status.Error(codes.InvalidArgument, "invalid recorded_at format")
 			}
@@ -1353,10 +1347,12 @@ func (s *userServer) CreateBodyComposition(ctx context.Context, req *pb.CreateBo
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 	return &pb.BodyCompositionRecord{
-		Id: result.ID, UserId: result.UserID, RecordedAt: result.RecordedAt.Format(time.RFC3339), WeightKg: result.WeightKG, HeightCm: result.HeightCM,
-		Bmi: result.BMI, BodyFatPercentage: result.BodyFatPercentage, MuscleMassPercentage: result.MuscleMassPercentage,
-		BoneMassPercentage: result.BoneMassPercentage, WaterPercentage: result.WaterPercentage,
-		VisceralFatRating: result.VisceralFatRating, MetabolicAge: result.MetabolicAge, Source: result.Source,
+		Id: result.ID, UserId: result.UserID, RecordedAt: result.RecordedAt.Format(time.RFC3339), WeightKg: result.WeightKG,
+		HeightCm: int32(result.HeightCM), Bmi: result.BMI,
+		BodyFatPercentage: toFloat64(result.BodyFatPercentage), MuscleMassPercentage: toFloat64(result.MuscleMassPercentage),
+		BoneMassPercentage: toFloat64(result.BoneMassPercentage), WaterPercentage: toFloat64(result.WaterPercentage),
+		VisceralFatRating: int32(toFloat64(result.VisceralFatRating)), MetabolicAge: int32(toFloat64(result.MetabolicAge)),
+		Source: result.Source,
 	}, nil
 }
 
@@ -1364,133 +1360,56 @@ func (s *userServer) ListMenstrualCycles(ctx context.Context, req *pb.ListMenstr
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, user_id, cycle_start_date, cycle_end_date, flow_intensity, notes, created_at, updated_at
-		FROM user_menstrual_cycles
-		WHERE user_id = $1
-		ORDER BY cycle_start_date DESC
-	`, req.UserId)
+	cycles, err := s.userMenstrualRepo.ListCycles(ctx, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to query menstrual cycles", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Error("Failed to close rows for health conditions", zap.Error(closeErr))
-		}
-	}()
 
-	cycles := make([]*pb.MenstrualCycle, 0)
-	for rows.Next() {
-		cycle, err := s.scanMenstrualCycleRow(ctx, rows)
+	pbCycles := make([]*pb.MenstrualCycle, 0)
+	for _, c := range cycles {
+		symptoms, err := s.userMenstrualRepo.ListSymptoms(ctx, c.ID)
 		if err != nil {
-			return nil, err
+			s.log.Error("Failed to query menstrual symptoms", zap.Error(err), zap.String("cycle_id", c.ID))
+			return nil, status.Error(codes.Internal, errDatabaseError)
 		}
-		cycles = append(cycles, cycle)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	return &pb.ListMenstrualCyclesResponse{Cycles: cycles, Total: safeInt32(len(cycles))}, nil
-}
-
-func (s *userServer) scanMenstrualCycleRow(ctx context.Context, rows *sql.Rows) (*pb.MenstrualCycle, error) {
-	var c pb.MenstrualCycle
-	var cycleEndDate sql.NullTime
-	var notes sql.NullString
-	if err := rows.Scan(&c.Id, &c.UserId, &c.CycleStartDate, &cycleEndDate, &c.FlowIntensity, &notes, &c.CreatedAt, &c.UpdatedAt); err != nil {
-		s.log.Error("Failed to scan menstrual cycle", zap.Error(err))
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	if cycleEndDate.Valid {
-		c.CycleEndDate = cycleEndDate.Time.Format("2006-01-02")
-	}
-	if notes.Valid {
-		c.Notes = notes.String
-	}
-
-	symptoms, err := s.queryCycleItems(ctx, "user_menstrual_symptoms", "symptom", c.Id)
-	if err != nil {
-		return nil, err
-	}
-	c.Symptoms = symptoms
-
-	moods, err := s.queryCycleItems(ctx, "user_menstrual_moods", "mood", c.Id)
-	if err != nil {
-		return nil, err
-	}
-	c.Moods = moods
-
-	return &c, nil
-}
-
-func (s *userServer) queryCycleItems(ctx context.Context, table, column, cycleID string) ([]string, error) {
-	rows, err := s.db.QueryContext(ctx, fmt.Sprintf("SELECT %s FROM %s WHERE cycle_id = $1", column, table), cycleID) // NOSONAR go:S2077 - table and column are hardcoded constants, not user input
-	if err != nil {
-		s.log.Error("Failed to query cycle items", zap.Error(err), zap.String("table", table))
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	defer func() { _ = rows.Close() }()
-
-	items := make([]string, 0)
-	for rows.Next() {
-		var item string
-		if err := rows.Scan(&item); err == nil {
-			items = append(items, item)
+		moods, err := s.userMenstrualRepo.ListMoods(ctx, c.ID)
+		if err != nil {
+			s.log.Error("Failed to query menstrual moods", zap.Error(err), zap.String("cycle_id", c.ID))
+			return nil, status.Error(codes.Internal, errDatabaseError)
 		}
+		pbCycles = append(pbCycles, &pb.MenstrualCycle{
+			Id: c.ID, UserId: c.UserID, CycleStartDate: c.CycleStartDate,
+			CycleEndDate: c.CycleEndDate, FlowIntensity: c.FlowIntensity,
+			Notes: c.Notes, Symptoms: symptoms, Moods: moods,
+			CreatedAt: c.CreatedAt.Format(time.RFC3339), UpdatedAt: c.UpdatedAt.Format(time.RFC3339),
+		})
 	}
-	if err := rows.Err(); err != nil {
-		s.log.Error("Failed to iterate cycle item rows", zap.Error(err), zap.String("table", table))
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
-	return items, nil
+	return &pb.ListMenstrualCyclesResponse{Cycles: pbCycles, Total: safeInt32(len(pbCycles))}, nil
 }
 
 func (s *userServer) CreateMenstrualCycle(ctx context.Context, req *pb.CreateMenstrualCycleRequest) (*pb.MenstrualCycle, error) {
 	if req.UserId == "" || req.CycleStartDate == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and cycle_start_date are required")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
+	cycle := &port.UserMenstrualCycle{
+		UserID:         req.UserId,
+		CycleStartDate: req.CycleStartDate,
+		CycleEndDate:   req.CycleEndDate,
+		FlowIntensity:  req.FlowIntensity,
+		Notes:          req.Notes,
+		Symptoms:       req.Symptoms,
+		Moods:          req.Moods,
 	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			s.log.Error("Failed to rollback transaction", zap.Error(rollbackErr))
-		}
-	}()
-
-	var cycleID string
-	err = tx.QueryRowContext(ctx, `
-		INSERT INTO user_menstrual_cycles (user_id, cycle_start_date, cycle_end_date, flow_intensity, notes)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id
-	`, req.UserId, req.CycleStartDate, nullIfEmpty(req.CycleEndDate), nullIfEmpty(req.FlowIntensity), req.Notes).Scan(&cycleID)
+	result, err := s.userMenstrualRepo.CreateCycleWithDetails(ctx, cycle)
 	if err != nil {
 		s.log.Error("Failed to create menstrual cycle", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-
-	for _, symptom := range req.Symptoms {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO user_menstrual_symptoms (cycle_id, symptom) VALUES ($1, $2) ON CONFLICT DO NOTHING`, cycleID, symptom); err != nil {
-			s.log.Error("Failed to insert symptom", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-	}
-	for _, mood := range req.Moods {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO user_menstrual_moods (cycle_id, mood) VALUES ($1, $2) ON CONFLICT DO NOTHING`, cycleID, mood); err != nil {
-			s.log.Error("Failed to insert mood", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
 	return &pb.MenstrualCycle{
-		Id: cycleID, UserId: req.UserId, CycleStartDate: req.CycleStartDate,
-		CycleEndDate: req.CycleEndDate, FlowIntensity: req.FlowIntensity,
-		Notes: req.Notes, Symptoms: req.Symptoms, Moods: req.Moods,
+		Id: result.ID, UserId: result.UserID, CycleStartDate: result.CycleStartDate,
+		CycleEndDate: result.CycleEndDate, FlowIntensity: result.FlowIntensity,
+		Notes: result.Notes, Symptoms: result.Symptoms, Moods: result.Moods,
 	}, nil
 }
 
@@ -1498,48 +1417,25 @@ func (s *userServer) UpdateMenstrualCycle(ctx context.Context, req *pb.UpdateMen
 	if req.UserId == "" || req.CycleId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and cycle_id are required")
 	}
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
+	cycle := &port.UserMenstrualCycle{
+		ID:             req.CycleId,
+		UserID:         req.UserId,
+		CycleStartDate: req.CycleStartDate,
+		CycleEndDate:   req.CycleEndDate,
+		FlowIntensity:  req.FlowIntensity,
+		Notes:          req.Notes,
+		Symptoms:       req.Symptoms,
+		Moods:          req.Moods,
 	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			s.log.Error("Failed to rollback transaction", zap.Error(rollbackErr))
-		}
-	}()
-
-	_, err = tx.ExecContext(ctx, `
-		UPDATE user_menstrual_cycles
-		SET cycle_end_date = $1, flow_intensity = $2, notes = $3, updated_at = NOW()
-		WHERE id = $4 AND user_id = $5
-	`, nullIfEmpty(req.CycleEndDate), nullIfEmpty(req.FlowIntensity), req.Notes, req.CycleId, req.UserId)
+	result, err := s.userMenstrualRepo.UpdateCycleWithDetails(ctx, cycle)
 	if err != nil {
 		s.log.Error("Failed to update menstrual cycle", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-
-	_, _ = tx.ExecContext(ctx, `DELETE FROM user_menstrual_symptoms WHERE cycle_id = $1`, req.CycleId)
-	for _, symptom := range req.Symptoms {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO user_menstrual_symptoms (cycle_id, symptom) VALUES ($1, $2) ON CONFLICT DO NOTHING`, req.CycleId, symptom); err != nil {
-			s.log.Error("Failed to update symptoms", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-	}
-	_, _ = tx.ExecContext(ctx, `DELETE FROM user_menstrual_moods WHERE cycle_id = $1`, req.CycleId)
-	for _, mood := range req.Moods {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO user_menstrual_moods (cycle_id, mood) VALUES ($1, $2) ON CONFLICT DO NOTHING`, req.CycleId, mood); err != nil {
-			s.log.Error("Failed to update moods", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
-	}
 	return &pb.MenstrualCycle{
-		Id: req.CycleId, UserId: req.UserId, CycleStartDate: req.CycleStartDate,
-		CycleEndDate: req.CycleEndDate, FlowIntensity: req.FlowIntensity,
-		Notes: req.Notes, Symptoms: req.Symptoms, Moods: req.Moods,
+		Id: result.ID, UserId: result.UserID, CycleStartDate: result.CycleStartDate,
+		CycleEndDate: result.CycleEndDate, FlowIntensity: result.FlowIntensity,
+		Notes: result.Notes, Symptoms: result.Symptoms, Moods: result.Moods,
 	}, nil
 }
 
@@ -1804,234 +1700,6 @@ func (s *userServer) AdminRevokeInvite(ctx context.Context, req *pb.AdminRevokeI
 	return &pb.AdminRevokeInviteResponse{Success: true, Message: "Invite revoked successfully"}, nil
 }
 
-func nullIfEmpty(v string) *string {
-	if v == "" {
-		return nil
-	}
-	return &v
-}
-
-// ensurePgsodiumKey идемпотентно импортирует PII-ключ из DB_ENCRYPTION_KEY
-// в keyring pgsodium (таблица pgsodium.key) и фиксирует его идентификатор
-// в пакете db для использования в шифровании/расшифровке.
-func (s *userServer) ensurePgsodiumKey(ctx context.Context) error {
-	key := db.EncryptionKey()
-	if len(key) == 0 {
-		return errors.New("DB_ENCRYPTION_KEY not set; pgsodium keyring cannot be initialized")
-	}
-
-	var id int64
-	err := s.db.QueryRowContext(ctx, `SELECT id FROM pgsodium.key WHERE name = $1`, db.PgsodiumKeyringName()).Scan(&id)
-	if err == nil {
-		db.SetPgsodiumKeyID(id)
-		return nil
-	}
-	if err != sql.ErrNoRows {
-		return fmt.Errorf("query pgsodium key: %w", err)
-	}
-
-	hexKey := hex.EncodeToString(key)
-	err = s.db.QueryRowContext(ctx,
-		`SELECT pgsodium.import_key(CASE WHEN $1 ~ '^[0-9a-fA-F]{64}$' THEN decode($1, 'hex') ELSE convert_to($1, 'UTF8') END, $2)`,
-		hexKey, db.PgsodiumKeyringName(),
-	).Scan(&id)
-	if err != nil {
-		return fmt.Errorf("import pgsodium key: %w", err)
-	}
-	db.SetPgsodiumKeyID(id)
-	s.log.Info("Imported pgsodium PII key", zap.Int64("key_id", id))
-	return nil
-}
-
-type pair struct {
-	enc   string
-	plain string
-}
-
-type piiTable struct {
-	name  string
-	idCol string
-	pairs []pair
-}
-
-// reencryptPIIFromPgcrypto перекодирует существующие PII-поля,
-// зашифрованные ранее через pgcrypto (pgp_sym_encrypt), в pgsodium (libsodium AEAD).
-// Строки, уже зашифрованные через pgsodium, пропускаются.
-func (s *userServer) reencryptPIIFromPgcrypto(ctx context.Context) {
-	key := string(db.EncryptionKey())
-	if key == "" {
-		return
-	}
-	id := db.PgsodiumKeyID()
-	if id == 0 {
-		return
-	}
-
-	tables := []piiTable{
-		{"users", "id", []pair{
-			{"email_encrypted", "email"},
-			{"full_name_encrypted", "full_name"},
-			{"nickname_encrypted", "nickname"},
-		}},
-		{"email_verifications", "id", []pair{
-			{"email_encrypted", "email"},
-			{"token_encrypted", "token"},
-		}},
-	}
-
-	for _, t := range tables {
-		s.migrateTablePII(ctx, t, key, id)
-	}
-}
-
-func (s *userServer) migrateTablePII(ctx context.Context, t piiTable, key string, id int64) {
-	cols := []string{t.idCol}
-	for _, p := range t.pairs {
-		cols = append(cols, p.enc)
-	}
-	colList := strings.Join(cols, ", ")
-	var selectBuilder strings.Builder
-	selectBuilder.WriteString(sqlSelectPrefix)
-	selectBuilder.WriteString(colList)
-	selectBuilder.WriteString(" FROM ")
-	selectBuilder.WriteString(t.name)
-	selectBuilder.WriteString(" WHERE ")
-	selectBuilder.WriteString(t.pairs[0].enc)
-	selectBuilder.WriteString(" IS NOT NULL")
-	rows, err := s.db.QueryContext(ctx, selectBuilder.String()) // NOSONAR go:S2077 - table/column names are validated constants from trusted source, no user input in query structure
-	if err != nil {
-		s.log.Error("Failed to scan PII rows for migration", zap.Error(err), zap.String("table", t.name))
-		return
-	}
-
-	if err := rows.Err(); err != nil {
-		s.log.Error("Failed to iterate PII rows for migration", zap.Error(err), zap.String("table", t.name))
-		return
-	}
-
-	scanPtrs := make([]interface{}, len(cols))
-	rowVals := make([]interface{}, len(cols))
-	for i := range scanPtrs {
-		scanPtrs[i] = &rowVals[i]
-	}
-
-	migrated := int64(0)
-	for rows.Next() {
-		if err := rows.Scan(scanPtrs...); err != nil {
-			s.log.Error("Failed to scan PII row", zap.Error(err))
-			continue
-		}
-		rowID := fmt.Sprint(rowVals[0])
-
-		if s.migratePIIRow(ctx, t, key, id, rowID, rowVals) {
-			migrated++
-		}
-	}
-	if rowErr := rows.Err(); rowErr != nil {
-		s.log.Error("Failed to iterate PII rows for migration", zap.Error(rowErr), zap.String("table", t.name))
-		return
-	}
-	if closeErr := rows.Close(); closeErr != nil {
-		s.log.Error("Failed to close rows during PII migration", zap.Error(closeErr), zap.String("table", t.name))
-	}
-	if migrated > 0 {
-		s.log.Info("Re-encrypted PII from pgcrypto to pgsodium", zap.String("table", t.name), zap.Int64("rows", migrated))
-	}
-}
-
-func (s *userServer) migratePIIRow(ctx context.Context, t piiTable, key string, id int64, rowID string, rowVals []interface{}) bool {
-	var probe string
-	if s.db.QueryRowContext(ctx,
-		fmt.Sprintf("SELECT convert_from(pgsodium.crypto_aead_det_decrypt($1, '', %d), 'UTF8')", id), rowVals[1], // NOSONAR go:S2077 - id is pgsodium key ID from trusted source, not user input
-	).Scan(&probe) == nil {
-		return false
-	}
-
-	setParts := make([]string, 0, len(t.pairs))
-	args := make([]interface{}, 0, len(t.pairs)+1)
-	ai := 1
-	for i, p := range t.pairs {
-		var plain sql.NullString
-		if dErr := s.db.QueryRowContext(ctx, "SELECT pgp_sym_decrypt($1, $2)", rowVals[i+1], key).Scan(&plain); dErr != nil || !plain.Valid {
-			s.log.Warn("Failed to pgcrypto-decrypt during PII migration",
-				zap.Error(dErr), zap.String("table", t.name), zap.String("col", p.enc))
-			return false
-		}
-		args = append(args, plain.String)
-		setParts = append(setParts, fmt.Sprintf("%s = pgsodium.crypto_aead_det_encrypt($%d::text, '', %d)", p.enc, ai, id))
-		ai++
-	}
-	if len(setParts) == 0 {
-		return false
-	}
-	args = append(args, rowID)
-
-	var queryBuilder strings.Builder
-	queryBuilder.WriteString("UPDATE ")
-	queryBuilder.WriteString(t.name)
-	queryBuilder.WriteString(" SET ")
-	queryBuilder.WriteString(strings.Join(setParts, ", "))
-	queryBuilder.WriteString(" WHERE ")
-	queryBuilder.WriteString(t.idCol)
-	queryBuilder.WriteString(" = $")
-	queryBuilder.WriteString(strconv.Itoa(ai))
-	query := queryBuilder.String()
-
-	if _, uErr := s.db.ExecContext(ctx, query, args...); uErr != nil { // NOSONAR go:S2077 - table/column names are validated constants, no user input in query structure
-		s.log.Error("Failed to re-encrypt PII row", zap.Error(uErr), zap.String("table", t.name), zap.String("id", rowID))
-		return false
-	}
-	return true
-}
-
-func (s *userServer) backfillEncryptedPII(ctx context.Context) {
-	key := string(db.EncryptionKey())
-	if key == "" {
-		s.log.Warn("DB_ENCRYPTION_KEY not set; skipping PII backfill")
-		return
-	}
-	id := db.PgsodiumKeyID()
-	if id == 0 {
-		s.log.Warn("pgsodium key not initialized; skipping PII backfill")
-		return
-	}
-	enc := func(col string) string {
-		return fmt.Sprintf("pgsodium.crypto_aead_det_encrypt(%s::text, '', %d)", col, id)
-	}
-
-	var usersQuery strings.Builder
-	usersQuery.WriteString("UPDATE users SET ")
-	usersQuery.WriteString("email_encrypted = ")
-	usersQuery.WriteString(enc("email"))
-	usersQuery.WriteString(", email_hash = encode(digest(lower(email), 'sha256'), 'hex'), ")
-	usersQuery.WriteString("full_name_encrypted = ")
-	usersQuery.WriteString(enc("full_name"))
-	usersQuery.WriteString(", full_name_hash = encode(digest(lower(full_name), 'sha256'), 'hex'), ")
-	usersQuery.WriteString("nickname_encrypted = ")
-	usersQuery.WriteString(enc("nickname"))
-	usersQuery.WriteString(", nickname_hash = encode(digest(lower(nickname), 'sha256'), 'hex') ")
-	usersQuery.WriteString(" WHERE email_encrypted IS NULL")
-	res, err := s.db.ExecContext(ctx, usersQuery.String()) // NOSONAR go:S2077 - query uses pgsodium decrypt expressions, no user input in structure
-	if err != nil {
-		s.log.Error("Failed to backfill PII in users", zap.Error(err))
-	} else {
-		rows, _ := res.RowsAffected()
-		s.log.Info("PII backfill complete for users", zap.Int64("updated", rows))
-	}
-
-	var emailVerificationsQuery strings.Builder
-	emailVerificationsQuery.WriteString("UPDATE email_verifications SET ")
-	emailVerificationsQuery.WriteString("email_encrypted = ")
-	emailVerificationsQuery.WriteString(enc("email"))
-	emailVerificationsQuery.WriteString(", token_encrypted = ")
-	emailVerificationsQuery.WriteString(enc("token"))
-	emailVerificationsQuery.WriteString(" WHERE email_encrypted IS NULL")
-	_, err = s.db.ExecContext(ctx, emailVerificationsQuery.String()) // NOSONAR go:S2077 - query uses pgsodium decrypt expressions, no user input in structure
-	if err != nil {
-		s.log.Error("Failed to backfill PII in email_verifications", zap.Error(err))
-	}
-}
-
 type userServerConfig struct {
 	database           *sql.DB
 	log                *logger.Logger
@@ -2193,11 +1861,11 @@ func initializeUserService(ctx context.Context, log *logger.Logger, database *sq
 		userBodyCompRepo:   userBodyCompRepo,
 		userMenstrualRepo:  userMenstrualRepo,
 	})
-	if err := svc.ensurePgsodiumKey(ctx); err != nil {
+	if err := ensurePgsodiumKey(ctx, database, log); err != nil {
 		log.Fatal("Failed to initialize pgsodium keyring", zap.Error(err))
 	}
-	svc.reencryptPIIFromPgcrypto(ctx)
-	svc.backfillEncryptedPII(ctx)
+	reencryptPIIFromPgcrypto(ctx, database, log)
+	backfillEncryptedPII(ctx, database, log)
 
 	return svc
 }

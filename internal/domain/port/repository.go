@@ -42,9 +42,17 @@ type ProfileRepository interface {
 	UpdateProfile(ctx context.Context, userID, fullName string, goals, contraindications []string, nutrition string, sleepHours float32) error
 	UserExists(ctx context.Context, userID string) (bool, error)
 	CreateProfile(ctx context.Context, userID string) error
-	UpsertProfile(ctx context.Context, userID string, age int32, gender string, heightCm int32, weightKg float64, fitnessLevel string, nutrition string, sleepHours float32) error
-	GetListItems(ctx context.Context, userID, tableName, columnName string) ([]string, error)
-	ReplaceListItems(ctx context.Context, userID, tableName, columnName string, items []string) error
+	UpsertProfile(ctx context.Context, userID string, data *ProfileData) error
+}
+
+type ProfileData struct {
+	Age          int32
+	Gender       string
+	HeightCm     int32
+	WeightKg     float64
+	FitnessLevel string
+	Nutrition    string
+	SleepHours   float32
 }
 
 type InviteRepository interface {
@@ -60,6 +68,8 @@ type InviteCodeRepository interface {
 	Revoke(ctx context.Context, code string) error
 	Validate(ctx context.Context, code string) (*InviteCode, error)
 	UseInviteCode(ctx context.Context, code string) error
+	ValidateInviteCodeUse(ctx context.Context, code string) (bool, string, string, string, error)
+	LogInviteCodeUse(ctx context.Context, code, userID string) error
 }
 
 type InviteCode struct {
@@ -146,7 +156,9 @@ type MenstrualCycleRepository interface {
 type UserMenstrualRepository interface {
 	ListCycles(ctx context.Context, userID string) ([]*UserMenstrualCycle, error)
 	CreateCycle(ctx context.Context, cycle *UserMenstrualCycle) (*UserMenstrualCycle, error)
+	CreateCycleWithDetails(ctx context.Context, cycle *UserMenstrualCycle) (*UserMenstrualCycle, error)
 	UpdateCycle(ctx context.Context, cycle *UserMenstrualCycle) (*UserMenstrualCycle, error)
+	UpdateCycleWithDetails(ctx context.Context, cycle *UserMenstrualCycle) (*UserMenstrualCycle, error)
 	DeleteCycle(ctx context.Context, id, userID string) error
 	ListSymptoms(ctx context.Context, cycleID string) ([]string, error)
 	CreateSymptom(ctx context.Context, cycleID, symptom string) error
