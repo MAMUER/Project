@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/MAMUER/project/internal/domain/entity"
-	"github.com/MAMUER/project/internal/domain/port"
 )
 
 type UserService interface {
@@ -17,12 +16,18 @@ type UserService interface {
 	CreateInvite(ctx context.Context, role, specialty string, maxUses int) (string, error)
 	ValidateInvite(ctx context.Context, code string) (string, string, error)
 	ListUsers(ctx context.Context, page, pageSize int) ([]*entity.User, int, error)
+	ListDevices(ctx context.Context, userID string) ([]*entity.Device, error)
+	AddDevice(ctx context.Context, device *entity.Device) (*entity.Device, error)
+	RemoveDevice(ctx context.Context, userID, deviceID string) error
 }
 
 type BiometricService interface {
 	AddRecord(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error)
 	BatchAddRecords(ctx context.Context, records []*entity.BiometricRecord) (int, error)
 	GetRecords(ctx context.Context, userID, metricType string, limit int) ([]*entity.BiometricRecord, error)
+	GetLatest(ctx context.Context, userID, metricType string) (*entity.BiometricRecord, error)
+	UpdateRecord(ctx context.Context, record *entity.BiometricRecord) (*entity.BiometricRecord, error)
+	DeleteRecord(ctx context.Context, id string) error
 }
 
 type TrainingService interface {

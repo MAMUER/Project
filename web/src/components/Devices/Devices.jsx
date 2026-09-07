@@ -9,19 +9,19 @@ export default function Devices() {
     <div className='view active'>
       <h3>Источники здоровья</h3>
 
-      <div className='integration-status'>
+      <div className='integration-status' aria-live='polite' aria-atomic='true'>
         {status === 'connected' && (
-          <div className='success-message'>
+          <div className='success-message' role='status'>
             ✅ Успешно подключено! Данные будут синхронизироваться
             автоматически.
           </div>
         )}
         {status === 'loading' /* istanbul ignore next */ && (
-          <div className='loading-message'>
+          <div className='loading-message' role='status'>
             ⏳ Подключение к Open Wearables...
           </div>
         )}
-        {status === 'error' && <div className='error-message'>❌ {error}</div>}
+        {status === 'error' && <div className='error-message' role='alert'>❌ {error}</div>}
       </div>
 
       <button
@@ -29,11 +29,15 @@ export default function Devices() {
         className='action-btn'
         onClick={handleConnect}
         disabled={status === 'loading'}
+        aria-describedby='connect-help'
       >
         {status === 'loading' /* istanbul ignore next */
           ? 'Подключение...'
           : 'Подключить источники здоровья'}
       </button>
+      <span id='connect-help' className='sr-only'>
+        Подключает новые источники здоровья и носимые устройства.
+      </span>
 
       <div className='connected-sources'>
         <h4>Подключённые источники</h4>
@@ -42,25 +46,28 @@ export default function Devices() {
             Нет подключённых источников
           </p>
         ) : (
-          providers.map((p) => (
-            <div key={p.source} className='source-card'>
-              <div className='source-info'>
-                <h4>{p.source_name || p.source}</h4>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  Подключён:{' '}
-                  {new Date(p.connected_at).toLocaleDateString('ru-RU')}
-                </p>
-              </div>
-              <button
-                type='button'
-                onClick={() => handleDisconnect(p.source)}
-                className='btn-secondary'
-                style={{ padding: '8px 12px', fontSize: 13 }}
-              >
-                Отключить
-              </button>
-            </div>
-          ))
+          <ul className='devices-list' aria-label='Список подключённых источников здоровья'>
+            {providers.map((p) => (
+              <li key={p.source} className='source-card'>
+                <div className='source-info'>
+                  <h4>{p.source_name || p.source}</h4>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    Подключён:{' '}
+                    {new Date(p.connected_at).toLocaleDateString('ru-RU')}
+                  </p>
+                </div>
+                <button
+                  type='button'
+                  onClick={() => handleDisconnect(p.source)}
+                  className='btn-secondary'
+                  style={{ padding: '8px 12px', fontSize: 13 }}
+                  aria-label={`Отключить источник ${p.source_name || p.source}`}
+                >
+                  Отключить
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

@@ -1,0 +1,22 @@
+app:
+  name: fitpulse
+
+server:
+  addr: ":8080"
+
+database:
+  host: "localhost"
+  port: "5432"
+  user: "postgres"
+  password: ""
+  dbname: "postgres"
+  sslmode: "disable"
+
+cache:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+jwt:
+  private_key_pem: ""
+  public_key_pem: ""

@@ -14,9 +14,16 @@ BEGIN
 END $$;
 
 -- Backfill source from device_type for existing rows
-UPDATE biometric_data
-SET source = COALESCE(NULLIF(device_type, ''), 'unknown')
-WHERE source = 'unknown' AND device_type IS NOT NULL AND device_type <> '';
+DO $$
+DECLARE
+    v_default_source CONSTANT VARCHAR := 'unknown';
+BEGIN
+    UPDATE biometric_data
+    SET source = COALESCE(NULLIF(device_type, ''), v_default_source)
+    WHERE source = v_default_source
+      AND device_type IS NOT NULL
+      AND device_type IS DISTINCT FROM '';
+END $$;
 
 -- Drop old unique constraint/index if exists
 DO $$

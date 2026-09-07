@@ -66,14 +66,6 @@ on:
   issues:
     types: [opened, labeled, unlabeled]
 
-permissions:
-  contents: read
-  packages: write
-  actions: read
-  security-events: write
-  pull-requests: write
-  issues: write
-
 env:
   GO_VERSION: "1.26.5"
   REGISTRY: ghcr.io
@@ -296,11 +288,9 @@ jobs:
         if: github.event_name == 'issues' && github.event.action == 'opened'
         env:
           ISSUE_TITLE: "${{ github.event.issue.title }}"
-        run: |
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"🔴 Critical issue: #${{ github.event.issue.number }}\n$ISSUE_TITLE\n${{ github.event.issue.html_url }}\"}"
-
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: bash scripts/ci/ci-helpers.sh send_telegram
   # ============================================================================
   # FRONTEND CHECKS
   # ============================================================================
@@ -319,9 +309,7 @@ jobs:
           cache: "npm"
           cache-dependency-path: web/package-lock.json
       - name: Install dependencies
-        run: |
-          npm config set registry https://registry.npmjs.org
-          NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --legacy-peer-deps || NPM_CONFIG_MIN_RELEASE_AGE=0 npm install --legacy-peer-deps
+        run: bash scripts/ci/ci-helpers.sh install_dependencies
         working-directory: web
       - name: Lint frontend
         run: npm run lint
@@ -345,8 +333,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: Validate workflow syntax
-        uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # originally: v1.7.12
-
+        run: bash scripts/ci/ci-helpers.sh validate_workflow
   # ============================================================================
   # DOCKERFILE LINT
   # ============================================================================
@@ -357,12 +344,7 @@ jobs:
       - run: git config --global init.defaultBranch main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Run Hadolint on all Dockerfiles
-        run: |
-          find cmd -maxdepth 2 -type f -name Dockerfile -print0 | sort -z | while IFS= read -r -d '' dockerfile; do
-            echo "Linting $dockerfile"
-            docker run --rm -v "${GITHUB_WORKSPACE}:/workspace" -w /workspace hadolint/hadolint:v2.12.0 hadolint -c .hadolint.yaml "$dockerfile"
-          done
-
+        run: bash scripts/ci/ci-helpers.sh run_hadolint
   # ============================================================================
   # SUPER LINTER
   # ============================================================================
@@ -452,22 +434,7 @@ jobs:
           upload: failure-only
       - name: Show CodeQL diagnostics
         if: always()
-        run: |
-          echo "-> CodeQL SARIF files:"
-          ls -la sarif-results || true
-          for f in sarif-results/*.sarif; do
-            if [ -f "$f" ]; then
-              echo "=== $f ==="
-              jq -r '
-                .runs[] |
-                .tool.driver.name,
-                "results: \(([.results // [] | length]) // 0)",
-                (.results // [])[] |
-                [.ruleId, .message.text, (.locations[0].physicalLocation.artifactLocation.uri // ""), (.locations[0].physicalLocation.region.startLine // 0)] | @tsv
-              ' "$f" 2>/dev/null || true
-              echo ""
-            fi
-          done
+        run: bash scripts/ci/ci-helpers.sh show_codeql_diagnostics
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd
         with:
@@ -510,46 +477,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Install Kubescape
-        run: |
-          echo "Installing Kubescape via official installer..."
-          curl -fsSL https://raw.githubusercontent.com/kubescape/kubescape/master/install.sh -o /tmp/install-kubescape.sh
-          sudo bash /tmp/install-kubescape.sh -s -- --binary-folder /usr/local/bin
-          rm -f /tmp/install-kubescape.sh
-          echo "Verifying installation..."
-          kubescape version
+        run: bash scripts/ci/security.sh install_tools
       - name: Run Kubescape scan
-        run: |
-          echo "-> Running Kubescape..."
-          mkdir -p sarif-results
-          tmpfile=$(mktemp)
-          kubescape scan configs/k8s/base/ \
-            --format sarif \
-            --verbose \
-            > "$tmpfile" 2>&1 \
-            || true
-          if jq -e '.runs' "$tmpfile" >/dev/null 2>&1; then
-            mv "$tmpfile" sarif-results/kubescape-results.sarif
-          else
-            rm -f "$tmpfile"
-            jq -n '{ "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json", "version": "2.1.0", "runs": [ { "tool": { "driver": { "name": "kubescape" } }, "results": [] } ] }' > sarif-results/kubescape-results.sarif
-          fi
-          if command -v jq &> /dev/null; then
-            jq '.runs |= map(
-              .results |= map(
-                select(
-                  (.locations[0].physicalLocation.artifactLocation.uri | test("\\.[^/]+$"))
-                  and
-                  ((.ruleId // "") | IN(
-                    "C-0012", "C-0013", "C-0017", "C-0016",
-                    "C-0009", "C-0010", "C-0011", "C-0021", "C-0022",
-                    "C-0055", "C-0045", "C-0048", "C-0056",
-                    "C-0237"
-                  ) | not)
-                )
-              )
-            )' sarif-results/kubescape-results.sarif > sarif-results/kubescape-results-fixed.sarif
-            mv sarif-results/kubescape-results-fixed.sarif sarif-results/kubescape-results.sarif
-          fi
+        run: bash scripts/ci/security.sh run_kubescape
       - name: Upload Kubescape results
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd
         if: always() && hashFiles('sarif-results/kubescape-results.sarif') != ''
@@ -571,17 +501,9 @@ jobs:
       - run: git config --global init.defaultBranch main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Install Semgrep
-        run: pip install 'semgrep==1.172.0'
+        run: "pip install --only-binary :all: 'semgrep==1.172.0'"
       - name: Run Semgrep scan
-        run: |
-          mkdir -p sarif-results
-          semgrep scan \
-            --config p/security-audit \
-            --config p/owasp-top-ten \
-            --exclude cmd/classifier/classifier_integration_test.go \
-            --exclude configs/monitoring/node-exporter/daemonset.yaml \
-            --exclude configs/k8s/base/local-path-provisioner.yaml \
-            --sarif -o sarif-results/semgrep-results.sarif .
+        run: bash scripts/ci/security.sh run_semgrep
       - name: Upload Semgrep SARIF
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd
         with:
@@ -607,16 +529,7 @@ jobs:
           scan-args: -r ./ --config .osv-scanner.toml --experimental-exclude=cmd/ml_generator
       - name: Run OSV Scanner (Python requirements)
 
-        run: |
-          echo "Scanning Python requirements..."
-          find . -name "requirements.txt" -not -path "./.git/*" -print0 | while IFS= read -r -d '' req_file; do
-            echo "=== Scanning $req_file ==="
-            docker run --rm -v "${GITHUB_WORKSPACE}:/repo" -w /repo \
-              ghcr.io/google/osv-scanner:v2.3.8 \
-              scan "$req_file" || echo "⚠️ Could not fully resolve $req_file (no lock file)"
-          done
-          echo "✅ Python requirements scan completed (some packages may not be fully resolved)"
-
+        run: bash scripts/ci/security.sh run_osv_python_requirements
   # ============================================================================
   # FUZZ TESTS
   # ============================================================================
@@ -635,10 +548,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
       - name: Run fuzz tests
-        run: |
-          go test -fuzz=FuzzString -fuzztime=120s ./internal/sanitize/
-          go test -fuzz=FuzzAESGCMEncryptor -fuzztime=120s ./internal/crypto/
-
+        run: bash scripts/ci/test.sh run_fuzz_tests
   # ============================================================================
   # OSV AUDIT (manual)
   # ============================================================================
@@ -654,13 +564,9 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
       - name: Install osv-scanner
-        run: |
-          GOBIN="$HOME/go/bin" go install github.com/google/osv-scanner/cmd/osv-scanner@latest
-          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+        run: bash scripts/ci/security.sh install_tools
       - name: Run osv-scanner
-        run: |
-          osv-scanner scan . 2>&1 || true
-
+        run: bash scripts/ci/security.sh run_osv_scanner
   # ============================================================================
   # SECURITY SCAN
   # ============================================================================
@@ -669,6 +575,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate-workflow, dockerfile-lint]
     timeout-minutes: 45
+    permissions:
+      security-events: write
     steps:
       - name: Configure Git default branch
         run: git config --global init.defaultBranch main
@@ -681,28 +589,9 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
       - name: Install security tools
-        run: |
-          for i in 1 2 3; do
-            if go install github.com/securego/gosec/v2/cmd/gosec@v2.28.0; then
-              break
-            fi
-            echo "gosec install attempt $i failed; retrying..."
-            sleep 5
-          done
-          for i in 1 2 3; do
-            if go install golang.org/x/vuln/cmd/govulncheck@v1.6.0; then
-              break
-            fi
-            echo "govulncheck install attempt $i failed; retrying..."
-            sleep 5
-          done
+        run: bash scripts/ci/security.sh install_tools
       - name: Run gosec SAST scanner
-        run: |
-          mkdir -p sarif-results
-          gosec -exclude=G101,G505 -exclude-generated -fmt=sarif -out=sarif-results/gosec.sarif ./... 2>&1 || true
-          if [ ! -s sarif-results/gosec.sarif ]; then
-            echo "{\"\\$schema\":\"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json\",\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"gosec\"}},\"results\":[]}]}" > sarif-results/gosec.sarif
-          fi
+        run: bash scripts/ci/security.sh run_gosec
       - name: Upload gosec results
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd
         if: always()
@@ -711,10 +600,7 @@ jobs:
           category: gosec
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Run govulncheck
-        run: |
-          mkdir -p sarif-results
-          govulncheck ./... > sarif-results/govulncheck.txt 2>&1 || true
-
+        run: bash scripts/ci/security.sh run_govulncheck
       - name: Run Trivy config scan (misconfigurations)
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
         with:
@@ -731,16 +617,11 @@ jobs:
       - name: Install system dependencies for canvas
         run: sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libpixman-1-dev
       - name: Install frontend dependencies for Trivy
-        run: |
-          npm config set registry https://registry.npmjs.org
-          NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --legacy-peer-deps || NPM_CONFIG_MIN_RELEASE_AGE=0 npm install --legacy-peer-deps
+        run: bash scripts/ci/ci-helpers.sh install_dependencies
         working-directory: web
 
       - name: Install Python dependencies for Trivy
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r cmd/ml_generator/requirements.lock.txt
-
+        run: bash scripts/ci/ci-helpers.sh install_python_deps
       - name: Run Trivy filesystem scan (vulnerabilities + secrets + misconfig)
         id: trivy-fs
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25
@@ -775,20 +656,9 @@ jobs:
           category: trivy-fs
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install Gitleaks
-        run: |
-          for attempt in 1 2 3 4 5; do
-            if curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz" -o /tmp/gitleaks.tar.gz; then
-              break
-            fi
-            echo "Gitleaks download failed (attempt $attempt), retrying..."
-            sleep $((attempt * 5))
-          done
-          sudo tar -xzf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks
-          sudo chmod +x /usr/local/bin/gitleaks
+        run: bash scripts/ci/security.sh install_tools
       - name: Run Gitleaks secret scan
-        run: |
-          mkdir -p sarif-results
-          gitleaks detect --source=. --config=.gitleaks.toml --report-format=sarif --report-path=sarif-results/gitleaks.sarif || true
+        run: bash scripts/ci/security.sh run_gitleaks
       - name: Upload Gitleaks results
         if: always() && hashFiles('sarif-results/gitleaks.sarif') != ''
         uses: github/codeql-action/upload-sarif@ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd
@@ -797,99 +667,15 @@ jobs:
           category: gitleaks
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Install TruffleHog
-        run: |
-          curl -sSfL https://github.com/trufflesecurity/trufflehog/releases/download/v3.82.0/trufflehog_3.82.0_linux_amd64.tar.gz -o /tmp/trufflehog.tar.gz
-          tar -xzf /tmp/trufflehog.tar.gz -C /usr/local/bin trufflehog
-          chmod +x /usr/local/bin/trufflehog
+        run: bash scripts/ci/security.sh install_tools
       - name: Run TruffleHog secret scan
-        run: |
-          mkdir -p sarif-results
-          trufflehog filesystem . --json --only-verified > sarif-results/trufflehog.jsonl 2>&1 || true
-          if [ -s sarif-results/trufflehog.jsonl ]; then
-            echo "TruffleHog raw findings:"
-            jq -r '"\(.DetectorName // "unknown") at \(.File // "unknown"):\(.Line // 0) | \(.Description // .Raw // "")"' sarif-results/trufflehog.jsonl 2>/dev/null | head -20 || true
-          fi
+        run: bash scripts/ci/security.sh run_trufflehog
       - name: Install syft
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/anchore/syft/main/install.sh -o /tmp/install.sh
-          bash /tmp/install.sh -b /usr/local/bin
-          rm -f /tmp/install.sh
+        run: bash scripts/ci/security.sh install_tools
       - name: Generate SBOM with syft
-        run: |
-          mkdir -p sbom
-          syft . \
-            --source-name fitpulse \
-            --source-version "$(git rev-parse --short HEAD)" \
-            -o spdx-json=sbom/sbom.spdx.json \
-            -o cyclonedx-json=sbom/sbom.cyclonedx.json
-          ls -la sbom/
+        run: bash scripts/ci/security.sh generate_sbom
       - name: Security Gate — enforce quality thresholds
-        run: |
-          echo "============================================"
-          echo "  Security Gate — Checking scan results"
-          echo "============================================"
-          FAIL=0
-          if [ -f sarif-results/gosec.sarif ]; then
-            GOSEC_CRITICAL=$(jq '[.runs[].results[] | select(.level == "error")] | length' sarif-results/gosec.sarif 2>/dev/null | head -1 || echo 0)
-            GOSEC_CRITICAL=$(printf '%s' "$GOSEC_CRITICAL")
-            GOSEC_HIGH=$(jq '[.runs[].results[] | select(.level == "warning")] | length' sarif-results/gosec.sarif 2>/dev/null | head -1 || echo 0)
-            GOSEC_HIGH=$(printf '%s' "$GOSEC_HIGH")
-            echo "gosec: $GOSEC_CRITICAL critical, $GOSEC_HIGH high"
-            if [ "$GOSEC_CRITICAL" -gt 0 ]; then
-              echo "❌ FAIL: gosec found $GOSEC_CRITICAL critical issues"
-              jq -r '.runs[].results[] | select(.level == "error") | "  - \(.ruleId): \(.message.text) at \(.locations[0].physicalLocation.artifactLocation.uri // "unknown"):\(.locations[0].physicalLocation.region.startLine // 0)"' sarif-results/gosec.sarif 2>/dev/null || true
-              FAIL=1
-            fi
-          fi
-          if [ -f sarif-results/trivy-fs.sarif ]; then
-            TRIVY_CRITICAL=$(jq '[.runs[].results[] | select(.level == "error")] | length' sarif-results/trivy-fs.sarif 2>/dev/null | head -1 || echo 0)
-            TRIVY_CRITICAL=$(printf '%s' "$TRIVY_CRITICAL")
-            echo "trivy-fs: $TRIVY_CRITICAL critical CVEs"
-            if [ "$TRIVY_CRITICAL" -gt 0 ]; then
-              echo "❌ FAIL: Trivy found $TRIVY_CRITICAL critical vulnerabilities in dependencies"
-              jq -r '.runs[].results[] | select(.level == "error") | "  - \(.ruleId): \(.message.text)"' sarif-results/trivy-fs.sarif 2>/dev/null | head -10 || true
-              FAIL=1
-            fi
-          fi
-          if [ -f sarif-results/gitleaks.sarif ]; then
-            GITLEAKS=$(jq '[.runs[].results[] | select(.level == "error" or .level == "warning")] | length' sarif-results/gitleaks.sarif 2>/dev/null | head -1 || echo 0)
-            GITLEAKS=$(printf '%s' "$GITLEAKS")
-            if [ -z "$GITLEAKS" ]; then GITLEAKS=0; fi
-            echo "gitleaks: $GITLEAKS secrets found"
-            if [ "$GITLEAKS" -gt 0 ]; then
-              echo "❌ FAIL: Gitleaks found $GITLEAKS potential secrets"
-              jq -r '.runs[].results[] | select(.level == "error" or .level == "warning") | "  - \(.ruleId): \(.message.text) at \(.locations[0].physicalLocation.artifactLocation.uri // "unknown"):\(.locations[0].physicalLocation.region.startLine // 0)"' sarif-results/gitleaks.sarif 2>/dev/null | head -10 || true
-              FAIL=1
-            fi
-          fi
-          if [ -f sarif-results/trufflehog.jsonl ]; then
-            TRUFFLEHOG=$(jq -r 'select(.Verified == true) | 1' sarif-results/trufflehog.jsonl 2>/dev/null | wc -l)
-            TRUFFLEHOG=$(printf '%s' "$TRUFFLEHOG" | tr -d '[:space:]')
-            echo "trufflehog: $TRUFFLEHOG secrets found"
-            if [ "$TRUFFLEHOG" -gt 0 ]; then
-              echo "❌ FAIL: TruffleHog found $TRUFFLEHOG potential secrets"
-              jq -r 'select(.Verified == true) | "  - \(.DetectorName // "unknown"): \(.Description // .Raw // "")"' sarif-results/trufflehog.jsonl 2>/dev/null | head -10 || true
-              FAIL=1
-            fi
-          fi
-          if [ -f sarif-results/govulncheck.txt ]; then
-            GOVULNCHECK=$(grep -cE "^\(#[0-9]+\)" sarif-results/govulncheck.txt 2>/dev/null || echo 0)
-            echo "govulncheck: $GOVULNCHECK vulnerabilities found"
-            if [ "$GOVULNCHECK" -gt 0 ]; then
-              echo "⚠️  WARNING: govulncheck found $GOVULNCHECK potential vulnerabilities"
-              grep -E "^\(#[0-9]+\)" sarif-results/govulncheck.txt 2>/dev/null | head -10 || true
-              echo "   Note: Trivy covers CVE scanning. govulncheck results are informational."
-            fi
-          fi
-          echo "============================================"
-          if [ "$FAIL" -eq 1 ]; then
-            echo "❌ Security Gate FAILED — pipeline blocked"
-            echo "   Fix the issues above before merging."
-            exit 1
-          else
-           echo "✅ Security Gate PASSED — no critical issues found"
-          fi
-
+        run: bash scripts/ci/security.sh security_gate
   # ============================================================================
   # SONARCLOUD ANALYSIS
   # ============================================================================
@@ -921,33 +707,11 @@ jobs:
       - name: Install system dependencies for canvas
         run: sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libpixman-1-dev
       - name: Install frontend dependencies
-        run: |
-          npm config set registry https://registry.npmjs.org
-          NPM_CONFIG_MIN_RELEASE_AGE=0 npm ci --legacy-peer-deps || NPM_CONFIG_MIN_RELEASE_AGE=0 npm install --legacy-peer-deps
+        run: bash scripts/ci/ci-helpers.sh install_dependencies
         working-directory: web
       - name: Run tests and collect coverage
         continue-on-error: true
-        run: |
-          mkdir -p coverage
-          go test -coverprofile=coverage/coverage.out ./...
-          cd web && npm run test
-          pwd
-          ls -la coverage || true
-          if [ -f coverage/lcov.info ]; then
-            echo "--- original lcov head ---"
-            head -20 coverage/lcov.info || true
-            sed -e 's|\\|/|g' -e 's|^SF:src/|SF:web/src/|' -e 's|^SF:/|SF:|' coverage/lcov.info > ../coverage/lcov.info
-            echo "--- transformed lcov head ---"
-            head -20 ../coverage/lcov.info || true
-          else
-            echo "lcov.info not found in web/coverage"
-          fi
-          if [ -f coverage/coverage.out ]; then
-            echo "--- fixing Go coverage paths ---"
-            sed -i 's|github.com/MAMUER/project/||g' coverage/coverage.out
-            sed -i '/^api\/gen\//d' coverage/coverage.out
-            head -5 coverage/coverage.out || true
-          fi
+        run: bash scripts/ci/ci-helpers.sh run_coverage
       - name: SonarCloud Scan
         uses: sonarsource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f
         env:
@@ -980,16 +744,7 @@ jobs:
           fetch-depth: 0
       - name: Check conventional commits on main branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          echo "-> Checking conventional commits on main..."
-          git log --oneline -1 --no-merges --pretty=format:"%s" | while read -r commit_msg; do
-            if ! echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert|security|BREAKING CHANGE)"; then
-              echo "❌ Non-conventional commit message found: $commit_msg"
-              exit 1
-            fi
-          done
-          echo "✅ All commit messages follow conventional commits format"
-
+        run: bash scripts/ci/ci-helpers.sh check_commits
   # ============================================================================
   # KUBE-BENCH — CIS BENCHMARK
   # ============================================================================
@@ -1005,12 +760,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Run kube-bench against cluster (if available)
 
-        run: |
-          echo "-> Running kube-bench..."
-          mkdir -p security-results
-          kube-bench run --benchmark cis-1.18 --json > security-results/kube-bench-results.json 2>&1 || true
-          echo "✅ kube-bench scan completed (results in security-results/kube-bench-results.json)"
-
+        run: bash scripts/ci/security.sh run_kube_bench
   # ============================================================================
   # KUBE-HUNTER — PENETRATION TESTING
   # ============================================================================
@@ -1026,13 +776,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Run kube-hunter (passive scan)
 
-        run: |
-          echo "-> Running kube-hunter (passive scan)..."
-          mkdir -p security-results
-          pip install kube-hunter
-          kube-hunter --remote 127.0.0.1 --json > security-results/kube-hunter-results.json 2>&1 || true
-          echo "✅ kube-hunter scan completed (results in security-results/kube-hunter-results.json)"
-
+        run: bash scripts/ci/security.sh run_kube_hunter
   # ============================================================================
   # CHECKOV — IaC SECURITY SCANNER
   # ============================================================================
@@ -1048,12 +792,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Run Checkov scan
 
-        run: |
-          echo "-> Running Checkov..."
-          mkdir -p sarif-results
-          pip install 'checkov==3.3.9'
-          checkov --directory configs/k8s --directory scripts --output sarif --output-file sarif-results/checkov-results.sarif || true
-          echo "✅ Checkov scan completed"
+        run: bash scripts/ci/security.sh run_checkov
       - name: Upload Checkov SARIF
         if: always() && hashFiles('sarif-results/checkov-results.sarif') != ''
 
@@ -1081,31 +820,11 @@ jobs:
       - name: Download cosign public key
         env:
           COSIGN_PUBLIC_KEY: ${{ secrets.COSIGN_PUBLIC_KEY }}
-        run: |
-          if [ -z "$COSIGN_PUBLIC_KEY" ]; then
-            echo "⚠️ COSIGN_PUBLIC_KEY not set, skipping verification"
-            exit 0
-          fi
-          mkdir -p /tmp/cosign-keys
-          echo "$COSIGN_PUBLIC_KEY" > /tmp/cosign-keys/cosign.pub
+        run: bash scripts/ci/security.sh download_cosign_public_key
       - name: Verify Docker image signatures
         env:
           IMAGE_TAG: ${{ github.event.pull_request.head.sha }}
-        run: |
-          if [ ! -f /tmp/cosign-keys/cosign.pub ]; then
-            echo "⚠️ No public key available, skipping verification"
-            exit 0
-          fi
-          SERVICES="user-service biometric-service training-service gateway device-aggregator"
-          for svc in $SERVICES; do
-            echo "Verifying $svc..."
-            if cosign verify --key /tmp/cosign-keys/cosign.pub \
-              "ghcr.io/mamuer/project/$svc:${IMAGE_TAG}" >/dev/null 2>&1; then
-              echo "✅ $svc signature verified"
-            else
-              echo "⚠️ $svc not signed or signature invalid (expected on PRs)"
-            fi
-          done
+        run: bash scripts/ci/security.sh verify_cosign
       - name: Cleanup
         if: always()
         run: rm -rf /tmp/cosign-keys
@@ -1129,14 +848,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
       - name: Install golangci-lint
-        run: |
-          for i in 1 2 3; do
-            if go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4; then
-              break
-            fi
-            echo "golangci-lint install attempt $i failed; retrying..."
-            sleep 5
-          done
+        run: bash scripts/ci/ci-helpers.sh install_golangci_lint
       - name: Tidy Go modules
         run: make tidy
       - name: Format Go code
@@ -1162,19 +874,7 @@ jobs:
   binary_build:
     name: Build Binaries
     runs-on: ubuntu-latest
-    needs:
-      [
-        detect-changes,
-        security-scan,
-        check,
-        dockerfile-lint,
-        super-linter,
-        frontend,
-        conventional-commits,
-        kube-bench,
-        kube-hunter,
-        checkov,
-      ]
+    needs: [detect-changes, check, frontend, conventional-commits]
     timeout-minutes: 30
     steps:
       - run: git config --global init.defaultBranch main
@@ -1187,25 +887,7 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
       - name: Build Go services (parallel)
-        run: |
-          set -euo pipefail
-          mkdir -p bin
-          echo "-> Downloading Go modules sequentially to avoid race conditions..."
-          go mod download
-          echo "-> Building Go services in parallel..."
-          GOMAXPROCS=$(nproc)
-          export GOMAXPROCS
-          pids=()
-          for svc in user-service biometric-service training-service gateway device-aggregator; do
-            echo "  Building $svc..."
-            go build -ldflags="-s -w" -o "bin/$svc" ./cmd/"$svc" &
-            pids+=($!)
-          done
-          for pid in "${pids[@]}"; do
-            wait "$pid" || { echo "❌ Build failed for PID $pid"; exit 1; }
-          done
-          echo "✅ All binaries built successfully"
-          ls -lh bin/
+        run: bash scripts/ci/build-push.sh build_go_binaries
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # originally: v7
         with:
           name: binaries
@@ -1218,8 +900,10 @@ jobs:
   docker:
     name: Build and Push Docker Images
     runs-on: ubuntu-latest
-    needs: [detect-changes, binary_build]
+    needs: [binary_build, security-scan]
     timeout-minutes: 60
+    permissions:
+      packages: write
     steps:
       - run: git config --global init.defaultBranch main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
@@ -1238,36 +922,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # originally: v4
       - name: Build and push Go services
-        run: |
-          services="user-service biometric-service training-service gateway device-aggregator"
-          for svc in $services; do
-            echo "Building $svc..."
-            docker buildx build \
-              --build-arg GOPROXY=https://proxy.golang.org,direct \
-              --cache-from=type=gha \
-              --cache-to=type=gha,mode=max \
-              -t "${{ env.REGISTRY }}/mamuer/project/$svc:${{ steps.sha.outputs.short_sha }}" \
-              -t "${{ env.REGISTRY }}/mamuer/project/$svc:latest" \
-              -f "cmd/$svc/Dockerfile" . \
-              --push
-          done
+        run: bash scripts/ci/build-push.sh build_go_services
       - name: Build and push ML images (if models exist)
-        run: |
-          if [ -f "models/scaler.pkl" ] && { [ -f "models/classifier.keras" ] || ls models/classifier_*.keras >/dev/null 2>&1; }; then
-            docker build -t "${{ env.REGISTRY }}/mamuer/project/classifier:${{ steps.sha.outputs.short_sha }}" \
-              -t "${{ env.REGISTRY }}/mamuer/project/classifier:latest" \
-              -f cmd/classifier/Dockerfile .
-            docker push "${{ env.REGISTRY }}/mamuer/project/classifier:${{ steps.sha.outputs.short_sha }}"
-             docker push "${{ env.REGISTRY }}/mamuer/project/classifier:latest"
-           fi
+        run: bash scripts/ci/build-push.sh build_ml_images
       - name: Build and push CRS updater image
-        run: |
-          docker buildx build \
-            --cache-from=type=gha \
-            --cache-to=type=gha,mode=max \
-            -t "${{ env.REGISTRY }}/mamuer/project/crs-updater:v1" \
-            -f "configs/k8s/base/jobs/Dockerfile" configs/k8s/base/jobs \
-            --push
+        run: bash scripts/ci/build-push.sh build_crs_updater
       - name: Scan gateway image with Trivy
         id: trivy-image
 
@@ -1301,47 +960,7 @@ jobs:
           REGISTRY: ${{ env.REGISTRY }}
           IMAGE_TAG: ${{ steps.sha.outputs.short_sha }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          services="user-service biometric-service training-service gateway device-aggregator"
-
-          if [ -z "$COSIGN_PRIVATE_KEY" ]; then
-            echo "❌ COSIGN_PRIVATE_KEY is empty" >&2
-            exit 1
-          fi
-
-          if echo "$COSIGN_PRIVATE_KEY" | grep -q -- '-----BEGIN .*PRIVATE KEY-----'; then
-            echo "$COSIGN_PRIVATE_KEY" > /tmp/cosign.key
-          elif echo "$COSIGN_PRIVATE_KEY" | grep -q '\\n'; then
-            printf '%b' "$COSIGN_PRIVATE_KEY" > /tmp/cosign.key
-          else
-            echo "$COSIGN_PRIVATE_KEY" | base64 -d > /tmp/cosign.key
-          fi
-
-          if ! grep -q -- '-----BEGIN .*PRIVATE KEY-----' /tmp/cosign.key; then
-            echo "❌ COSIGN_PRIVATE_KEY did not produce a valid PEM block."
-            echo "💡 Проверьте секрет COSIGN_PRIVATE_KEY в GitHub Settings. Возможно, при копировании ключа в base64-часть попал случайный перенос строки."
-            head -n 5 /tmp/cosign.key >&2
-            exit 1
-          fi
-
-          for svc in $services; do
-            echo "Signing $svc..."
-            digest=$(docker buildx imagetools inspect "$REGISTRY/mamuer/project/$svc:$IMAGE_TAG" --format '{{.Digest}}' 2>/dev/null || true)
-            if [ -z "$digest" ]; then
-              manifest_url="https://ghcr.io/v2/mamuer/project/$svc/manifests/$IMAGE_TAG"
-              digest=$(curl -s -L -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
-                -H "Authorization: Bearer $GITHUB_TOKEN" \
-                "$manifest_url" -I | grep -i 'docker-content-digest' | head -1 | awk '{print $2}' | tr -d '\r')
-            fi
-            if [ -z "$digest" ]; then
-              echo "❌ Failed to resolve digest for $svc:$IMAGE_TAG" >&2
-              continue
-            fi
-            cosign sign --yes --key /tmp/cosign.key "$REGISTRY/mamuer/project/$svc@$digest"
-          done
-
-          rm -f /tmp/cosign.key
-
+        run: bash scripts/ci/security.sh sign_images
   # ============================================================================
   # SLSA PROVENANCE
   # ============================================================================
@@ -1357,20 +976,10 @@ jobs:
       - run: git config --global init.defaultBranch main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Build artifacts
-        run: |
-          mkdir -p bin
-          GOMAXPROCS=$(nproc)
-          export GOMAXPROCS
-          for svc in user-service biometric-service training-service gateway device-aggregator; do
-            go build -ldflags="-s -w" -o "bin/$svc" ./cmd/"$svc" &
-          done
-          wait
+        run: bash scripts/ci/build-push.sh build_artifacts
       - name: Generate subject for provenance
         id: hash
-        run: |
-          set -euo pipefail
-          files=(bin/*)
-          echo "hashes=$(sha256sum "${files[@]}" | base64 -w0)" >> "${GITHUB_OUTPUT}"
+        run: bash scripts/ci/ci-helpers.sh generate_provenance
   slsa-publish:
     name: SLSA Publish
     needs: [slsa-provenance]
@@ -1389,18 +998,7 @@ jobs:
   provision-k8s-vps:
     name: Provision k3s Cluster on VPS
     runs-on: ubuntu-latest
-    needs:
-      [
-        detect-changes,
-        security-scan,
-        check,
-        super-linter,
-        kubescape,
-        fuzz-tests,
-        docker,
-        smoke-test,
-        sonarcloud,
-      ]
+    needs: [detect-changes, binary_build, docker, check, frontend]
     timeout-minutes: 120
     if: >-
       github.event_name == 'workflow_dispatch' ||
@@ -1414,460 +1012,150 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Add VPS to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: bash scripts/ci/ci-helpers.sh add_vps_to_known_hosts
       - name: Make retry script executable
         run: chmod +x scripts/ssh-retry.sh
       - name: Configure swap on VPS
-        run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/configure-swap.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/configure-swap.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo chmod +x /tmp/configure-swap.sh && sudo /tmp/configure-swap.sh"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh configure_swap
       - name: Check disk space on VPS
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" <<'EOF'
-          DISK_USAGE=$(df / | tail -1 | awk '{print $5}' | sed 's/%//')
-          echo "Current disk usage: ${DISK_USAGE}%"
-          if [ "$DISK_USAGE" -gt 90 ]; then
-            echo "⚠️ WARNING: Disk usage is over 90%!"
-            curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
-              -H "Content-Type: application/json" \
-              -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\", \"text\": \"⚠️ VPS Disk usage is ${DISK_USAGE}%!\"}" || true
-          fi
-          EOF
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh check_disk_space
       - name: Install AmneziaWG systemd service
-        run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/amneziawg-go.service "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/amneziawg-go.service"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-            sudo mv /tmp/amneziawg-go.service /etc/systemd/system/amneziawg-go.service
-            sudo systemctl daemon-reload
-            sudo systemctl enable --now amneziawg-go.service
-            echo '✅ amneziawg-go systemd service installed and started'
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh install_amneziawg
       - name: Configure CPU governor and k3s watchdog
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" <<'EOF'
-          set -euo pipefail
-          echo "-> Configuring CPU governor..."
-          if [ -d /sys/devices/system/cpu/cpufreq ]; then
-            for gov in /sys/devices/system/cpu/cpufreq/policy*/scaling_governor; do
-              [ -f "$gov" ] && echo "performance" | sudo tee "$gov" >/dev/null || true
-            done
-            echo "✅ CPU governor set to performance"
-          else
-            echo "⚠️ CPU frequency scaling not available, skipping governor"
-          fi
-          echo "-> Configuring k3s systemd watchdog..."
-          sudo mkdir -p /etc/systemd/system/k3s.service.d
-          cat <<EOT | sudo tee /etc/systemd/system/k3s.service.d/99-performance.conf
-          [Service]
-          CPUQuota=180%
-          WatchdogSec=30s
-          Restart=always
-          RestartSec=10s
-          EOT
-          sudo systemctl daemon-reload
-          echo "✅ k3s watchdog and CPU quota configured"
-          EOF
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh configure_cpu_governor
       - name: Configure Docker and System log rotation
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" <<'EOF'
-          echo "-> Setting up Docker log rotation..."
-          sudo mkdir -p /etc/docker
-          cat <<EOT | sudo tee /etc/docker/daemon.json
-          {
-            "log-driver": "json-file",
-            "log-opts": {
-              "max-size": "10m",
-              "max-file": "3"
-            }
-          }
-          EOT
-          echo "-> Setting up journald size limit..."
-          sudo mkdir -p /etc/systemd/journald.conf.d
-          cat <<EOT | sudo tee /etc/systemd/journald.conf.d/99-size-limit.conf
-          [Journal]
-          SystemMaxUse=500M
-          SystemMaxFileSize=50M
-          MaxRetentionSec=1week
-          EOT
-          sudo systemctl daemon-reload
-          sudo systemctl restart systemd-journald
-          echo "-> Logs rotation configured"
-          EOF
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh configure_docker_logs
       - name: Clean up old k3s
         if: github.event_name == 'workflow_dispatch' && inputs.run_mode == 'recreate-cluster'
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          set -x
-          echo \"-> Stopping k3s...\"
-          systemctl stop k3s 2>/dev/null || true
-          pkill -9 -f \"k3s server\" 2>/dev/null || true
-          echo \"-> Removing k3s files...\"
-          rm -rf /var/lib/rancher/k3s /etc/rancher/k3s
-          rm -f /usr/local/bin/k3s /etc/systemd/system/k3s.service /etc/systemd/system/k3s*.timer
-          systemctl daemon-reload
-          echo \"Cleanup done\"
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh cleanup_old_k3s
       - name: Fix DNS resolv.conf permanently
-        run: |
-          echo "-> Uploading DNS fix script to VPS..."
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/fix-dns.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/fix-dns.sh"
-          echo "-> Running DNS fix script on VPS..."
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          sudo chmod +x /tmp/fix-dns.sh
-          sudo /tmp/fix-dns.sh
-          rm -f /tmp/fix-dns.sh
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh fix_dns
       - name: Prepare k3s config on VPS
-        run: |
-          ./configs/k8s/scripts/generate-k3s-config.sh "${{ secrets.VPS_HOST }}" /tmp/k3s-config-remote.yaml
-          if command -v python3 &>/dev/null; then
-            python3 -c "import yaml; yaml.safe_load(open('/tmp/k3s-config-remote.yaml'))" || {
-              echo "❌ Generated config is invalid YAML"
-              cat /tmp/k3s-config-remote.yaml
-              exit 1
-            }
-            echo "✅ Config YAML is valid"
-          fi
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          mkdir -p /etc/rancher/k3s
-          echo 'Directory /etc/rancher/k3s created'
-          "
-          ./scripts/ssh-retry.sh scp /tmp/k3s-config-remote.yaml "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/etc/rancher/k3s/config.yaml"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          echo '=== Config written to /etc/rancher/k3s/config.yaml ==='
-          cat /etc/rancher/k3s/config.yaml
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh prepare_k3s_config
       - name: Restart k3s if config changed
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          set -euo pipefail
-          if [ ! -f /etc/systemd/system/k3s.service ] && [ ! -f /usr/local/bin/k3s ]; then
-            echo '✅ k3s is not installed yet, skipping restart (will be installed in next steps)'
-            exit 0
-          fi
-          LOCAL_HASH=\$(sudo sha256sum /etc/rancher/k3s/config.yaml 2>/dev/null | awk '{print \$1}' || echo 'none')
-          SAVED_HASH=\$(sudo cat /etc/rancher/k3s/.config-hash 2>/dev/null || echo 'none')
-          if [ \"\$LOCAL_HASH\" != \"\$SAVED_HASH\" ]; then
-            echo '-> Config changed (or first run), restarting k3s to apply kubelet-arg...'
-            sudo systemctl restart k3s
-            for i in \$(seq 1 90); do
-              if k3s kubectl cluster-info &>/dev/null; then
-                echo \"✅ k3s ready after \${i}s\"
-                break
-              fi
-              if [ \"\$i\" -eq 90 ]; then
-                echo '❌ Timeout waiting for k3s restart'
-                journalctl -u k3s -n 30 --no-pager
-                exit 1
-              fi
-              sleep 2
-            done
-            echo '-> Saving config hash for future comparisons...'
-            echo \"\$LOCAL_HASH\" | sudo tee /etc/rancher/k3s/.config-hash > /dev/null
-            echo '✅ k3s restarted with new config'
-            k3s kubectl get nodes -o wide
-          else
-            echo '✅ Config unchanged, skipping k3s restart'
-          fi
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh restart_k3s_if_needed
       - name: Download k3s binary and install script
-        run: |
-          echo "-> Downloading k3s binary and install script..."
-          curl -sfL -o /tmp/k3s https://github.com/k3s-io/k3s/releases/download/v1.36.2%2Bk3s1/k3s
-          chmod +x /tmp/k3s
-          curl -sfL -o /tmp/install.sh https://get.k3s.io
-          chmod +x /tmp/install.sh
-          echo "Download complete."
+        run: bash scripts/ci/vps-provision.sh download_k3s
       - name: Upload k3s files to VPS
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "mkdir -p /tmp/k3s-install"
-          ./scripts/ssh-retry.sh scp /tmp/k3s "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/k3s-install/k3s"
-          ./scripts/ssh-retry.sh scp /tmp/install.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/k3s-install/install.sh"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh upload_k3s_files
       - name: Install k3s on VPS
         env:
           SSH_RETRY_TIMEOUT: 600
           SSH_RETRY_MAX_ATTEMPTS: 5
           SSH_RETRY_DELAY_SECONDS: 15
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          set -euo pipefail
-          echo \"-> Moving k3s binary to /usr/local/bin...\"
-          sudo mv /tmp/k3s-install/k3s /usr/local/bin/k3s || mv /tmp/k3s-install/k3s /usr/local/bin/k3s
-          sudo chmod +x /usr/local/bin/k3s || chmod +x /usr/local/bin/k3s
-          echo \"-> Running k3s install script with Docker runtime...\"
-          export INSTALL_K3S_SKIP_DOWNLOAD=true
-          chmod +x /tmp/k3s-install/install.sh
-          sudo /tmp/k3s-install/install.sh server --write-kubeconfig-mode 644 --docker || /tmp/k3s-install/install.sh server --write-kubeconfig-mode 644 --docker
-          echo \"k3s installed successfully\"
-          rm -rf /tmp/k3s-install
-          "
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh install_k3s
       - name: Configure host-level disk encryption for k3s storage (fscrypt/dm-crypt)
-        run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/configure-storage-encryption.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/configure-storage-encryption.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo chmod +x /tmp/configure-storage-encryption.sh && sudo /tmp/configure-storage-encryption.sh || true"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh configure_disk_encryption
       - name: Cleanup disk space on VPS
-        run: |
-          echo "-> Cleaning up disk space on VPS..."
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          echo '=== Disk usage before cleanup ==='
-          df -h /
-          echo ''
-          echo '=== Docker disk usage ==='
-          docker system df || true
-          echo ''
-          echo '-> Removing dangling Docker images...'
-          docker image prune -f
-          echo '-> Removing unused Docker volumes...'
-          docker volume prune -f || true
-          echo '-> Removing unused Docker networks...'
-          docker network prune -f || true
-          echo '-> Removing stopped containers...'
-          docker container prune -f || true
-          echo '-> Cleaning Docker build cache...'
-          docker builder prune -f --filter 'until=24h' || true
-          echo ''
-          echo '-> Cleaning containerd cache (k3s internal)...'
-          k3s crictl rmi --prune 2>/dev/null || crictl rmi --prune 2>/dev/null || true
-          echo ''
-          echo '-> Removing old application images (keep only last 3 versions)...'
-          for svc in user-service biometric-service training-service gateway device-aggregator classifier; do
-            echo \"Cleaning \$svc...\"
-            docker images \"ghcr.io/mamuer/project/\$svc\" --format '{{.Repository}}:{{.Tag}} {{.CreatedAt}}' | \
-              sort -k2 -r | \
-              tail -n +4 | \
-              awk '{print \$1}' | \
-              xargs -r docker rmi || true
-          done
-          echo ''
-          echo '-> Cleaning system logs older than 7 days...'
-          sudo journalctl --vacuum-time=7d || true
-          echo ''
-          echo '-> Cleaning /tmp files older than 1 day...'
-          sudo find /tmp -type f -mtime +1 -delete || true
-          echo ''
-          echo '=== Disk usage after cleanup ==='
-          df -h /
-          echo ''
-          echo '=== Docker disk usage after cleanup ==='
-          docker system df || true
-          echo ''
-          echo '✅ Disk cleanup completed'
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/deploy-production.sh cleanup_disk
       - name: Pre-pull system images via Docker
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          echo \"-> Pre-pulling system images via Docker...\"
-          docker pull rancher/mirrored-pause:3.6 || echo \"pause image pull failed, continuing\"
-          docker pull rancher/mirrored-coredns-coredns:1.10.1 || echo \"coredns pull failed\"
-          docker pull registry.k8s.io/ingress-nginx/controller:v1.11.3 || echo \"ingress-nginx pull failed\"
-          docker pull rancher/local-path-provisioner:v0.0.26 || echo \"local-path pull failed\"
-          docker pull busybox:latest || echo \"busybox pull failed\"
-          echo \"Docker images:\"
-          docker images | head -10
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh pre_pull_system_images
       - name: Start and verify k3s
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          echo \"-> Starting k3s...\"
-          systemctl daemon-reload
-          systemctl enable --now k3s
-          echo \"-> Waiting for readiness...\"
-          for i in \$(seq 1 120); do
-            if k3s kubectl cluster-info &> /dev/null; then
-              echo \"k3s ready after \${i}s\"
-              break
-            fi
-            [ \$i -eq 120 ] && { echo \"Timeout\"; journalctl -u k3s -n 20 --no-pager; exit 1; }
-            sleep 2
-          done
-          echo \"=== Cluster status ===\"
-          k3s kubectl get nodes -o wide
-          k3s kubectl get pods -A
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh start_k3s
       - name: Limit k3s memory usage
-        run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/k3s-memory-watchdog.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/k3s-memory-watchdog.sh"
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/setup-k3s-memory.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/setup-k3s-memory.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo chmod +x /tmp/setup-k3s-memory.sh && sudo /tmp/setup-k3s-memory.sh"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/vps-provision.sh limit_k3s_memory
       - name: Fix local-path-provisioner RBAC and ensure WaitForFirstConsumer binding mode
-        run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/fix-local-path.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/fix-local-path.sh"
-          ./scripts/ssh-retry.sh scp configs/k8s/base/local-path-provisioner.yaml "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/local-path-provisioner.yaml"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo chmod +x /tmp/fix-local-path.sh && sudo /tmp/fix-local-path.sh"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/k8s-setup.sh fix_local_path_rbac
       - name: Ensure k3s certificates include domain and external IP
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          set -euo pipefail
-          if ! k3s kubectl get --raw /livez &>/dev/null; then
-            echo \"API не отвечает\"; exit 1
-          fi
-          CERT_FILE=\"/var/lib/rancher/k3s/server/tls/dynamic-cert.json\"
-          NEED_RESTART=false
-          if [ -f \"\$CERT_FILE\" ]; then
-            CURRENT_SAN=\$(kubectl get --raw /apis | jq -r '.')
-            if ! grep -q '${{ env.FITPULSE_DOMAIN }}' /etc/rancher/k3s/config.yaml; then
-              echo \"⚠️ Конфиг не содержит домен, обновляем...\"
-              NEED_RESTART=true
-            else
-              echo \"✅ Домен уже в конфиге.\"
-            fi
-          else
-            echo \"Сертификат ещё не сгенерирован, перезапуск не требуется.\"
-          fi
-          if [ \"\$NEED_RESTART\" = true ]; then
-            echo \"Перезапуск k3s для применения новых SAN...\"
-            sudo systemctl stop k3s
-            sudo rm -f /var/lib/rancher/k3s/server/tls/dynamic-cert.json
-            sudo systemctl start k3s
-            for i in \$(seq 1 60); do
-              if k3s kubectl cluster-info &>/dev/null; then
-                echo \"k3s снова готов после \${i}s\"
-                break
-              fi
-              sleep 2
-            done
-          fi
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh ensure_k3s_certs
       - name: Install cert-manager and configure Let's Encrypt
-        run: |
-          echo "-> Installing cert-manager..."
-          kubectl apply -f configs/k8s/base/cert-manager/
-          echo "-> Waiting for cert-manager pods to be ready..."
-          kubectl wait --namespace cert-manager --for=condition=ready pod --all --timeout=120s
-          echo "✅ cert-manager installed successfully"
-
-          echo "-> Creating Let's Encrypt ClusterIssuer..."
-          kubectl apply -f configs/k8s/base/cert-manager/cluster-issuer.yaml
-          echo "✅ ClusterIssuer created"
-
-          echo "-> Waiting for ingress-nginx to be ready..."
-          kubectl wait --namespace ingress-nginx --for=condition=ready pod --all --timeout=120s
-          echo "✅ Ingress-nginx is ready"
-
-          echo "-> Verifying ModSecurity configuration..."
-          kubectl get configmap ingress-nginx-controller -n ingress-nginx -o jsonpath='{.data.modsecurity-snippet}' | grep -q "SecRuleEngine On" && echo "✅ ModSecurity enabled" || echo "❌ ModSecurity not enabled"
-
-          echo "✅ Certificate and WAF configuration complete"
+        run: bash scripts/ci/k8s-setup.sh install_cert_manager
       - name: Setup DuckDNS auto-updater
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          echo '-> Setting up DuckDNS auto-updater...'
-          echo '${{ secrets.DUCKDNS_TOKEN }}' | sudo tee /etc/duckdns/token > /dev/null
-          sudo chmod 600 /etc/duckdns/token
-          sudo mkdir -p /etc/duckdns
-          "
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/duckdns-update.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/usr/local/bin/duckdns-update.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          sudo chmod +x /usr/local/bin/duckdns-update.sh
-          (sudo crontab -l 2>/dev/null | grep -v duckdns-update; echo '*/5 * * * * /usr/local/bin/duckdns-update.sh >> /var/log/duckdns.log 2>&1') | sudo crontab -
-          sudo /usr/local/bin/duckdns-update.sh
-          echo '✅ DuckDNS auto-updater configured (every 5 minutes)'
-          "
+        env:
+          DUCKDNS_TOKEN: ${{ secrets.DUCKDNS_TOKEN }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh setup_duckdns
       - name: Setup ML infrastructure directories
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          echo "-> Creating directories for ML storage..."
-          sudo mkdir -p /opt/fitpulse/mlflow-data
-          sudo chown -R ${{ secrets.VPS_USER }}:${{ secrets.VPS_USER }} /opt/fitpulse
-          echo "✅ Directories created: /opt/fitpulse/mlflow-data"
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh setup_ml_dirs
       - name: Deploy MLflow service
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          mkdir -p ~/fitpulse/deployments
-          docker rm -f fitpulse-mlflow 2>/dev/null || true
-          docker run -d \
-            --name fitpulse-mlflow \
-            --restart unless-stopped \
-            -p 5000:5000 \
-            -v /opt/fitpulse/mlflow-data:/mlflow \
-            ghcr.io/mlflow/mlflow:v2.20.2 \
-            mlflow server \
-            --host 0.0.0.0 \
-            --port 5000 \
-            --backend-store-uri sqlite:////mlflow/mlflow.db \
-            --default-artifact-root /mlflow/artifacts
-          for _ in {1..30}; do
-            if curl -sf http://localhost:5000/health &>/dev/null; then
-              echo '✅ MLflow is healthy'
-              break
-            fi
-            sleep 2
-          done
-          echo \"✅ MLflow deployed: http://${{ secrets.VPS_HOST }}:5000\"
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh deploy_mlflow
       - name: Setup Postgres automated backups
-        run: |
-          if [ -n "${{ secrets.BACKUP_KEY }}" ]; then
-            echo -n "${{ secrets.BACKUP_KEY }}" > /tmp/backup.key
-            chmod 600 /tmp/backup.key
-            ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo mkdir -p /etc/fitpulse"
-            ./scripts/ssh-retry.sh scp /tmp/backup.key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/tmp/backup.key"
-            ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-            sudo mv /tmp/backup.key /etc/fitpulse/backup.key
-            sudo chmod 600 /etc/fitpulse/backup.key
-            sudo chown root:root /etc/fitpulse/backup.key
-            echo '✅ Backup key saved securely to /etc/fitpulse/backup.key'
-            "
-            rm -f /tmp/backup.key
-          else
-            echo "⚠️ BACKUP_KEY secret is not set in GitHub. Backups will NOT be encrypted."
-            ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo rm -f /etc/fitpulse/backup.key || true"
-          fi
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          sudo mkdir -p /opt/fitpulse/backups
-          cat <<'BACKUP_EOF' | sudo tee /usr/local/bin/backup-postgres.sh > /dev/null
-          #!/bin/bash
-          set -euo pipefail
-          BACKUP_DIR='/opt/fitpulse/backups'
-          KEY_FILE='/etc/fitpulse/backup.key'
-          mkdir -p \"\$BACKUP_DIR\"
-          DATE=\$(date +%Y%m%d_%H%M%S)
-          FILENAME=\"\$BACKUP_DIR/fitness_\$DATE.dump\"
-          ENCRYPTED=\"\$FILENAME.enc\"
-          /usr/local/bin/k3s kubectl exec -n fitness-platform-production postgres-0 -- \
-            pg_dump -U postgres -d fitness -F c > \"\$FILENAME\"
-          if [ -f \"\$KEY_FILE\" ] && [ -s \"\$KEY_FILE\" ]; then
-            openssl enc -aes-256-cbc -salt -pbkdf2 -pass file:\"\$KEY_FILE\" -in \"\$FILENAME\" -out \"\$ENCRYPTED\"
-            rm -f \"\$FILENAME\"
-            echo \"Encrypted backup created: \$ENCRYPTED\"
-          else
-            echo \"Backup created (unencrypted): \$FILENAME\"
-          fi
-          find \"\$BACKUP_DIR\" -type f -mtime +7 -delete
-          BACKUP_EOF
-          sudo chmod +x /usr/local/bin/backup-postgres.sh
-          (sudo crontab -l 2>/dev/null | grep -v backup-postgres; echo '0 2 * * * /usr/local/bin/backup-postgres.sh >> /var/log/backup-postgres.log 2>&1') | sudo crontab -
-          echo '✅ Postgres backups configured (daily at 2 AM)'
-          "
+        env:
+          BACKUP_KEY: ${{ secrets.BACKUP_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh setup_postgres_backups
       - name: Deploy health check script
-        run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/check-server-health.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/usr/local/bin/check-server-health.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          sudo chmod +x /usr/local/bin/check-server-health.sh
-          (sudo crontab -l 2>/dev/null | grep -v check-server-health) | sudo crontab -
-          (sudo crontab -l 2>/dev/null; echo '0 9 * * * TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }} TELEGRAM_CHAT_ID=${{ secrets.TELEGRAM_CHAT_ID }} /usr/local/bin/check-server-health.sh --silent >> /var/log/server-health.log 2>&1') | sudo crontab -
-          echo '✅ Health check script deployed and cron configured'
-          "
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh deploy_health_script
       - name: Generate kubeconfig with external domain
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          set -euo pipefail
-          sudo cp /etc/rancher/k3s/k3s.yaml /tmp/k3s-domain.yaml
-          sudo sed -i 's|0.0.0.0|${{ env.FITPULSE_DOMAIN }}|g' /tmp/k3s-domain.yaml
-          sudo sed -i 's|127.0.0.1|${{ env.FITPULSE_DOMAIN }}|g' /tmp/k3s-domain.yaml
-          sudo sed -i '/insecure-skip-tls-verify/d' /tmp/k3s-domain.yaml
-          sudo chmod 644 /tmp/k3s-domain.yaml
-          cp /tmp/k3s-domain.yaml ~/k3s-config.yaml
-          echo \"✅ Kubeconfig saved to ~/k3s-config.yaml\"
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh generate_kubeconfig
       - name: Download kubeconfig artifact
-        run: |
-          ./scripts/ssh-retry.sh scp \
-            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:~/k3s-config.yaml" \
-            ./k3s-config.yaml
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh download_kubeconfig
       - name: Upload kubeconfig artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # originally: v7
         with:
@@ -1875,6 +1163,84 @@ jobs:
           path: ./k3s-config.yaml
           retention-days: 1
 
+  # ============================================================================
+  # DEPLOY STAGING
+  # ============================================================================
+  deploy-staging:
+    name: Deploy to Staging (k8s namespace)
+    runs-on: ubuntu-latest
+    needs:
+      [
+        detect-changes,
+        binary_build,
+        docker,
+        provision-k8s-vps,
+        check,
+        frontend,
+        smoke-test,
+      ]
+    timeout-minutes: 60
+    environment: staging
+    steps:
+      - run: git config --global init.defaultBranch main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
+        with:
+          fetch-depth: 0
+      - name: Make retry script executable
+        run: chmod +x scripts/ssh-retry.sh
+      - uses: webfactory/ssh-agent@e83874834305fe9a4a2997156cb26c5de65a8555 # originally: v0.10.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Add VPS to known_hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: bash scripts/ci/ci-helpers.sh add_vps_to_known_hosts
+      - name: Download kubeconfig artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # originally: v8
+        with:
+          name: kubeconfig
+          path: ./kubeconfig
+      - name: Resolve VPS hostname and add to /etc/hosts
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: bash scripts/ci/ci-helpers.sh resolve_vps_hostname
+      - name: Configure kubectl
+        run: bash scripts/ci/ci-helpers.sh configure_kubectl
+      - name: Create staging namespace and image pull secret
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: bash scripts/ci/deploy-staging.sh create_namespace
+      - name: Update image tags to SHA for staging
+        run: bash scripts/ci/deploy-staging.sh update_image_tags
+      - name: Wait for staging rollout
+        run: bash scripts/ci/deploy-staging.sh wait_for_rollout
+  # ============================================================================
+  # TEST STAGING
+  # ============================================================================
+  test-staging:
+    name: Test Staging (E2E)
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    timeout-minutes: 20
+    environment: staging
+    steps:
+      - run: git config --global init.defaultBranch main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
+      - name: Download kubeconfig artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # originally: v8
+        with:
+          name: kubeconfig
+          path: ./kubeconfig
+      - name: Configure kubectl
+        run: bash scripts/ci/ci-helpers.sh configure_kubectl
+      - name: Verify staging health
+        run: bash scripts/ci/deploy-staging.sh verify_health
+      - name: Run UAT tests against staging
+        env:
+          BASE_URL: "https://staging.fittpulse.duckdns.org"
+          NAMESPACE: fitness-platform-staging
+        run: bash scripts/ci/deploy-staging.sh run_uat_tests
   # ============================================================================
   # HEALTH CHECK
   # ============================================================================
@@ -1890,42 +1256,26 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Add VPS to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: bash scripts/ci/ci-helpers.sh add_vps_to_known_hosts
       - name: Deploy health check script
-        run: |
-          ./scripts/ssh-retry.sh scp configs/k8s/scripts/check-server-health.sh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/usr/local/bin/check-server-health.sh"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          sudo chmod +x /usr/local/bin/check-server-health.sh
-          echo '✅ Health check script deployed'
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh deploy_health_script
       - name: Run immediate health check
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "mkdir -p /etc/fitpulse && chmod 700 /etc/fitpulse"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "printf '%s\n' '${{ secrets.TELEGRAM_BOT_TOKEN }}' > /etc/fitpulse/telegram-bot-token && chmod 600 /etc/fitpulse/telegram-bot-token"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
-            "printf '%s\n' '${{ secrets.TELEGRAM_CHAT_ID }}' > /etc/fitpulse/telegram-chat-id && chmod 600 /etc/fitpulse/telegram-chat-id"
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-            export TELEGRAM_BOT_TOKEN=\$(cat /etc/fitpulse/telegram-bot-token)
-            export TELEGRAM_CHAT_ID=\$(cat /etc/fitpulse/telegram-chat-id)
-            /usr/local/bin/check-server-health.sh || true
-            "
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh run_immediate_health_check
       - name: Setup daily health check cron
-        run: |
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          (sudo crontab -l 2>/dev/null | grep -v check-server-health) | sudo crontab -
-          cat <<'CRON' | sudo crontab -
-          0 9 * * * /usr/local/bin/check-server-health.sh --silent >> /var/log/server-health.log 2>&1
-          CRON
-          echo '✅ Daily health check cron configured (9 AM UTC)'
-          "
-
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/ci-helpers.sh setup_health_cron
   # ============================================================================
   # CSP HEADERS CHECK
   # ============================================================================
@@ -1940,10 +1290,7 @@ jobs:
       - name: Check CSP and security headers
         env:
           CSP_DOMAIN: "https://${{ env.FITPULSE_DOMAIN }}"
-        run: |
-          chmod +x scripts/csp-check.sh
-          bash scripts/csp-check.sh
-
+        run: bash scripts/ci/verify.sh check_csp
   # ============================================================================
   # SMOKE TEST (TESTCONTAINERS)
   # ============================================================================
@@ -1961,17 +1308,16 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache: true
       - name: Run testcontainers smoke test
-        run: |
-          go test -v -tags=smoke -timeout 10m ./internal/testcontainers/...
-
+        run: bash scripts/ci/test.sh run_smoke_tests
   # ============================================================================
   # DEPLOY PRODUCTION
   # ============================================================================
   deploy-production:
     name: Deploy to K8s Production
     runs-on: ubuntu-latest
-    needs: [detect-changes, docker, provision-k8s-vps]
+    needs: [detect-changes, docker, provision-k8s-vps, test-staging]
     timeout-minutes: 90
+    environment: production
     outputs:
       reachable: ${{ steps.connectivity.outputs.reachable }}
     steps:
@@ -1985,712 +1331,149 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
       - name: Add VPS to known_hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: bash scripts/ci/ci-helpers.sh add_vps_to_known_hosts
       - name: Download kubeconfig artifact
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # originally: v8
         with:
           name: kubeconfig
           path: ./kubeconfig
       - name: Resolve VPS hostname and add to /etc/hosts
-        run: |
-          VPS_IP=$(dig +short "${{ secrets.VPS_HOST }}" | head -1)
-          if [ -z "$VPS_IP" ]; then
-            echo "dig failed, trying nslookup..."
-            VPS_IP=$(nslookup "${{ secrets.VPS_HOST }}" | grep -A1 "Name:" | tail -1 | awk '{print $2}')
-          fi
-          if [ -z "$VPS_IP" ]; then
-            echo "Failed to resolve VPS_HOST, using VPS_HOST as IP (assuming it's an IP address)"
-            VPS_IP="${{ secrets.VPS_HOST }}"
-          fi
-          echo "Resolved VPS_IP: $VPS_IP"
-          echo "$VPS_IP ${{ env.FITPULSE_DOMAIN }}" | sudo tee -a /etc/hosts
-          echo "Added /etc/hosts entry"
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: bash scripts/ci/ci-helpers.sh resolve_vps_hostname
       - name: Configure kubectl
-        run: |
-          mkdir -p "$HOME/.kube"
-          cp ./kubeconfig/k3s-config.yaml "$HOME/.kube/config"
-          chmod 600 "$HOME/.kube/config"
-          kubectl config set-context --current --namespace=fitness-platform-production
+        run: bash scripts/ci/ci-helpers.sh configure_kubectl
       - name: Wait for k3s API to be fully ready
-        run: |
-          echo "Waiting for k3s API server to be fully initialized..."
-          for i in {1..30}; do
-            if kubectl get --raw=/healthz &>/dev/null; then
-              echo "✅ k3s API server is ready after ${i}0 seconds"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "❌ k3s API server not ready after 5 minutes"
-              kubectl cluster-info dump || true
-              exit 1
-            fi
-            echo "Attempt $i/30: API not ready, waiting 10s..."
-            sleep 10
-          done
-          echo "Verifying API endpoints..."
-          kubectl api-resources --api-group=apps &>/dev/null || {
-            echo "API resources not available, waiting 30s more..."
-            sleep 30
-          }
+        run: bash scripts/ci/ci-helpers.sh wait_for_k3s_api
       - name: Check cluster connectivity
         id: connectivity
-        run: |
-          echo "Testing connectivity to ${{ secrets.VPS_HOST }}:6443..."
-          if timeout 10 bash -c "</dev/tcp/${{ secrets.VPS_HOST }}/6443" 2>/dev/null; then
-            echo "Cluster reachable"
-            echo "reachable=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Cluster NOT reachable (timeout 10s)"
-            echo "reachable=false" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: bash scripts/ci/ci-helpers.sh check_connectivity
       - name: Create image pull secret for GHCR
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "Creating imagePullSecret for ghcr.io..."
-          kubectl create namespace fitness-platform-production --dry-run=client -o yaml | kubectl apply --validate=false -f -
-          kubectl create secret docker-registry ghcr-pull-secret \
-            --docker-server=ghcr.io \
-            --docker-username=${{ github.actor }} \
-            --docker-password=${{ secrets.GHCR_TOKEN }} \
-            -n fitness-platform-production \
-            --dry-run=client -o yaml | kubectl apply --validate=false -f -
-          echo "imagePullSecret created/updated"
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: bash scripts/ci/deploy-production.sh create_image_pull_secret
       - name: Get short SHA
         if: steps.connectivity.outputs.reachable == 'true'
         id: sha
         run: echo "short_sha=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
       - name: Build and push Open Wearables images
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "Cloning Open Wearables repo..."
-          git clone --depth 1 https://github.com/the-momentum/open-wearables.git /tmp/open-wearables
-          echo "Building Open Wearables backend..."
-          docker build -t ghcr.io/mamuer/project/open-wearables-backend:${{ steps.sha.outputs.short_sha }} \
-            -t ghcr.io/mamuer/project/open-wearables-backend:latest \
-            -f /tmp/open-wearables/backend/Dockerfile /tmp/open-wearables/backend
-          echo "Building Open Wearables frontend..."
-          docker build -t ghcr.io/mamuer/project/open-wearables-frontend:${{ steps.sha.outputs.short_sha }} \
-            -t ghcr.io/mamuer/project/open-wearables-frontend:latest \
-            -f /tmp/open-wearables/frontend/Dockerfile /tmp/open-wearables/frontend
-          echo "Pushing Open Wearables images..."
-          docker push ghcr.io/mamuer/project/open-wearables-backend:${{ steps.sha.outputs.short_sha }}
-          docker push ghcr.io/mamuer/project/open-wearables-backend:latest
-          docker push ghcr.io/mamuer/project/open-wearables-frontend:${{ steps.sha.outputs.short_sha }}
-          docker push ghcr.io/mamuer/project/open-wearables-frontend:latest
-          echo "Open Wearables images pushed"
+        run: bash scripts/ci/build-push.sh build_open_wearables
       - name: Ensure service account exists
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "Checking service account app-service-account..."
-          kubectl create serviceaccount app-service-account \
-            -n fitness-platform-production \
-            --dry-run=client -o yaml | kubectl apply -f -
-          kubectl create clusterrolebinding app-service-account-binding \
-            --clusterrole=edit \
-            --serviceaccount=fitness-platform-production:app-service-account \
-            --dry-run=client -o yaml | kubectl apply -f - || true
-          echo "ServiceAccount ready"
+        run: bash scripts/ci/deploy-production.sh ensure_service_account
       - name: Create production secrets
         if: steps.connectivity.outputs.reachable == 'true'
         env:
           RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
           RABBITMQ_PASS: ${{ secrets.RABBITMQ_PASS }}
-        run: |
-          echo "Generating gRPC mTLS certificates..."
-          mkdir -p /tmp/grpc-certs
-          cd /tmp/grpc-certs
-          openssl genrsa -out ca.key 4096
-          openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt -subj "/CN=fitpulse-ca"
-          openssl genrsa -out server.key 2048
-          openssl req -new -key server.key -out server.csr -subj "/CN=*.fitness-platform-production.svc.cluster.local"
-          cat > server-ext.cnf <<'EOF'
-          [v3_ext]
-          subjectAltName = DNS:*.fitness-platform-production.svc.cluster.local,DNS:fitness-platform-production.svc.cluster.local
-          EOF
-          openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 365 -sha256 -extfile server-ext.cnf -extensions v3_ext
-          openssl genrsa -out client.key 2048
-          openssl req -new -key client.key -out client.csr -subj "/CN=fitpulse-client"
-          openssl x509 -req -in client.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out client.crt -days 365 -sha256
-          echo "✅ gRPC mTLS certificates generated"
-
-          echo "Creating app-secrets..."
-          RABBITMQ_URL="amqp://${{ secrets.RABBITMQ_USER }}:${{ secrets.RABBITMQ_PASS }}@rabbitmq:5672/"
-          kubectl create secret generic app-secrets -n fitness-platform-production \
-            --from-literal=POSTGRES_USER=postgres \
-            --from-literal=POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-            --from-literal=POSTGRES_DB=fitness \
-            --from-literal=JWT_PRIVATE_KEY_PEM=${{ secrets.JWT_PRIVATE_KEY_PEM }} \
-            --from-literal=JWT_PUBLIC_KEY_PEM=${{ secrets.JWT_PUBLIC_KEY_PEM }} \
-            --from-literal=RABBITMQ_USER=${{ secrets.RABBITMQ_USER }} \
-            --from-literal=RABBITMQ_PASS=${{ secrets.RABBITMQ_PASS }} \
-            --from-literal=VALKEY_PASSWORD=${{ secrets.VALKEY_PASSWORD }} \
-            --from-literal=RABBITMQ_URL="$RABBITMQ_URL" \
-            --from-literal=SMTP_HOST=${{ vars.SMTP_HOST }} \
-            --from-literal=SMTP_PORT=${{ vars.SMTP_PORT }} \
-            --from-literal=SMTP_USER=${{ secrets.SMTP_USER }} \
-            --from-literal=SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }} \
-            --from-literal=SMTP_FROM=${{ secrets.SMTP_FROM }} \
-            --from-literal=APP_BASE_URL=${{ vars.APP_BASE_URL }} \
-            --from-literal=SEED_ADMIN_EMAIL=${{ secrets.SEED_ADMIN_EMAIL }} \
-            --from-literal=SEED_ADMIN_PASSWORD=${{ secrets.SEED_ADMIN_PASSWORD }} \
-            --from-literal=OPEN_WEARABLES_WEBHOOK_SECRET=${{ secrets.OPEN_WEARABLES_WEBHOOK_SECRET }} \
-            --from-literal=GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
-            --from-literal=GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }} \
-            --from-literal=GOOGLE_REDIRECT_URL=${{ vars.GOOGLE_REDIRECT_URL }} \
-            --from-literal=TOTP_ENCRYPTION_KEY=${{ secrets.TOTP_ENCRYPTION_KEY }} \
-            --from-file=GRPC_TLS_CERT=/tmp/grpc-certs/server.crt \
-            --from-file=GRPC_TLS_KEY=/tmp/grpc-certs/server.key \
-            --from-file=GRPC_TLS_CA_CERT=/tmp/grpc-certs/ca.crt \
-            --from-file=GRPC_TLS_CLIENT_CERT=/tmp/grpc-certs/client.crt \
-            --from-file=GRPC_TLS_CLIENT_KEY=/tmp/grpc-certs/client.key \
-            --dry-run=client -o yaml | kubectl apply --validate=false -f -
-          echo "✅ app-secrets created"
-          echo "Waiting for secrets to propagate..."
-          sleep 10
-          echo "Creating rabbitmq-secret with rabbitmq.conf..."
-          kubectl apply -f configs/k8s/base/secrets/rabbitmq-secret.yaml
-          echo "✅ rabbitmq-secret created"
-          echo "Waiting for secrets to propagate..."
-          sleep 10
-          echo "Creating monitoring-secrets..."
-          kubectl create secret generic monitoring-secrets -n fitness-platform-production \
-            --from-literal=grafana-admin-password=${{ secrets.GRAFANA_ADMIN_PASSWORD }} \
-            --dry-run=client -o yaml | kubectl apply --validate=false -f -
-          echo "✅ monitoring-secrets created"
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+          JWT_PRIVATE_KEY_PEM: ${{ secrets.JWT_PRIVATE_KEY_PEM }}
+          JWT_PUBLIC_KEY_PEM: ${{ secrets.JWT_PUBLIC_KEY_PEM }}
+          OPEN_WEARABLES_WEBHOOK_SECRET: ${{ secrets.OPEN_WEARABLES_WEBHOOK_SECRET }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+          SMTP_FROM: ${{ secrets.SMTP_FROM }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          TOTP_ENCRYPTION_KEY: ${{ secrets.TOTP_ENCRYPTION_KEY }}
+          VALKEY_PASSWORD: ${{ secrets.VALKEY_PASSWORD }}
+        run: bash scripts/ci/deploy-production.sh create_secrets
       - name: Update image tags to SHA
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          SHA=$(git rev-parse --short HEAD)
-          echo "Updating image tags to :$SHA"
-          cd configs/k8s/overlays/production
-          for svc in user-service biometric-service training-service gateway classifier; do
-            kustomize edit set image "ghcr.io/mamuer/project/$svc=ghcr.io/mamuer/project/$svc:$SHA"
-          done
+        run: bash scripts/ci/deploy-production.sh update_image_tags
       - name: Cleanup disk space on VPS
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "-> Cleaning up disk space on VPS..."
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          echo '=== Disk usage before cleanup ==='
-          df -h /
-          echo ''
-          echo '=== Docker disk usage ==='
-          docker system df || true
-          echo ''
-          echo '-> Removing dangling Docker images...'
-          docker image prune -f
-          echo '-> Removing unused Docker volumes...'
-          docker volume prune -f || true
-          echo '-> Removing unused Docker networks...'
-          docker network prune -f || true
-          echo '-> Removing stopped containers...'
-          docker container prune -f || true
-          echo '-> Cleaning Docker build cache...'
-          docker builder prune -f --filter 'until=24h' || true
-          echo ''
-          echo '-> Removing old application images (keep only last 3 versions)...'
-          for svc in user-service biometric-service training-service gateway device-aggregator classifier; do
-            echo \"Cleaning \$svc...\"
-            docker images \"ghcr.io/mamuer/project/\$svc\" --format '{{.Repository}}:{{.Tag}} {{.CreatedAt}}' | \
-              sort -k2 -r | \
-              tail -n +4 | \
-              awk '{print \$1}' | \
-              xargs -r docker rmi || true
-          done
-          echo ''
-          echo '-> Cleaning system logs older than 7 days...'
-          sudo journalctl --vacuum-time=7d || true
-          echo ''
-          echo '-> Cleaning /tmp files older than 1 day...'
-          sudo find /tmp -type f -mtime +1 -delete || true
-          echo ''
-          echo '=== Disk usage after cleanup ==='
-          df -h /
-          echo ''
-          echo '=== Docker disk usage after cleanup ==='
-          docker system df || true
-          echo ''
-          echo '✅ Disk cleanup completed'
-          "
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/deploy-production.sh cleanup_disk
       - name: Pre-pull application images on VPS
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          SHA=$(git rev-parse --short HEAD)
-          echo "-> Pre-pulling application images with tag $SHA on VPS..."
-          ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "
-          echo 'Logging in to GHCR on VPS...'
-          echo '${{ secrets.GHCR_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin || true
-          for svc in user-service biometric-service training-service gateway device-aggregator classifier; do
-            echo \"Pulling ghcr.io/mamuer/project/\$svc:$SHA...\"
-            docker pull ghcr.io/mamuer/project/\$svc:$SHA || echo \"Failed to pull \$svc, continuing...\"
-          done
-          echo 'Docker images after pre-pull:'
-          docker images | grep mamuer || true
-          echo '-> Waiting 60s to let node recover from disk I/O...'
-          sleep 60
-          "
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/deploy-production.sh pre_pull_images
       - name: Ensure local-path-provisioner is running and StorageClass is ready
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          set -euo pipefail
-          echo "Applying local-path-provisioner manifest..."
-          kubectl apply -f configs/k8s/base/local-path-provisioner.yaml
-          echo "Restarting local-path-provisioner to clear any stuck state..."
-          kubectl rollout restart deployment/local-path-provisioner -n local-path-storage
-          kubectl rollout status deployment/local-path-provisioner -n local-path-storage --timeout=60s
-          echo "Waiting for local-path-provisioner pod to be ready..."
-          kubectl -n local-path-storage rollout status deploy/local-path-provisioner --timeout=3m
-          echo "Verifying StorageClass local-path exists and is ready..."
-          for i in {1..30}; do
-            if kubectl get storageclass local-path &>/dev/null; then
-              echo "✅ StorageClass found"
-              break
-            fi
-            echo "Attempt $i/30: waiting for StorageClass..."
-            sleep 2
-          done
-          if ! kubectl get storageclass local-path -o jsonpath='{.metadata.annotations.storageclass\.kubernetes\.io/is-default-class}' | grep -q true; then
-            echo "⚠️ StorageClass local-path is not default, patching..."
-            kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
-          fi
-          echo "✅ local-path-provisioner and StorageClass are ready"
+        run: bash scripts/ci/k8s-setup.sh setup_local_path_provisioner
       - name: Install/upgrade ingress-nginx (replaces Traefik)
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "-> Installing ingress-nginx controller..."
-          kubectl apply -f configs/k8s/base/ingress-nginx/
-
-          echo "-> Waiting for ingress-nginx to be ready..."
-          kubectl wait --namespace ingress-nginx \
-            --for=condition=ready pod \
-            --selector=app.kubernetes.io/name=ingress-nginx \
-            --timeout=180s || {
-              echo "❌ ingress-nginx not ready"
-              kubectl -n ingress-nginx get pods,deploy,svc
-              exit 1
-            }
-
-          echo "✅ ingress-nginx is ready"
-          kubectl -n ingress-nginx get pods,deploy,svc
+        run: bash scripts/ci/k8s-setup.sh install_ingress_nginx
       - name: Cleanup Traefik from kube-system (optional)
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "-> Cleaning up Traefik from kube-system..."
-          kubectl -n kube-system delete deployment traefik --ignore-not-found=true || true
-          kubectl -n kube-system delete svc traefik --ignore-not-found=true || true
-          kubectl -n kube-system get pods,svc,deploy | grep -i traefik || echo "Traefik already removed or not found"
-          echo "✅ Traefik cleanup complete (non-fatal)"
+        run: bash scripts/ci/k8s-setup.sh cleanup_traefik
       - name: Apply production overlay with Kustomize
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          set -euo pipefail
-          echo "Waiting for k8s API internal availability..."
-          for i in {1..30}; do
-            if kubectl get --raw /healthz &>/dev/null; then
-              echo "✅ API internal health OK"
-              break
-            fi
-            echo "Attempt $i/30: waiting for internal API..."
-            sleep 5
-          done
-          echo "Waiting for k8s API nodes..."
-          kubectl wait --for=condition=Ready --timeout=5m nodes --all || { kubectl cluster-info; kubectl get nodes -o wide; exit 1; }
-          echo "Deleting immutable Jobs to allow updates..."
-          kubectl delete job migrate-db seed-admin -n fitness-platform-production --ignore-not-found=true || true
-          echo "Deleting existing PVCs and PVs to force recreation with fixed provisioner..."
-          kubectl delete pvc -n fitness-platform-production --all --ignore-not-found=true || true
-          kubectl get pv -o json | jq -r '.items[] | select(.spec.claimRef.namespace == "fitness-platform-production") | .metadata.name' | xargs -r kubectl delete pv || true
-          cd configs/k8s/overlays/production
-          kustomize build . > /tmp/manifests.yaml
-          kubectl delete pod rabbitmq-0 -n fitness-platform-production --ignore-not-found=true || true
-          kubectl delete pod -l app=user-service -n fitness-platform-production --ignore-not-found=true || true
-          kubectl delete pod -l app=training-service -n fitness-platform-production --ignore-not-found=true || true
-          echo "Applying manifests with retries..."
-          MAX_RETRIES=5
-          for i in $(seq 1 "$MAX_RETRIES"); do
-            if kubectl apply --validate=false -f /tmp/manifests.yaml; then
-              echo "Production overlay applied successfully"
-              break
-            else
-              echo "Attempt $i/$MAX_RETRIES failed."
-              if [ "$i" -lt "$MAX_RETRIES" ]; then
-                echo "Waiting 20s before retry..."
-                sleep 20
-                if ! kubectl get nodes >/dev/null 2>&1; then
-                  echo "API server is unresponsive. Restarting k3s via SSH..."
-                  ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo systemctl restart k3s" || true
-                  echo "Waiting 40s for k3s to restart..."
-                  sleep 40
-                  for _j in {1..30}; do
-                    if kubectl get nodes >/dev/null 2>&1; then
-                      echo "k3s API is back online."
-                      break
-                    fi
-                    sleep 5
-                  done
-                fi
-              else
-                echo "Failed to apply manifests after $MAX_RETRIES attempts."
-                kubectl get pods -A -o wide || true
-                exit 1
-              fi
-            fi
-          done
-          echo "Waiting for ConfigMaps to propagate..."
-          sleep 15
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/deploy-production.sh apply_manifests
       - name: Wait for RabbitMQ to be ready
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "Waiting for RabbitMQ pod to be scheduled..."
-          for i in {1..60}; do
-            POD_NAME=$(kubectl get pods -l app=rabbitmq -n fitness-platform-production -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-            if [ -n "$POD_NAME" ]; then
-              echo "✅ RabbitMQ pod found: $POD_NAME"
-              break
-            fi
-            echo "Attempt $i/60: waiting for RabbitMQ pod..."
-            sleep 2
-          done
-          if [ -z "$POD_NAME" ]; then
-            echo "❌ RabbitMQ pod not scheduled. Checking events..."
-            kubectl get events -n fitness-platform-production --sort-by='.lastTimestamp' | grep -i rabbitmq || true
-            kubectl describe statefulset rabbitmq -n fitness-platform-production || true
-            exit 1
-          fi
-          echo "Waiting for RabbitMQ StatefulSet to be ready..."
-          kubectl rollout status statefulset/rabbitmq -n fitness-platform-production --timeout=180s || {
-            echo "❌ RabbitMQ not ready. Logs:"
-            kubectl logs statefulset/rabbitmq -n fitness-platform-production --tail=100 || true
-            exit 1
-          }
-          echo "✅ RabbitMQ is ready"
+        run: bash scripts/ci/deploy-production.sh wait_for_rabbitmq
       - name: Verify Postgres StatefulSet
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "=== Checking resources in namespace ==="
-          kubectl get all -n fitness-platform-production
-          echo "=== Checking StatefulSet specifically ==="
-          if ! kubectl get statefulset postgres -n fitness-platform-production >/dev/null 2>&1; then
-            echo "❌ StatefulSet 'postgres' not found. Re-applying manifests..."
-            cd configs/k8s/overlays/production
-            kustomize build . | kubectl apply --validate=false -f -
-            echo "Waiting 30s for StatefulSet to appear..."
-            sleep 30
-          fi
-          kubectl get statefulset postgres -n fitness-platform-production -o wide || true
-          kubectl describe statefulset postgres -n fitness-platform-production || true
-          echo "=== Checking pods ==="
-          kubectl get pods -n fitness-platform-production -o wide
+        run: bash scripts/ci/deploy-production.sh verify_postgres
       - name: Wait for Postgres PVC to be created and bound
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "Waiting for Postgres PVC to be created..."
-          for i in {1..30}; do
-            if kubectl get pvc postgres-storage-postgres-0 -n fitness-platform-production &>/dev/null; then
-              echo "✅ PVC created"
-              break
-            fi
-            echo "Attempt $i/30: PVC not found yet, waiting 5s..."
-            sleep 5
-          done
-          echo "Waiting for PVC to be bound..."
-          for i in {1..30}; do
-            PHASE=$(kubectl get pvc postgres-storage-postgres-0 -n fitness-platform-production -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
-            if [ "$PHASE" = "Bound" ]; then
-              echo "✅ PVC is bound"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "❌ Timeout waiting for Postgres PVC to bind"
-              kubectl get nodes -o wide || true
-              kubectl get pvc -n fitness-platform-production || true
-              kubectl describe pvc postgres-storage-postgres-0 -n fitness-platform-production || true
-              kubectl get storageclass || true
-              exit 1
-            fi
-            echo "Attempt $i/30: PVC phase is $PHASE, waiting 5s..."
-            sleep 5
-          done
-          echo "✅ Postgres PVC is bound"
+        run: bash scripts/ci/verify.sh wait_for_pvc
       - name: Wait for Postgres to be ready
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "Waiting for Postgres pod to be scheduled and running..."
-          for i in {1..120}; do
-            STATUS=$(kubectl get pod postgres-0 -n fitness-platform-production -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
-            if [ "$STATUS" = "Running" ]; then
-              echo "✅ Postgres pod is Running after ${i}x5 seconds"
-              break
-            fi
-            if [ "$i" -eq 120 ]; then
-              echo "❌ Timeout waiting for Postgres pod"
-              echo "-> PVC Status:"
-              kubectl get pvc -n fitness-platform-production || true
-              kubectl describe pvc postgres-storage-postgres-0 -n fitness-platform-production || true
-              echo "-> Pod Status:"
-              kubectl get pods -n fitness-platform-production -o wide
-              kubectl describe pod postgres-0 -n fitness-platform-production || true
-              exit 1
-            fi
-            echo "Attempt $i/120: Postgres status=$STATUS, waiting 5s..."
-            sleep 5
-          done
-          echo "Verifying Postgres accepts connections..."
-          for i in {1..30}; do
-            if kubectl exec -n fitness-platform-production postgres-0 -- pg_isready -U postgres &>/dev/null; then
-              echo "✅ Postgres is ready to accept connections"
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "❌ Postgres not accepting connections"
-              kubectl logs postgres-0 -n fitness-platform-production --tail=50 || true
-              exit 1
-            fi
-            echo "Attempt $i/30: pg_isready failed, waiting 3s..."
-            sleep 3
-          done
+        run: bash scripts/ci/verify.sh wait_for_postgres
       - name: Run database migrations
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "Running database migrations via Flyway..."
-          kubectl delete job migrate-db -n fitness-platform-production --ignore-not-found=true || true
-          kubectl apply -f configs/k8s/base/jobs/migrate-db.yaml -n fitness-platform-production
-          echo "Waiting for migrate-db job to complete..."
-          kubectl wait --for=condition=complete job/migrate-db -n fitness-platform-production --timeout=300s
-          echo "✅ Database migrations completed successfully"
-          echo "Verifying tables were created..."
-          kubectl exec -n fitness-platform-production postgres-0 -- \
-            psql -U postgres -d fitness -c "SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name;"
+        run: bash scripts/ci/deploy-production.sh run_migrations
       - name: Wait for postgres-service to be fully ready
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "Waiting for postgres-service endpoint..."
-          for i in {1..20}; do
-            if kubectl get endpoints postgres-service -n fitness-platform-production -o jsonpath='{.subsets[*].addresses[*].ip}' | grep -q .; then
-              echo "✅ postgres-service has endpoints"
-              break
-            fi
-            echo "Attempt $i/20: waiting for postgres-service endpoints..."
-            sleep 5
-          done
+        run: bash scripts/ci/verify.sh wait_for_service
       - name: Run seed-admin job
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "=== Running seed-admin job ==="
-          echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "-> Checking required secrets..."
-          if [ -z "${{ secrets.SEED_ADMIN_EMAIL }}" ]; then
-            echo "❌ SEED_ADMIN_EMAIL is empty!"
-            exit 1
-          fi
-          if [ -z "${{ secrets.SEED_ADMIN_PASSWORD }}" ]; then
-            echo "❌ SEED_ADMIN_PASSWORD is empty!"
-            exit 1
-          fi
-          echo "✅ Secrets present (values hidden)"
-          echo "-> Cleaning up existing seed-admin job..."
-          kubectl delete job seed-admin -n fitness-platform-production --ignore-not-found=true --wait=true 2>&1 || true
-          sleep 5
-          echo "-> Applying seed-admin Job from YAML..."
-          kubectl apply -f configs/k8s/base/jobs/seed-admin.yaml -n fitness-platform-production 2>&1
-          echo "-> Waiting for seed-admin pod to be scheduled..."
-          POD_NAME=""
-          for i in {1..30}; do
-            POD_NAME=$(kubectl get pods -n fitness-platform-production -l app=seed-admin -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-            if [ -n "$POD_NAME" ]; then
-              echo "✅ Pod found: $POD_NAME"
-              echo "-> Pod status: $(kubectl get pod "$POD_NAME" -n fitness-platform-production -o jsonpath='{.status.phase}' 2>/dev/null || echo 'unknown')"
-              break
-            fi
-            echo "  Attempt $i/30: waiting for pod... (5s)"
-            sleep 5
-          done
-          if [ -z "$POD_NAME" ]; then
-            echo "❌ Failed to find seed-admin pod after 150s"
-            echo "-> Checking all pods in namespace:"
-            kubectl get pods -n fitness-platform-production -o wide 2>&1 || true
-            exit 1
-          fi
-          echo "-> Starting background log streaming for pod $POD_NAME..."
-          kubectl logs -f -n fitness-platform-production "$POD_NAME" --tail=100 2>&1 &
-          LOG_STREAM_PID=$!
-          echo "-> Monitoring pod status..."
-          MONITOR_START=$(date +%s)
-          while true; do
-            CURRENT_PHASE=$(kubectl get pod "$POD_NAME" -n fitness-platform-production -o jsonpath='{.status.phase}' 2>/dev/null || echo "NotFound")
-            RESTART_COUNT=$(kubectl get pod "$POD_NAME" -n fitness-platform-production -o jsonpath='{.status.containerStatuses[0].restartCount}' 2>/dev/null || echo "0")
-            echo "  [$(date +%H:%M:%S)] Phase: $CURRENT_PHASE, Restarts: $RESTART_COUNT"
-            if [[ "$CURRENT_PHASE" == "Failed" || "$CURRENT_PHASE" == "CrashLoopBackOff" || "$RESTART_COUNT" -gt 2 ]]; then
-              echo "⚠️ Pod is in error state, fetching diagnostics..."
-              echo "→ Pod describe:"
-              kubectl describe pod "$POD_NAME" -n fitness-platform-production 2>&1 || true
-              echo "→ Last 200 log lines:"
-              kubectl logs "$POD_NAME" -n fitness-platform-production --tail=200 2>&1 || true
-              echo "→ Pod events:"
-              kubectl get events -n fitness-platform-production --field-selector involvedObject.name="$POD_NAME" --sort-by='.lastTimestamp' 2>&1 | tail -20 || true
-              break
-            fi
-            if kubectl wait --for=condition=complete job/seed-admin -n fitness-platform-production --timeout=10s 2>/dev/null; then
-              echo "✅ Job completed successfully"
-              break
-            fi
-            ELAPSED=$(($(date +%s) - MONITOR_START))
-            if [ "$ELAPSED" -ge 300 ]; then
-              echo "⏱️  Monitoring timeout reached (300s)"
-              break
-            fi
-            sleep 10
-          done
-          if [ -n "$LOG_STREAM_PID" ]; then
-            kill $LOG_STREAM_PID 2>/dev/null || true
-            wait $LOG_STREAM_PID 2>/dev/null || true
-          fi
-          echo "-> Final job status check..."
-          if kubectl wait --for=condition=complete job/seed-admin -n fitness-platform-production --timeout=30s 2>/dev/null; then
-            echo "✅ Admin user seeded successfully"
-            echo "-> Final logs:"
-            kubectl logs job/seed-admin -n fitness-platform-production --tail=100 2>&1 || true
-          else
-            echo "⚠️ Job did not complete successfully, detailed diagnostics..."
-            POD_NAME=$(kubectl get pods -n fitness-platform-production -l app=seed-admin -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "unknown")
-            echo "Current pod name: $POD_NAME"
-            if [ "$POD_NAME" != "unknown" ] && [ -n "$POD_NAME" ]; then
-              echo "→ Pod describe:"
-              kubectl describe pod "$POD_NAME" -n fitness-platform-production 2>&1 || true
-              echo "→ Pod logs (last 300 lines):"
-              kubectl logs "$POD_NAME" -n fitness-platform-production --tail=300 2>&1 || true
-              echo "→ Previous container logs (if any):"
-              kubectl logs "$POD_NAME" -n fitness-platform-production --previous --tail=100 2>&1 || true
-              echo "→ Pod events:"
-              kubectl get events -n fitness-platform-production --field-selector involvedObject.name="$POD_NAME" --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
-            else
-              echo "→ No active seed-admin pod found"
-              echo "→ Checking recent events in namespace:"
-              kubectl get events -n fitness-platform-production --sort-by='.lastTimestamp' 2>&1 | grep -E "(seed-admin|Error|Failed|BackOff)" | tail -30 || true
-            fi
-            echo "→ Job describe:"
-            kubectl describe job seed-admin -n fitness-platform-production 2>&1 || true
-            echo "→ Checking if admin exists in database (idempotent check)..."
-            DB_CHECK=$(kubectl exec -n fitness-platform-production postgres-0 -- \
-              psql -U postgres -d fitness -tAc \
-              "SELECT COUNT(*) FROM users WHERE email='${{ secrets.SEED_ADMIN_EMAIL }}'" 2>/dev/null || echo "0")
-            if [ "$DB_CHECK" = "1" ]; then
-              echo "✅ Admin user already exists in database (idempotent check passed)"
-            else
-              echo "❌ seed-admin job failed AND admin user not found in database"
-              echo "Database check result: $DB_CHECK"
-              exit 1
-            fi
-          fi
-          echo "-> Cleaning up completed job..."
-          kubectl delete job seed-admin -n fitness-platform-production --ignore-not-found=true 2>&1 || true
-          echo "✅ seed-admin step completed"
+        env:
+          SEED_ADMIN_EMAIL: ${{ secrets.SEED_ADMIN_EMAIL }}
+          SEED_ADMIN_PASSWORD: ${{ secrets.SEED_ADMIN_PASSWORD }}
+        run: bash scripts/ci/deploy-production.sh run_seed_admin
       - name: Check service logs for errors
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "Waiting for pods to stabilize..."
-          sleep 30
-          echo "Checking pod status..."
-          kubectl get pods -n fitness-platform-production
-          echo "Checking logs for critical errors..."
-          ERROR_FOUND=0
-          for dep in user-service training-service rabbitmq; do
-            echo "=== Logs for $dep ==="
-            if [[ "$dep" == "rabbitmq" ]]; then
-              LOGS=$(kubectl logs statefulset/rabbitmq -n fitness-platform-production --tail=50 2>&1 || echo "Failed to get logs")
-            else
-              LOGS=$(kubectl logs deployment/$dep -n fitness-platform-production --tail=50 2>&1 || echo "Failed to get logs")
-            fi
-            echo "$LOGS"
-            if echo "$LOGS" | grep -qE "too many colons|deprecated environment variables|RABBITMQ_DEFAULT_PASS_FILE|RABBITMQ_DEFAULT_USER_FILE|RABBITMQ_VM_MEMORY_HIGH_WATERMARK|Failed to listen"; then
-              echo "❌ Found critical error in $dep logs"
-              ERROR_FOUND=1
-            fi
-          done
-          for app in user-service training-service biometric-service gateway device-aggregator classifier valkey; do
-            if ! kubectl get pods -l app=$app -n fitness-platform-production | grep -q Running; then
-              echo "❌ Pod(s) for $app are not Running"
-              ERROR_FOUND=1
-            fi
-          done
-          if [ $ERROR_FOUND -eq 1 ]; then
-            echo "❌ Critical errors detected, failing the deployment"
-            exit 1
-          else
-            echo "✅ No critical errors found, all services are healthy"
-          fi
+        run: bash scripts/ci/deploy-production.sh check_logs
       - name: Debug pod status after deploy
         if: always() && steps.connectivity.outputs.reachable == 'true'
-        run: |
-          for i in {1..30}; do
-            if kubectl get --raw=/healthz &>/dev/null; then
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "API not available, restarting k3s..."
-              ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo systemctl restart k3s"
-              sleep 30
-            fi
-            sleep 5
-          done
-          echo "=== Checking pod status ==="
-          kubectl get pods -n fitness-platform-production -o wide || true
-          echo ""
-          echo "=== Logs for gateway deployment ==="
-          kubectl logs deployment/gateway -n fitness-platform-production --tail=100 || echo "No logs for gateway"
-          echo ""
-          echo "=== Logs for user-service deployment ==="
-          kubectl logs deployment/user-service -n fitness-platform-production --tail=100 || echo "No logs for user-service"
-          echo ""
-          echo "=== Logs for RabbitMQ (if exists) ==="
-          kubectl logs statefulset/rabbitmq -n fitness-platform-production --tail=50 || echo "RabbitMQ not running"
-          echo ""
-          echo "=== Recent events ==="
-          kubectl get events -n fitness-platform-production --sort-by='.lastTimestamp' | tail -20 || true
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/deploy-production.sh debug_pod_status
       - name: Verify production deployment
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          for i in {1..30}; do
-            if kubectl get --raw=/healthz &>/dev/null; then
-              break
-            fi
-            if [ "$i" -eq 30 ]; then
-              echo "API not available, restarting k3s..."
-              ./scripts/ssh-retry.sh ssh "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "sudo systemctl restart k3s"
-              sleep 30
-            fi
-            sleep 5
-          done
-          echo "Verifying deployment..."
-          echo "Waiting for gateway to be ready (up to 50s)..."
-          kubectl get pods -n fitness-platform-production
-          kubectl wait --for=condition=ready pod -l app=gateway -n fitness-platform-production --timeout=50s || echo "Gateway not ready yet"
-          sleep 30
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+        run: bash scripts/ci/deploy-production.sh verify_deployment
       - name: Deploy Open Wearables
         if: steps.connectivity.outputs.reachable == 'true'
-        run: |
-          echo "=== Deploying Open Wearables ==="
-          kubectl apply -k configs/k8s/base/ -n fitness-platform-production
-          kubectl apply -f configs/k8s/base/jobs/create-open-wearables-db.yaml -n fitness-platform-production
-          kubectl apply -k configs/k8s/overlays/production/ -n fitness-platform-production
-          echo "Waiting for Open Wearables pods to be ready..."
-          kubectl wait --for=condition=ready pod -l app=open-wearables -n fitness-platform-production --timeout=300s || echo "Open Wearables backend not ready yet"
-          kubectl wait --for=condition=ready pod -l app=open-wearables-frontend -n fitness-platform-production --timeout=300s || echo "Open Wearables frontend not ready yet"
-          echo "✅ Open Wearables deployed"
-
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: bash scripts/ci/deploy-production.sh deploy_open_wearables
   # ============================================================================
   # TEST PRODUCTION
   # ============================================================================
   test-production:
     name: Test Production (E2E)
     runs-on: ubuntu-latest
-    needs: [detect-changes, deploy-production]
+    needs: [deploy-production]
     timeout-minutes: 30
     env:
-      PRODUCTION_URL: ${{ secrets.VPS_HOST }}
+      PRODUCTION_URL: ${VPS_HOST}
     steps:
       - run: git config --global init.defaultBranch main
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
@@ -2700,48 +1483,14 @@ jobs:
           name: kubeconfig
           path: ./kubeconfig
       - name: Configure kubectl
-        run: |
-          mkdir -p "$HOME/.kube"
-          cp ./kubeconfig/k3s-config.yaml "$HOME/.kube/config"
-          chmod 600 "$HOME/.kube/config"
+        run: bash scripts/ci/ci-helpers.sh configure_kubectl
       - name: Prepare target URL
         id: target
-        run: |
-          URL="https://${{ env.FITPULSE_DOMAIN }}"
-          echo "target=$URL" >> "$GITHUB_OUTPUT"
+        run: bash scripts/ci/ci-helpers.sh prepare_target_url
       - name: Verify SSL Certificate
-        run: |
-          echo "🔍 Checking SSL certificate validity..."
-          echo | openssl s_client -servername ${{ env.FITPULSE_DOMAIN }} -connect ${{ env.FITPULSE_DOMAIN }}:443 2>/dev/null | openssl x509 -noout -dates -issuer > cert-details.txt
-          echo "🔍 Checking Certificate Transparency (SCT) logs..."
-          if grep -q "Signed Certificate Timestamp" cert-details.txt; then
-            echo "✅ Certificate Transparency SCTs verified"
-          else
-            echo "⚠️  No SCTs found in certificate (Certificate Transparency may not be configured)"
-          fi
-          curl -k -sSf -o /dev/null --max-time 10 "https://${{ env.FITPULSE_DOMAIN }}/health" || exit 1
-          echo "✅ SSL certificate is valid and trusted"
+        run: bash scripts/ci/verify.sh check_ssl
       - name: Health check
-        run: |
-          echo "🔍 Checking production health via HTTPS..."
-          for _ in {1..42}; do
-            RESPONSE=$(curl -skf --max-time 5 "https://${{ env.FITPULSE_DOMAIN }}/health" 2>/dev/null || echo "")
-            if [ -n "$RESPONSE" ]; then
-              echo "Health response: $RESPONSE"
-              break
-            fi
-            echo "Attempt $i/42: waiting..."
-            sleep 10
-          done
-          if [ -z "$RESPONSE" ]; then
-            echo "❌ Health endpoint unreachable"
-            kubectl --kubeconfig="$HOME/.kube/config" get pods -n fitness-platform-production -o wide || true
-            kubectl --kubeconfig="$HOME/.kube/config" get svc -n fitness-platform-production || true
-            exit 1
-          fi
-          echo "$RESPONSE" | grep -q '"status":"ok"' || { echo "❌ Status not ok"; echo "$RESPONSE"; exit 1; }
-          echo "$RESPONSE" | grep -q '"user":"up"' || { echo "❌ User service not healthy"; exit 1; }
-          echo "✅ Production is healthy"
+        run: bash scripts/ci/verify.sh health_check
       - name: Run UAT tests
         run: |
           python scripts/api-test.py --base-url "${{ steps.target.outputs.target }}"
@@ -2778,6 +1527,8 @@ jobs:
         checkov,
         cosign-verify,
         provision-k8s-vps,
+        deploy-staging,
+        test-staging,
         deploy-production,
         test-production,
         smoke-test,
@@ -2794,89 +1545,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Collect job statuses
         id: statuses
-        run: |
-          get_emoji() { case "$1" in success) echo "✅";; failure) echo "❌";; skipped) echo "⏭️";; *) echo "❓";; esac; }
-          VALIDATE="$(get_emoji '${{ needs.validate-workflow.result }}')"
-          DOCKERFILE_LINT="$(get_emoji '${{ needs.dockerfile-lint.result }}')"
-          SUPER_LINTER="$(get_emoji '${{ needs.super-linter.result }}')"
-          FRONTEND="$(get_emoji '${{ needs.frontend.result }}')"
-          CHECK="$(get_emoji '${{ needs.check.result }}')"
-          BUILD="$(get_emoji '${{ needs.binary_build.result }}')"
-          DOCKER="$(get_emoji '${{ needs.docker.result }}')"
-          CODEQL="$(get_emoji '${{ needs.codeql.result }}')"
-          KUBESCAPE="$(get_emoji '${{ needs.kubescape.result }}')"
-          SECURITY_SCAN="$(get_emoji '${{ needs.security-scan.result }}')"
-          SONARCLOUD="$(get_emoji '${{ needs.sonarcloud.result }}')"
-          CONVENTIONAL="$(get_emoji '${{ needs.conventional-commits.result }}')"
-          KUBE_BENCH="$(get_emoji '${{ needs.kube-bench.result }}')"
-          KUBE_HUNTER="$(get_emoji '${{ needs.kube-hunter.result }}')"
-          CHECKOV="$(get_emoji '${{ needs.checkov.result }}')"
-          COSIGN_VERIFY="$(get_emoji '${{ needs.cosign-verify.result }}')"
-          PROVISION_K8S="$(get_emoji '${{ needs.provision-k8s-vps.result }}')"
-          DEPLOY_PROD="$(get_emoji '${{ needs['deploy-production'].result }}')"
-          TEST_PROD="$(get_emoji '${{ needs['test-production'].result }}')"
-          SMOKE_TEST="$(get_emoji '${{ needs['smoke-test'].result }}')"
-          HEALTH_CHECK="$(get_emoji '${{ needs.health-check.result }}')"
-          CSP_CHECK="$(get_emoji '${{ needs.csp-headers-check.result }}')"
-          FAILED_JOBS=""
-          if [[ "${{ needs.validate-workflow.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Validate "; fi
-          if [[ "${{ needs.dockerfile-lint.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DockerfileLint "; fi
-          if [[ "${{ needs.super-linter.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Lint "; fi
-          if [[ "${{ needs.frontend.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Frontend "; fi
-          if [[ "${{ needs.check.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Check "; fi
-          if [[ "${{ needs.binary_build.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Build "; fi
-          if [[ "${{ needs.docker.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Docker "; fi
-          if [[ "${{ needs.codeql.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CodeQL "; fi
-          if [[ "${{ needs.kubescape.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Kubescape "; fi
-          if [[ "${{ needs.security-scan.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}SecurityScan "; fi
-          if [[ "${{ needs.sonarcloud.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}SonarCloud "; fi
-          if [[ "${{ needs.conventional-commits.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}ConventionalCommits "; fi
-          if [[ "${{ needs.kube-bench.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}KubeBench "; fi
-          if [[ "${{ needs.kube-hunter.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}KubeHunter "; fi
-          if [[ "${{ needs.checkov.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Checkov "; fi
-          if [[ "${{ needs.cosign-verify.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CosignVerify "; fi
-          if [[ "${{ needs.provision-k8s-vps.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}ProvisionK8s "; fi
-          if [[ "${{ needs.semgrep.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Semgrep "; fi
-          if [[ "${{ needs.osv-scanner.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}OSVScanner "; fi
-          if [[ "${{ needs.fuzz-tests.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}FuzzTests "; fi
-          if [[ "${{ needs.osv-audit.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}OSVAudit "; fi
-          if [[ "${{ needs['dependency-review'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DependencyReview "; fi
-          if [[ "${{ needs['deploy-production'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Deploy "; fi
-          if [[ "${{ needs['test-production'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Test "; fi
-          if [[ "${{ needs['smoke-test'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Smoke "; fi
-          if [[ "${{ needs.health-check.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}HealthCheck "; fi
-          if [[ "${{ needs.csp-headers-check.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CSPCheck "; fi
-          if [[ -n "$FAILED_JOBS" ]]; then
-            OVERALL="ОШИБКА"; STATUS="failure"
-          else
-            OVERALL="УСПЕШНО"; STATUS="success"
-          fi
-          {
-            echo "overall=$OVERALL"
-            echo "status=$STATUS"
-            echo "validate=$VALIDATE"
-            echo "dockerfile_lint=$DOCKERFILE_LINT"
-            echo "super_linter=$SUPER_LINTER"
-            echo "frontend=$FRONTEND"
-            echo "check=$CHECK"
-            echo "build=$BUILD"
-            echo "docker=$DOCKER"
-            echo "codeql=$CODEQL"
-            echo "kubescape=$KUBESCAPE"
-            echo "security_scan=$SECURITY_SCAN"
-            echo "sonarcloud=$SONARCLOUD"
-            echo "conventional=$CONVENTIONAL"
-            echo "kube_bench=$KUBE_BENCH"
-            echo "kube_hunter=$KUBE_HUNTER"
-            echo "checkov=$CHECKOV"
-            echo "cosign_verify=$COSIGN_VERIFY"
-            echo "provision_k8s=$PROVISION_K8S"
-            echo "deploy_prod=$DEPLOY_PROD"
-            echo "test_prod=$TEST_PROD"
-            echo "smoke_test=$SMOKE_TEST"
-            echo "health_check=$HEALTH_CHECK"
-            echo "csp_check=$CSP_CHECK"
-          } >> "$GITHUB_OUTPUT"
+        run: bash scripts/ci/ci-helpers.sh collect_statuses
       - name: Send to Telegram
         uses: appleboy/telegram-action@214f06cfa3d3a588c1472116889437e7c6fd29b1 # originally: v1.1.1
         with:
@@ -2908,6 +1577,8 @@ jobs:
             ${{ steps.statuses.outputs.build }} Build Binaries
             ${{ steps.statuses.outputs.docker }} Docker Build & Push
             ${{ steps.statuses.outputs.provision_k8s }} Provision K8s on VPS
+            ${{ steps.statuses.outputs.deploy_staging }} Deploy Staging
+            ${{ steps.statuses.outputs.test_staging }} Test Staging
             ${{ steps.statuses.outputs.deploy_prod }} Deploy Production
             ${{ steps.statuses.outputs.test_prod }} Test Production
             ${{ steps.statuses.outputs.smoke_test }} Smoke Test
@@ -2923,15 +1594,19 @@ jobs:
     name: Dependabot auto-merge
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
+    permissions:
+      pull-requests: write
     steps:
       - name: Enable auto-merge for Dependabot PRs
-        run: gh pr merge --auto --squash "$PR_URL"
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${GITHUB_TOKEN}
+        run: gh pr merge --auto --squash "$PR_URL"
       - name: Auto-approve minor/patch updates
         if: contains(github.event.pull_request.title, 'minor') || contains(github.event.pull_request.title, 'patch')
-        run: gh pr review --approve "$PR_URL"
         env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${GITHUB_TOKEN}
+        run: gh pr review --approve "$PR_URL"

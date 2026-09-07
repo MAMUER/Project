@@ -81,6 +81,9 @@ func main() {
 		}
 	}()
 
+	config.InitViper("gateway")
+	_ = config.GetViper()
+
 	ctx := context.Background()
 	metrics := newGatewayMetrics()
 	cfg := loadGatewayConfig(log)

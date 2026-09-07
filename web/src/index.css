@@ -36,6 +36,120 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  [data-flash],
+  .flash,
+  .blink {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --bg-primary: Canvas;
+    --bg-secondary: Canvas;
+    --bg-card: Canvas;
+    --bg-input: Canvas;
+    --text-primary: CanvasText;
+    --text-secondary: CanvasText;
+    --text-tertiary: CanvasText;
+    --accent: Highlight;
+    --accent-secondary: Highlight;
+    --green: Mark;
+    --blue: Mark;
+    --orange: Mark;
+    --purple: Mark;
+    --teal: Mark;
+    --red: Mark;
+    --border: CanvasText;
+  }
+
+  * {
+    forced-color-adjust: none;
+  }
+
+  .btn-primary,
+  .btn-secondary,
+  .btn-danger,
+  .btn-danger-ghost,
+  .tab.active {
+    border: 2px solid CanvasText;
+  }
+
+  .summary-card,
+  .device-option,
+  .goal-chip,
+  .day-chip {
+    border: 1px solid CanvasText;
+  }
+
+  .device-option:hover,
+  .device-option.selected,
+  .goal-chip:has(input:checked),
+  .day-chip.selected {
+    border: 2px solid CanvasText;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  html {
+    font-size: 100%;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--accent);
+  color: white;
+  padding: 8px 16px;
+  z-index: 10000;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
 body {
   font-family: var(--font-body);
   background: var(--bg-primary);

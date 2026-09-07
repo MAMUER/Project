@@ -28,7 +28,7 @@ import (
 func (g *gateway) getProfileHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "getProfile"))
+		g.log.Error(errUnauthorized, zap.String("handler", "getProfile"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -73,7 +73,7 @@ func (g *gateway) getProfileHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "updateProfile"))
+		g.log.Error(errUnauthorized, zap.String("handler", "updateProfile"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -150,7 +150,7 @@ func (g *gateway) updateProfileHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) deleteProfileHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "deleteProfile"))
+		g.log.Error(errUnauthorized, zap.String("handler", "deleteProfile"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}

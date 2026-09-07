@@ -28,7 +28,7 @@ import (
 func (g *gateway) listHealthConditionsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "listHealthConditions"))
+		g.log.Error(errUnauthorized, zap.String("handler", "listHealthConditions"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -74,7 +74,7 @@ func (g *gateway) listHealthConditionsHandler(w http.ResponseWriter, r *http.Req
 func (g *gateway) upsertHealthConditionHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "upsertHealthCondition"))
+		g.log.Error(errUnauthorized, zap.String("handler", "upsertHealthCondition"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -110,7 +110,7 @@ func (g *gateway) upsertHealthConditionHandler(w http.ResponseWriter, r *http.Re
 
 func (g *gateway) deleteEntityHandler(w http.ResponseWriter, r *http.Request, paramName string, deleteFn func(string) error) {
 	if _, ok := r.Context().Value(middleware.UserIDKey).(string); !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "deleteEntity"))
+		g.log.Error(errUnauthorized, zap.String("handler", "deleteEntity"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -174,7 +174,7 @@ func (g *gateway) deleteHealthConditionHandler(w http.ResponseWriter, r *http.Re
 func (g *gateway) createBodyCompositionHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "createBodyComposition"))
+		g.log.Error(errUnauthorized, zap.String("handler", "createBodyComposition"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -232,7 +232,7 @@ func (g *gateway) createBodyCompositionHandler(w http.ResponseWriter, r *http.Re
 func (g *gateway) listBodyCompositionHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "listBodyComposition"))
+		g.log.Error(errUnauthorized, zap.String("handler", "listBodyComposition"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -279,7 +279,7 @@ func (g *gateway) listBodyCompositionHandler(w http.ResponseWriter, r *http.Requ
 func (g *gateway) listMenstrualCyclesHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "listMenstrualCycles"))
+		g.log.Error(errUnauthorized, zap.String("handler", "listMenstrualCycles"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -313,7 +313,7 @@ func (g *gateway) listMenstrualCyclesHandler(w http.ResponseWriter, r *http.Requ
 func (g *gateway) createMenstrualCycleHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "createMenstrualCycle"))
+		g.log.Error(errUnauthorized, zap.String("handler", "createMenstrualCycle"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -366,7 +366,7 @@ func (g *gateway) createMenstrualCycleHandler(w http.ResponseWriter, r *http.Req
 func (g *gateway) updateMenstrualCycleHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "updateMenstrualCycle"))
+		g.log.Error(errUnauthorized, zap.String("handler", "updateMenstrualCycle"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}

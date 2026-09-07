@@ -11,42 +11,58 @@ import (
 )
 
 type userService struct {
-	users        port.UserRepository
-	profiles     port.ProfileRepository
-	invites      port.InviteRepository
-	health       port.HealthConditionRepository
-	bodyComp     port.BodyCompositionRepository
-	menstrual    port.MenstrualCycleRepository
-	achievements port.AchievementRepository
+	users            port.UserRepository
+	profiles         port.ProfileRepository
+	invites          port.InviteRepository
+	inviteCodes      port.InviteCodeRepository
+	health           port.HealthConditionRepository
+	userHealth       port.UserHealthConditionRepository
+	bodyComp         port.BodyCompositionRepository
+	userBodyComp     port.UserBodyCompositionRepository
+	menstrual        port.MenstrualCycleRepository
+	userMenstrual    port.UserMenstrualRepository
+	achievements     port.AchievementRepository
+	achievementsEx   port.AchievementRepositoryEx
+	devices          port.DeviceRepository
+	emailVerifs      port.EmailVerificationRepository
+	refreshTokens    port.RefreshTokenRepository
 }
 
-type Invite struct {
-	Code      string
-	Role      string
-	Specialty string
-	MaxUses   int
-	UsedCount int
-	IsActive  bool
-	CreatedAt time.Time
+type UserServiceConfig struct {
+	Users            port.UserRepository
+	Profiles         port.ProfileRepository
+	Invites          port.InviteRepository
+	InviteCodes      port.InviteCodeRepository
+	Health           port.HealthConditionRepository
+	UserHealth       port.UserHealthConditionRepository
+	BodyComp         port.BodyCompositionRepository
+	UserBodyComp     port.UserBodyCompositionRepository
+	Menstrual        port.MenstrualCycleRepository
+	UserMenstrual    port.UserMenstrualRepository
+	Achievements     port.AchievementRepository
+	AchievementsEx   port.AchievementRepositoryEx
+	Devices          port.DeviceRepository
+	EmailVerifs      port.EmailVerificationRepository
+	RefreshTokens    port.RefreshTokenRepository
 }
 
-func NewUserService(
-	users port.UserRepository,
-	profiles port.ProfileRepository,
-	invites port.InviteRepository,
-	health port.HealthConditionRepository,
-	bodyComp port.BodyCompositionRepository,
-	menstrual port.MenstrualCycleRepository,
-	achievements port.AchievementRepository,
-) UserService {
+func NewUserService(cfg UserServiceConfig) UserService {
 	return &userService{
-		users:        users,
-		profiles:     profiles,
-		invites:      invites,
-		health:       health,
-		bodyComp:     bodyComp,
-		menstrual:    menstrual,
-		achievements: achievements,
+		users:         cfg.Users,
+		profiles:      cfg.Profiles,
+		invites:       cfg.Invites,
+		inviteCodes:   cfg.InviteCodes,
+		health:        cfg.Health,
+		userHealth:    cfg.UserHealth,
+		bodyComp:      cfg.BodyComp,
+		userBodyComp:  cfg.UserBodyComp,
+		menstrual:     cfg.Menstrual,
+		userMenstrual: cfg.UserMenstrual,
+		achievements:  cfg.Achievements,
+		achievementsEx: cfg.AchievementsEx,
+		devices:       cfg.Devices,
+		emailVerifs:   cfg.EmailVerifs,
+		refreshTokens: cfg.RefreshTokens,
 	}
 }
 
@@ -132,7 +148,7 @@ func (s *userService) ConfirmEmail(ctx context.Context, token string) error {
 
 func (s *userService) CreateInvite(ctx context.Context, role, specialty string, maxUses int) (string, error) {
 	code := generateInviteCode()
-	invite := &Invite{
+	invite := &port.Invite{
 		Code:      code,
 		Role:      role,
 		Specialty: specialty,
@@ -178,6 +194,29 @@ func (s *userService) ListUsers(ctx context.Context, page, pageSize int) ([]*ent
 	}
 
 	return users, total, nil
+}
+
+func (s *userService) ListDevices(ctx context.Context, userID string) ([]*entity.Device, error) {
+	return s.devices.List(ctx, userID)
+}
+
+func (s *userService) AddDevice(ctx context.Context, device *entity.Device) (*entity.Device, error) {
+	if device.UserID == "" || device.DeviceType == "" {
+		return nil, apperrors.Validation("user_id and device_type are required")
+	}
+	if device.DeviceName == "" {
+		device.DeviceName = device.DeviceType + " Device"
+	}
+	device.IsConnected = true
+	device.LastSync = time.Now()
+	return s.devices.Create(ctx, device)
+}
+
+func (s *userService) RemoveDevice(ctx context.Context, userID, deviceID string) error {
+	if userID == "" || deviceID == "" {
+		return apperrors.Validation("user_id and device_id are required")
+	}
+	return s.devices.Delete(ctx, userID, deviceID)
 }
 
 func generateID() string {

@@ -46,7 +46,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*entity.User, 
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound("user not found")
+			return nil, apperrors.NotFound(errUserNotFound)
 		}
 		return nil, apperrors.Internal("failed to get user", err)
 	}
@@ -65,7 +65,7 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*entity.
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound("user not found")
+			return nil, apperrors.NotFound(errUserNotFound)
 		}
 		return nil, apperrors.Internal("failed to get user by email", err)
 	}
@@ -115,7 +115,44 @@ func (r *UserRepository) List(ctx context.Context, page, pageSize int) ([]*entit
 		}
 		users = append(users, user)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate users", err)
+	}
 	return users, nil
+}
+
+func (r *UserRepository) ListByRole(ctx context.Context, role string, page, pageSize int) ([]*entity.User, int, error) {
+	offset := (page - 1) * pageSize
+	query := `
+		SELECT id, email, password_hash, full_name, role, email_verified, created_at, updated_at
+		FROM users WHERE role = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3
+	`
+	rows, err := r.db.QueryContext(ctx, query, role, pageSize, offset)
+	if err != nil {
+		return nil, 0, apperrors.Internal("failed to list users", err)
+	}
+	defer rows.Close()
+
+	var users []*entity.User
+	for rows.Next() {
+		user := &entity.User{}
+		if err := rows.Scan(
+			&user.ID, &user.Email, &user.PasswordHash, &user.FullName,
+			&user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
+		); err != nil {
+			return nil, 0, apperrors.Internal("failed to scan user", err)
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperrors.Internal("failed to iterate users", err)
+	}
+
+	var total int
+	if err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role = $1`, role).Scan(&total); err != nil {
+		return nil, 0, apperrors.Internal("failed to count users", err)
+	}
+	return users, total, nil
 }
 
 func (r *UserRepository) Count(ctx context.Context) (int, error) {
@@ -137,21 +174,10 @@ func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool,
 	return exists, nil
 }
 
-type Invite struct {
-	Code      string
-	Role      string
-	Specialty string
-	MaxUses   int
-	UsedCount int
-	IsActive  bool
-	CreatedAt time.Time
-	InviteURL string
-}
-
 type InviteRepository interface {
-	Create(ctx context.Context, invite *Invite) error
-	GetByCode(ctx context.Context, code string) (*Invite, error)
-	List(ctx context.Context, page, pageSize int) ([]*Invite, int, error)
+	Create(ctx context.Context, invite *port.Invite) error
+	GetByCode(ctx context.Context, code string) (*port.Invite, error)
+	List(ctx context.Context, page, pageSize int) ([]*port.Invite, int, error)
 	Revoke(ctx context.Context, code string) error
 }
 
@@ -159,11 +185,11 @@ type inviteRepository struct {
 	db *sql.DB
 }
 
-func NewInviteRepository(db *sql.DB) InviteRepository {
+func NewInviteRepository(db *sql.DB) port.InviteRepository {
 	return &inviteRepository{db: db}
 }
 
-func (r *inviteRepository) Create(ctx context.Context, invite *Invite) error {
+func (r *inviteRepository) Create(ctx context.Context, invite *port.Invite) error {
 	query := `
 		INSERT INTO invites (code, role, specialty, max_uses, used_count, is_active, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -177,12 +203,12 @@ func (r *inviteRepository) Create(ctx context.Context, invite *Invite) error {
 	return nil
 }
 
-func (r *inviteRepository) GetByCode(ctx context.Context, code string) (*Invite, error) {
+func (r *inviteRepository) GetByCode(ctx context.Context, code string) (*port.Invite, error) {
 	query := `
 		SELECT code, role, specialty, max_uses, used_count, is_active, created_at
 		FROM invites WHERE code = $1
 	`
-	invite := &Invite{}
+	invite := &port.Invite{}
 	err := r.db.QueryRowContext(ctx, query, code).Scan(
 		&invite.Code, &invite.Role, &invite.Specialty, &invite.MaxUses, &invite.UsedCount, &invite.IsActive, &invite.CreatedAt,
 	)
@@ -195,7 +221,7 @@ func (r *inviteRepository) GetByCode(ctx context.Context, code string) (*Invite,
 	return invite, nil
 }
 
-func (r *inviteRepository) List(ctx context.Context, page, pageSize int) ([]*Invite, int, error) {
+func (r *inviteRepository) List(ctx context.Context, page, pageSize int) ([]*port.Invite, int, error) {
 	offset := (page - 1) * pageSize
 	query := `
 		SELECT code, role, specialty, max_uses, used_count, is_active, created_at
@@ -207,15 +233,18 @@ func (r *inviteRepository) List(ctx context.Context, page, pageSize int) ([]*Inv
 	}
 	defer rows.Close()
 
-	var invites []*Invite
+	var invites []*port.Invite
 	for rows.Next() {
-		invite := &Invite{}
+		invite := &port.Invite{}
 		if err := rows.Scan(
 			&invite.Code, &invite.Role, &invite.Specialty, &invite.MaxUses, &invite.UsedCount, &invite.IsActive, &invite.CreatedAt,
 		); err != nil {
 			return nil, 0, apperrors.Internal("failed to scan invite", err)
 		}
 		invites = append(invites, invite)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, apperrors.Internal("failed to iterate invites", err)
 	}
 
 	var total int
@@ -235,64 +264,9 @@ func (r *inviteRepository) Revoke(ctx context.Context, code string) error {
 	return nil
 }
 
-type ProfileRepository interface {
-	GetProfile(ctx context.Context, userID string) (*entity.User, error)
-	UpdateProfile(ctx context.Context, userID, fullName string, goals, contraindications []string, nutrition string, sleepHours float32) error
-}
-
-type profileRepository struct {
-	db *sql.DB
-}
-
-func NewProfileRepository(db *sql.DB) ProfileRepository {
-	return &profileRepository{db: db}
-}
-
-func (r *profileRepository) GetProfile(ctx context.Context, userID string) (*entity.User, error) {
-	return r.getUserByID(ctx, userID)
-}
-
-func (r *profileRepository) UpdateProfile(ctx context.Context, userID, fullName string, goals, contraindications []string, nutrition string, sleepHours float32) error {
-	query := `
-		UPDATE users SET full_name = $1, updated_at = $2 WHERE id = $3
-	`
-	_, err := r.db.ExecContext(ctx, query, fullName, time.Now(), userID)
-	if err != nil {
-		return apperrors.Internal("failed to update profile", err)
-	}
-	return nil
-}
-
-func (r *profileRepository) getUserByID(ctx context.Context, id string) (*entity.User, error) {
-	query := `
-		SELECT id, email, password_hash, full_name, role, email_verified, created_at, updated_at
-		FROM users WHERE id = $1
-	`
-	user := &entity.User{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.FullName,
-		&user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound("user not found")
-		}
-		return nil, apperrors.Internal("failed to get user", err)
-	}
-	return user, nil
-}
-
-type HealthCondition struct {
-	ID            string
-	UserID        string
-	ConditionType string
-	Description   string
-	CreatedAt     time.Time
-}
-
 type HealthConditionRepository interface {
-	Create(ctx context.Context, condition *HealthCondition) (*HealthCondition, error)
-	List(ctx context.Context, userID, conditionType string) ([]*HealthCondition, error)
+	Create(ctx context.Context, condition *entity.HealthCondition) (*entity.HealthCondition, error)
+	List(ctx context.Context, userID, conditionType string) ([]*entity.HealthCondition, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -300,11 +274,11 @@ type healthConditionRepository struct {
 	db *sql.DB
 }
 
-func NewHealthConditionRepository(db *sql.DB) HealthConditionRepository {
+func NewHealthConditionRepository(db *sql.DB) port.HealthConditionRepository {
 	return &healthConditionRepository{db: db}
 }
 
-func (r *healthConditionRepository) Create(ctx context.Context, condition *HealthCondition) (*HealthCondition, error) {
+func (r *healthConditionRepository) Create(ctx context.Context, condition *entity.HealthCondition) (*entity.HealthCondition, error) {
 	query := `
 		INSERT INTO health_conditions (id, user_id, condition_type, description, created_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -319,7 +293,7 @@ func (r *healthConditionRepository) Create(ctx context.Context, condition *Healt
 	return condition, nil
 }
 
-func (r *healthConditionRepository) List(ctx context.Context, userID, conditionType string) ([]*HealthCondition, error) {
+func (r *healthConditionRepository) List(ctx context.Context, userID, conditionType string) ([]*entity.HealthCondition, error) {
 	query := `
 		SELECT id, user_id, condition_type, description, created_at
 		FROM health_conditions WHERE user_id = $1
@@ -337,15 +311,18 @@ func (r *healthConditionRepository) List(ctx context.Context, userID, conditionT
 	}
 	defer rows.Close()
 
-	var conditions []*HealthCondition
+	var conditions []*entity.HealthCondition
 	for rows.Next() {
-		condition := &HealthCondition{}
+		condition := &entity.HealthCondition{}
 		if err := rows.Scan(
 			&condition.ID, &condition.UserID, &condition.ConditionType, &condition.Description, &condition.CreatedAt,
 		); err != nil {
 			return nil, apperrors.Internal("failed to scan health condition", err)
 		}
 		conditions = append(conditions, condition)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate health conditions", err)
 	}
 	return conditions, nil
 }
@@ -368,7 +345,7 @@ type bodyCompositionRepository struct {
 	db *sql.DB
 }
 
-func NewBodyCompositionRepository(db *sql.DB) BodyCompositionRepository {
+func NewBodyCompositionRepository(db *sql.DB) port.BodyCompositionRepository {
 	return &bodyCompositionRepository{db: db}
 }
 
@@ -424,6 +401,9 @@ func (r *bodyCompositionRepository) List(ctx context.Context, userID string, fro
 		}
 		records = append(records, bc)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate body composition", err)
+	}
 	return records, nil
 }
 
@@ -438,7 +418,7 @@ type menstrualCycleRepository struct {
 	db *sql.DB
 }
 
-func NewMenstrualCycleRepository(db *sql.DB) MenstrualCycleRepository {
+func NewMenstrualCycleRepository(db *sql.DB) port.MenstrualCycleRepository {
 	return &menstrualCycleRepository{db: db}
 }
 
@@ -478,6 +458,9 @@ func (r *menstrualCycleRepository) List(ctx context.Context, userID string) ([]*
 		}
 		cycles = append(cycles, cycle)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate menstrual cycles", err)
+	}
 	return cycles, nil
 }
 
@@ -511,7 +494,7 @@ type achievementRepository struct {
 	db *sql.DB
 }
 
-func NewAchievementRepository(db *sql.DB) AchievementRepository {
+func NewAchievementRepository(db *sql.DB) port.AchievementRepository {
 	return &achievementRepository{db: db}
 }
 
@@ -551,5 +534,74 @@ func (r *achievementRepository) List(ctx context.Context, userID string) ([]*ent
 		}
 		achievements = append(achievements, achievement)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate achievements", err)
+	}
 	return achievements, nil
+}
+
+type DeviceRepository interface {
+	List(ctx context.Context, userID string) ([]*entity.Device, error)
+	Create(ctx context.Context, device *entity.Device) (*entity.Device, error)
+	Delete(ctx context.Context, userID, deviceID string) error
+}
+
+type deviceRepository struct {
+	db *sql.DB
+}
+
+func NewDeviceRepository(db *sql.DB) port.DeviceRepository {
+	return &deviceRepository{db: db}
+}
+
+func (r *deviceRepository) List(ctx context.Context, userID string) ([]*entity.Device, error) {
+	query := `
+		SELECT id, user_id, device_type, device_name, is_connected, last_sync
+		FROM devices WHERE user_id = $1
+	`
+	rows, err := r.db.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, apperrors.Internal("failed to list devices", err)
+	}
+	defer rows.Close()
+
+	var devices []*entity.Device
+	for rows.Next() {
+		device := &entity.Device{}
+		if err := rows.Scan(
+			&device.ID, &device.UserID, &device.DeviceType, &device.DeviceName,
+			&device.IsConnected, &device.LastSync,
+		); err != nil {
+			return nil, apperrors.Internal("failed to scan device", err)
+		}
+		devices = append(devices, device)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate devices", err)
+	}
+	return devices, nil
+}
+
+func (r *deviceRepository) Create(ctx context.Context, device *entity.Device) (*entity.Device, error) {
+	query := `
+		INSERT INTO devices (id, user_id, device_type, device_name, token, is_connected, last_sync)
+		VALUES ($1, $2, $3, $4, $5, true, NOW())
+		RETURNING id
+	`
+	err := r.db.QueryRowContext(ctx, query,
+		device.ID, device.UserID, device.DeviceType, device.DeviceName, device.Token,
+	).Scan(&device.ID)
+	if err != nil {
+		return nil, apperrors.Internal("failed to create device", err)
+	}
+	return device, nil
+}
+
+func (r *deviceRepository) Delete(ctx context.Context, userID, deviceID string) error {
+	query := `DELETE FROM devices WHERE user_id = $1 AND id = $2`
+	_, err := r.db.ExecContext(ctx, query, userID, deviceID)
+	if err != nil {
+		return apperrors.Internal("failed to delete device", err)
+	}
+	return nil
 }

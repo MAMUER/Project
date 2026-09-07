@@ -14,7 +14,10 @@ import (
 	"github.com/MAMUER/project/internal/middleware"
 )
 
-const dateFormat = "dateFormat"
+const (
+	dateFormat = "dateFormat"
+	errFailedToGetTrainingClient = "Failed to get training client"
+)
 
 type completeWorkoutRequest struct {
 	PlanID    string `json:"plan_id"`
@@ -41,7 +44,7 @@ type completeWorkoutRequest struct {
 func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "generatePlan"))
+		g.log.Error(errUnauthorized, zap.String("handler", "generatePlan"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -70,7 +73,7 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 
 	client, err := g.getTrainingClient()
 	if err != nil {
-		g.log.Error("Failed to get training client", zap.Error(err))
+		g.log.Error(errFailedToGetTrainingClient, zap.Error(err))
 		http.Error(w, serviceTrainingUnavailable, http.StatusServiceUnavailable)
 		return
 	}
@@ -156,7 +159,7 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) listPlansHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "listPlans"))
+		g.log.Error(errUnauthorized, zap.String("handler", "listPlans"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -165,7 +168,7 @@ func (g *gateway) listPlansHandler(w http.ResponseWriter, r *http.Request) {
 
 	client, err := g.getTrainingClient()
 	if err != nil {
-		g.log.Error("Failed to get training client", zap.Error(err))
+		g.log.Error(errFailedToGetTrainingClient, zap.Error(err))
 		http.Error(w, serviceTrainingUnavailable, http.StatusServiceUnavailable)
 		return
 	}
@@ -251,7 +254,7 @@ func unmarshalPlanData(planDataProto *structpb.Struct) (map[string]interface{}, 
 func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "completeWorkout"))
+		g.log.Error(errUnauthorized, zap.String("handler", "completeWorkout"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
@@ -265,7 +268,7 @@ func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request)
 
 	client, err := g.getTrainingClient()
 	if err != nil {
-		g.log.Error("Failed to get training client", zap.Error(err))
+		g.log.Error(errFailedToGetTrainingClient, zap.Error(err))
 		http.Error(w, serviceTrainingUnavailable, http.StatusServiceUnavailable)
 		return
 	}
@@ -306,14 +309,14 @@ func (g *gateway) completeWorkoutHandler(w http.ResponseWriter, r *http.Request)
 func (g *gateway) getProgressHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "getProgress"))
+		g.log.Error(errUnauthorized, zap.String("handler", "getProgress"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}
 
 	client, err := g.getTrainingClient()
 	if err != nil {
-		g.log.Error("Failed to get training client", zap.Error(err))
+		g.log.Error(errFailedToGetTrainingClient, zap.Error(err))
 		http.Error(w, serviceTrainingUnavailable, http.StatusServiceUnavailable)
 		return
 	}
@@ -359,7 +362,7 @@ func (g *gateway) getPlanHandler(w http.ResponseWriter, r *http.Request) {
 
 	client, err := g.getTrainingClient()
 	if err != nil {
-		g.log.Error("Failed to get training client", zap.Error(err))
+		g.log.Error(errFailedToGetTrainingClient, zap.Error(err))
 		http.Error(w, serviceTrainingUnavailable, http.StatusServiceUnavailable)
 		return
 	}
@@ -412,7 +415,7 @@ func (g *gateway) getPlanHandler(w http.ResponseWriter, r *http.Request) {
 func (g *gateway) getAchievementsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
-		g.log.Error("Unauthorized access", zap.String("handler", "getAchievements"))
+		g.log.Error(errUnauthorized, zap.String("handler", "getAchievements"))
 		http.Error(w, msgUnauthorized, http.StatusUnauthorized)
 		return
 	}

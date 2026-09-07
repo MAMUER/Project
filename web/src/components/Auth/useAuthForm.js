@@ -54,9 +54,9 @@ export function useAuthForm({ searchParams, onModeChange, onSuccessMessage }) {
   const validateLogin = useCallback(() => {
     const errs = {};
     const emailErr = validateEmail(formData.email);
-    if (emailErr) errs.email = emailErr;
+    if (emailErr) errs.email = emailErr || 'Введите корректный email в формате name@example.com';
     const passErr = validateLoginPassword(formData.password);
-    if (passErr) errs.password = passErr;
+    if (passErr) errs.password = passErr || 'Введите пароль';
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }, [formData.email, formData.password]);
@@ -64,11 +64,11 @@ export function useAuthForm({ searchParams, onModeChange, onSuccessMessage }) {
   const validateRegister = useCallback(() => {
     const errs = {};
     const nameErr = validateName(formData.name);
-    if (nameErr) errs.name = nameErr;
+    if (nameErr) errs.name = nameErr || 'Введите имя минимум из 2 символов';
     const emailErr = validateEmail(formData.email);
-    if (emailErr) errs.email = emailErr;
+    if (emailErr) errs.email = emailErr || 'Введите корректный email в формате name@example.com';
     const passResult = validatePassword(formData.password);
-    if (passResult.error) errs.password = passResult.error;
+    if (passResult.error) errs.password = passResult.error || 'Пароль не соответствует требованиям';
     /* istanbul ignore next */
     setPasswordChecks(passResult.checks || {});
     setErrors(errs);
@@ -142,7 +142,7 @@ export function useAuthForm({ searchParams, onModeChange, onSuccessMessage }) {
       setGeneralError('');
       const code = formData.totpCode || formData.backupCode;
       if (!code) {
-        setGeneralError('Введите код');
+        setGeneralError('Введите код двухфакторной аутентификации. Используйте 6-значный код из приложения или резервный код.');
         return;
       }
       setSubmitting(true);
@@ -151,7 +151,7 @@ export function useAuthForm({ searchParams, onModeChange, onSuccessMessage }) {
         const data = await verify2FA(twoFATempToken, code, isBackup);
         login(data.access_token);
       } catch (err) {
-        setGeneralError(err.message);
+        setGeneralError(err.message || 'Неверный код. Проверьте код и попробуйте снова.');
       } finally {
         setSubmitting(false);
       }

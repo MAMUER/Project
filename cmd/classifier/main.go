@@ -513,6 +513,10 @@ func classifierLoggingMiddleware(log *zap.Logger) func(http.Handler) http.Handle
 
 func main() {
 	log := logger.New("classifier")
+
+	config.InitViper("classifier")
+	_ = config.GetViper()
+
 	s := &server{log: log}
 
 	mux := http.NewServeMux()

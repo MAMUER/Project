@@ -42,11 +42,11 @@ export default function Admin() {
     e.preventDefault();
     try {
       await createInvite(inviteForm.role, '', inviteForm.maxUses);
-      alert('Приглашение создано');
+      alert('Приглашение создано. Скопируйте ссылку и отправьте пользователю.');
       setInviteForm({ role: 'client', maxUses: 1 });
       loadAdminData();
     } catch (e) {
-      alert(`Ошибка: ${e.message}`);
+      alert(`Ошибка: ${e.message}. Проверьте ввод и попробуйте снова.`);
     }
   };
 
@@ -75,7 +75,7 @@ export default function Admin() {
     return (
       <div className='view active'>
         <div className='empty-state'>
-          <div className='empty-icon'>🔒</div>
+          <div className='empty-icon' aria-hidden='true'>🔒</div>
           <h3>Доступ запрещён</h3>
         </div>
       </div>
@@ -97,6 +97,7 @@ export default function Admin() {
               onChange={(e) =>
                 setInviteForm((f) => ({ ...f, role: e.target.value }))
               }
+              aria-invalid={false}
             >
               <option value='client'>Клиент</option>
               <option value='admin'>Админ</option>
@@ -115,7 +116,10 @@ export default function Admin() {
                   maxUses: Number(e.target.value),
                 }))
               }
+              aria-invalid={false}
+              aria-describedby='max-uses-hint'
             />
+            <div id='max-uses-hint' className='sr-only'>Минимум 1 использований</div>
           </div>
           <button type='submit' className='btn-primary'>
             Создать
@@ -149,6 +153,7 @@ export default function Admin() {
                     className='btn-secondary'
                     onClick={() => copyToClipboard(inv.code)}
                     style={{ padding: '8px 12px', fontSize: 13 }}
+                    aria-label={`Скопировать ссылку для приглашения ${inv.code}`}
                   >
                     Скопировать ссылку
                   </button>
@@ -157,6 +162,7 @@ export default function Admin() {
                       type='button'
                       className='btn-danger-ghost'
                       onClick={() => handleRevoke(inv.code)}
+                      aria-label={`Отозвать приглашение ${inv.code}`}
                     >
                       Отозвать
                     </button>
