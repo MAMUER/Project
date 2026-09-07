@@ -1,3 +1,4 @@
+// Package postgres provides PostgreSQL repository implementations.
 package postgres
 
 import (
@@ -101,7 +102,7 @@ func (r *UserRepository) List(ctx context.Context, page, pageSize int) ([]*entit
 	if err != nil {
 		return nil, apperrors.Internal("failed to list users", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var users []*entity.User
 	for rows.Next() {
@@ -130,7 +131,7 @@ func (r *UserRepository) ListByRole(ctx context.Context, role string, page, page
 	if err != nil {
 		return nil, 0, apperrors.Internal("failed to list users", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var users []*entity.User
 	for rows.Next() {
@@ -230,7 +231,7 @@ func (r *inviteRepository) List(ctx context.Context, page, pageSize int) ([]*por
 	if err != nil {
 		return nil, 0, apperrors.Internal("failed to list invites", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var invites []*port.Invite
 	for rows.Next() {
@@ -308,7 +309,7 @@ func (r *healthConditionRepository) List(ctx context.Context, userID, conditionT
 	if err != nil {
 		return nil, apperrors.Internal("failed to list health conditions", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var conditions []*entity.HealthCondition
 	for rows.Next() {
@@ -386,7 +387,7 @@ func (r *bodyCompositionRepository) List(ctx context.Context, userID string, fro
 	if err != nil {
 		return nil, apperrors.Internal("failed to list body composition", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var records []*entity.BodyComposition
 	for rows.Next() {
@@ -443,7 +444,7 @@ func (r *menstrualCycleRepository) List(ctx context.Context, userID string) ([]*
 	if err != nil {
 		return nil, apperrors.Internal("failed to list menstrual cycles", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var cycles []*entity.MenstrualCycle
 	for rows.Next() {
@@ -519,7 +520,7 @@ func (r *achievementRepository) List(ctx context.Context, userID string) ([]*ent
 	if err != nil {
 		return nil, apperrors.Internal("failed to list achievements", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var achievements []*entity.Achievement
 	for rows.Next() {
@@ -560,7 +561,7 @@ func (r *deviceRepository) List(ctx context.Context, userID string) ([]*entity.D
 	if err != nil {
 		return nil, apperrors.Internal("failed to list devices", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var devices []*entity.Device
 	for rows.Next() {

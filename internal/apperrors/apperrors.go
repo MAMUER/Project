@@ -1,6 +1,10 @@
+// Package apperrors provides structured application errors.
 package apperrors
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 type AppError struct {
 	Code    string
@@ -107,22 +111,24 @@ func Wrap(err error, code, message string) *AppError {
 }
 
 func Code(err error) string {
-	if appErr, ok := err.(*AppError); ok {
+	var appErr *AppError
+	if errors.As(err, &appErr) {
 		return appErr.Code
 	}
 	return "INTERNAL"
 }
 
 func Message(err error) string {
-	if appErr, ok := err.(*AppError); ok {
+	var appErr *AppError
+	if errors.As(err, &appErr) {
 		return appErr.Message
 	}
 	return "internal error"
 }
 
 func IsAppError(err error) bool {
-	_, ok := err.(*AppError)
-	return ok
+	var appErr *AppError
+	return errors.As(err, &appErr)
 }
 
 func IsNotFound(err error) bool {
@@ -192,7 +198,8 @@ func ToGRPCStatus(err error) string {
 }
 
 func Format(err error) string {
-	if appErr, ok := err.(*AppError); ok {
+	var appErr *AppError
+	if errors.As(err, &appErr) {
 		if appErr.Err != nil {
 			return fmt.Sprintf("%s: %s", appErr.Message, appErr.Err.Error())
 		}

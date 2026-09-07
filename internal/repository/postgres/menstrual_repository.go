@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"errors"
 
 	"github.com/MAMUER/project/internal/apperrors"
 	"github.com/MAMUER/project/internal/domain/port"
@@ -225,11 +224,7 @@ func (r *userMenstrualRepository) CreateCycleWithDetails(ctx context.Context, cy
 	if err != nil {
 		return nil, apperrors.Internal(errFailedToBeginTransaction, err)
 	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			// log rollback error
-		}
-	}()
+	defer func() { _ = tx.Rollback() }()
 
 	var cycleEndDate interface{}
 	if cycle.CycleEndDate != "" {
@@ -270,11 +265,7 @@ func (r *userMenstrualRepository) UpdateCycleWithDetails(ctx context.Context, cy
 	if err != nil {
 		return nil, apperrors.Internal(errFailedToBeginTransaction, err)
 	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			// log rollback error
-		}
-	}()
+	defer func() { _ = tx.Rollback() }()
 
 	var cycleEndDate interface{}
 	if cycle.CycleEndDate != "" {

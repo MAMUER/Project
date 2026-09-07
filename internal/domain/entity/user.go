@@ -1,3 +1,4 @@
+// Package entity defines core domain entities.
 package entity
 
 import "time"

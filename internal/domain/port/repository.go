@@ -1,3 +1,4 @@
+// Package port defines repository and service interfaces.
 package port
 
 import (

@@ -1,3 +1,4 @@
+// Package service defines application service interfaces.
 package service
 
 import (

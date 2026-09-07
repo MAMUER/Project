@@ -92,7 +92,7 @@ func (r *BiometricRepository) GetByUserID(ctx context.Context, userID, metricTyp
 	if err != nil {
 		return nil, apperrors.Internal("failed to get biometric records", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var records []*entity.BiometricRecord
 	for rows.Next() {

@@ -43,6 +43,13 @@ import (
 
 const personalizedPlanName = "Персонализированная программа"
 
+func toInt32(v int64) int32 {
+	if v < math.MinInt32 || v > math.MaxInt32 {
+		return 0
+	}
+	return int32(v)
+}
+
 type trainingServer struct {
 	pb.UnimplementedTrainingServiceServer
 	db          *sql.DB
@@ -384,7 +391,7 @@ func (s *trainingServer) ListPlans(ctx context.Context, req *pb.ListPlansRequest
 			planData := map[string]interface{}{
 				"name":           personalizedPlanName,
 				"training_goal":  "recovery",
-				"duration_weeks": int32(plan.DurationWeeks),
+				"duration_weeks": toInt32(int64(plan.DurationWeeks)),
 			}
 			planDataStruct, _ := structpb.NewStruct(planData)
 
@@ -399,7 +406,7 @@ func (s *trainingServer) ListPlans(ctx context.Context, req *pb.ListPlansRequest
 			})
 		}
 
-		return &pb.ListPlansResponse{Plans: pbPlans, Total: int32(len(pbPlans))}, nil
+		return &pb.ListPlansResponse{Plans: pbPlans, Total: toInt32(int64(len(pbPlans)))}, nil
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
@@ -554,10 +561,10 @@ func (s *trainingServer) GetProgress(ctx context.Context, req *pb.GetProgressReq
 		totalWorkouts := int32(0)
 		completedWorkouts := int32(0)
 		if total, ok := progress["total_plans"].(int64); ok {
-			totalWorkouts = int32(total)
+			totalWorkouts = toInt32(total)
 		}
 		if completed, ok := progress["completed_workouts"].(int64); ok {
-			completedWorkouts = int32(completed)
+			completedWorkouts = toInt32(completed)
 		}
 		completionRate := 0.0
 		if rate, ok := progress["completion_rate"].(float64); ok {

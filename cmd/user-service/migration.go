@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"go.uber.org/zap"
@@ -19,7 +21,7 @@ import (
 func ensurePgsodiumKey(ctx context.Context, database *sql.DB, log *logger.Logger) error {
 	key := db.EncryptionKey()
 	if len(key) == 0 {
-		return fmt.Errorf("DB_ENCRYPTION_KEY not set; pgsodium keyring cannot be initialized")
+		return errors.New("DB_ENCRYPTION_KEY not set; pgsodium keyring cannot be initialized")
 	}
 
 	var id int64
@@ -176,7 +178,7 @@ func migratePIIRow(ctx context.Context, database *sql.DB, log *logger.Logger, t 
 	queryBuilder.WriteString(" WHERE ")
 	queryBuilder.WriteString(t.idCol)
 	queryBuilder.WriteString(" = $")
-	queryBuilder.WriteString(fmt.Sprintf("%d", ai))
+	queryBuilder.WriteString(strconv.Itoa(ai))
 	query := queryBuilder.String()
 
 	if _, uErr := database.ExecContext(ctx, query, args...); uErr != nil {

@@ -80,7 +80,7 @@ func (r *TrainingRepository) ListPlans(ctx context.Context, userID string, page,
 	if err != nil {
 		return nil, 0, apperrors.Internal("failed to list training plans", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var plans []*entity.TrainingPlan
 	for rows.Next() {
@@ -151,7 +151,7 @@ func (r *TrainingRepository) GetAchievements(ctx context.Context, userID string)
 	if err != nil {
 		return nil, apperrors.Internal("failed to get achievements", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var achievements []*entity.Achievement
 	for rows.Next() {

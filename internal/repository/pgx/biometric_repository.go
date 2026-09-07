@@ -1,7 +1,9 @@
+// Package pgx provides PostgreSQL repository implementations using pgx.
 package pgx
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -134,7 +136,7 @@ func (r *BiometricRepositoryPGX) GetLatest(ctx context.Context, userID, metricTy
 		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.NotFound("no records found")
 		}
 		return nil, apperrors.Internal("failed to get latest biometric record", err)
@@ -156,7 +158,7 @@ func (r *BiometricRepositoryPGX) Update(ctx context.Context, record *entity.Biom
 		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.NotFound("record not found")
 		}
 		return nil, apperrors.Internal("failed to update biometric record", err)
@@ -183,7 +185,7 @@ func (r *BiometricRepositoryPGX) GetByID(ctx context.Context, id string) (*entit
 		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.NotFound("record not found")
 		}
 		return nil, apperrors.Internal("failed to get biometric record", err)

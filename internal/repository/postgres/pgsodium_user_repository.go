@@ -418,14 +418,14 @@ func (r *PgsodiumUserRepository) List(ctx context.Context, page, pageSize int) (
 	args := []interface{}{}
 	argCount := 0
 	argCount++
-	listUsersQuery.WriteString(fmt.Sprintf(" ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d", argCount, argCount+1))
+	fmt.Fprintf(&listUsersQuery, " ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d", argCount, argCount+1)
 	args = append(args, pageSize, offset)
 
 	rows, err := r.db.QueryContext(ctx, listUsersQuery.String(), args...) // NOSONAR go:S2077
 	if err != nil {
 		return nil, apperrors.Internal(errFailedToListUsers, err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var users []*entity.User
 	for rows.Next() {
@@ -452,14 +452,14 @@ func (r *PgsodiumUserRepository) ListByRole(ctx context.Context, role string, pa
 	args := []interface{}{role}
 	argCount := 1
 	argCount++
-	listUsersQuery.WriteString(fmt.Sprintf(" ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d", argCount, argCount+1))
+	fmt.Fprintf(&listUsersQuery, " ORDER BY u.created_at DESC LIMIT $%d OFFSET $%d", argCount, argCount+1)
 	args = append(args, pageSize, offset)
 
 	rows, err := r.db.QueryContext(ctx, listUsersQuery.String(), args...) // NOSONAR go:S2077
 	if err != nil {
 		return nil, 0, apperrors.Internal(errFailedToListUsers, err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var users []*entity.User
 	for rows.Next() {
@@ -879,8 +879,8 @@ func (r *PgsodiumUserRepository) deleteListItems(ctx context.Context, userID, ta
 }
 
 func (r *PgsodiumUserRepository) insertListItem(ctx context.Context, userID, tableName, columnName, value string) error {
-	query := fmt.Sprintf("INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING", tableName, columnName) // NOSONAR go:S2077 - tableName and columnName are hardcoded allow-listed constants, not user input
-	_, err := r.db.ExecContext(ctx, query, userID, value)                                                              // NOSONAR go:S2077 - query uses hardcoded allow-listed table/column names, not user input
+	query := fmt.Sprintf("INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING", tableName, columnName) // nolint:G201
+	_, err := r.db.ExecContext(ctx, query, userID, value)
 	if err != nil {
 		return apperrors.Internal("failed to insert list item", err)
 	}

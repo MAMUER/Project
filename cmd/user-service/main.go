@@ -52,6 +52,13 @@ import (
 	"github.com/MAMUER/project/internal/validator"
 )
 
+func intToInt32(v int) int32 {
+	if v < math.MinInt32 || v > math.MaxInt32 {
+		return 0
+	}
+	return int32(v)
+}
+
 // User represents a user for login operations.
 type User struct {
 	ID           string
@@ -204,7 +211,8 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 		FullName:     fullName,
 		Role:         req.Role,
 	}
-	if err := s.userRepo.Create(ctx, user); err != nil {
+	err = s.userRepo.Create(ctx, user)
+	if err != nil {
 		s.log.Error("Failed to create user", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to create user")
 	}
@@ -401,8 +409,9 @@ func (s *userServer) findGoogleUserBySub(ctx context.Context, googleSub string) 
 	user, err := s.userRepo.FindGoogleUser(ctx, googleSub)
 	if err == nil {
 		if !user.EmailVerified {
-			if err := s.userRepo.MarkEmailVerified(ctx, user.ID); err != nil {
-				s.log.Warn("Failed to mark Google user email as confirmed", zap.Error(err), zap.String("user_id", user.ID))
+			markErr := s.userRepo.MarkEmailVerified(ctx, user.ID)
+			if markErr != nil {
+				s.log.Warn("Failed to mark Google user email as confirmed", zap.Error(markErr), zap.String("user_id", user.ID))
 			} else {
 				emailConfirmed = true
 			}
@@ -519,7 +528,8 @@ func (s *userServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenReque
 		return nil, status.Error(codes.Unauthenticated, "refresh token expired")
 	}
 
-	if err := s.refreshTokenRepo.MarkUsed(ctx, req.RefreshToken); err != nil {
+	err = s.refreshTokenRepo.MarkUsed(ctx, req.RefreshToken)
+	if err != nil {
 		s.log.Error("Failed to mark refresh token as used", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
@@ -967,7 +977,8 @@ func (s *userServer) RegisterWithInvite(ctx context.Context, req *pb.RegisterWit
 	emailVal := sanitize.String(req.GetEmail())
 	fullName := sanitize.String(req.GetFullName())
 	hashedPasswordStr := string(hashedPassword)
-	if err := s.userRepo.CreateWithInvite(ctx, userID, emailVal, db.EmailHash(emailVal), hashedPasswordStr, fullName, finalRole); err != nil {
+	err = s.userRepo.CreateWithInvite(ctx, userID, emailVal, db.EmailHash(emailVal), hashedPasswordStr, fullName, finalRole)
+	if err != nil {
 		if apperrors.IsConflict(err) {
 			return nil, status.Error(codes.AlreadyExists, "email already exists")
 		}
@@ -1073,7 +1084,7 @@ func (s *userServer) ConfirmTOTP(ctx context.Context, req *pb.ConfirmTOTPRequest
 
 	hashedCodes := totp.HashBackupCodes(req.BackupCodes)
 
-	if err := s.userRepo.EnableTOTP(ctx, req.UserId, encryptedSecret, hashedCodes, int32(len(req.BackupCodes))); err != nil {
+	if err := s.userRepo.EnableTOTP(ctx, req.UserId, encryptedSecret, hashedCodes, intToInt32(len(req.BackupCodes))); err != nil {
 		s.log.Error("Failed to enable TOTP", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to enable TOTP")
 	}
@@ -1110,7 +1121,8 @@ func (s *userServer) VerifyTOTP(ctx context.Context, req *pb.VerifyTOTPRequest) 
 		}
 
 		remaining := backupCodesRemaining
-		if err := s.userRepo.RemoveBackupCode(ctx, req.UserId, backupCodesHash[idx]); err != nil {
+		err = s.userRepo.RemoveBackupCode(ctx, req.UserId, backupCodesHash[idx])
+		if err != nil {
 			s.log.Warn("Failed to remove used backup code", zap.Error(err))
 		} else if remaining > 0 {
 			remaining--
@@ -1564,7 +1576,7 @@ func (s *userServer) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (*
 
 	return &pb.ListUsersResponse{
 		Users: pbUsers,
-		Total: int32(total),
+		Total: intToInt32(total),
 	}, nil
 }
 
@@ -1600,8 +1612,8 @@ func (s *userServer) AdminListInvites(ctx context.Context, req *pb.AdminListInvi
 			Code:      inv.Code,
 			Role:      inv.Role,
 			Specialty: specialty,
-			MaxUses:   int32(inv.MaxUses),
-			UsedCount: int32(inv.UsedCount),
+			MaxUses:   intToInt32(inv.MaxUses),
+			UsedCount: intToInt32(inv.UsedCount),
 			IsActive:  inv.IsActive,
 			CreatedAt: inv.CreatedAt.Format(time.RFC3339),
 			InviteUrl: fmt.Sprintf("%s/register?invite=%s", baseURL, inv.Code),
@@ -1610,7 +1622,7 @@ func (s *userServer) AdminListInvites(ctx context.Context, req *pb.AdminListInvi
 
 	return &pb.AdminListInvitesResponse{
 		Invites: invites,
-		Total:   int32(len(inviteCodes)),
+		Total:   intToInt32(len(inviteCodes)),
 	}, nil
 }
 

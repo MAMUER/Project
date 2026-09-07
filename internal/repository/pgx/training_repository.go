@@ -3,6 +3,7 @@ package pgx
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -55,7 +56,7 @@ func (r *TrainingRepositoryPGX) GetPlan(ctx context.Context, userID, planID stri
 		&plan.AvailableDays, &planDataJSON, &plan.CreatedAt, &plan.UpdatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.NotFound("training plan not found")
 		}
 		return nil, apperrors.Internal("failed to get training plan", err)
@@ -198,7 +199,7 @@ func (r *TrainingRepositoryPGX) UpdatePlan(ctx context.Context, plan *entity.Tra
 		plan.ID, plan.UserID,
 	).Scan(&plan.ID, &plan.UserID, &plan.Classification, &plan.DurationWeeks, &plan.AvailableDays, &plan.CreatedAt, &plan.UpdatedAt)
 	if err != nil {
-		if err == pgx.ErrNoRows {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.NotFound("training plan not found")
 		}
 		return nil, apperrors.Internal("failed to update training plan", err)
