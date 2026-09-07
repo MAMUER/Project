@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	dateFormat = "dateFormat"
+	dateFormat                   = "dateFormat"
 	errFailedToGetTrainingClient = "Failed to get training client"
 )
 

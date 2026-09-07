@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/MAMUER/project/internal/apperrors"
 	"github.com/MAMUER/project/internal/domain/entity"
@@ -72,27 +71,21 @@ func (r *BiometricRepository) BatchCreate(ctx context.Context, records []*entity
 }
 
 func (r *BiometricRepository) GetByUserID(ctx context.Context, userID, metricType string, limit, offset int) ([]*entity.BiometricRecord, error) {
-	query := `
-		SELECT id, user_id, metric_type, value, timestamp, device_type, source, created_at
-		FROM biometric_data WHERE user_id = $1
-	`
-	args := []interface{}{userID}
-	argCount := 1
+	var query string
+	var args []interface{}
 
-	if metricType != "" {
-		argCount++
-		query += fmt.Sprintf(" AND metric_type = $%d", argCount)
-		args = append(args, metricType)
-	}
-
-	argCount++
-	query += fmt.Sprintf(" ORDER BY timestamp DESC LIMIT $%d", argCount)
-	args = append(args, limit)
-
-	if offset > 0 {
-		argCount++
-		query += fmt.Sprintf(" OFFSET $%d", argCount)
-		args = append(args, offset)
+	if metricType != "" && offset > 0 {
+		query = "SELECT id, user_id, metric_type, value, timestamp, device_type, source, created_at FROM biometric_data WHERE user_id = $1 AND metric_type = $2 ORDER BY timestamp DESC LIMIT $3 OFFSET $4"
+		args = []interface{}{userID, metricType, limit, offset}
+	} else if metricType != "" {
+		query = "SELECT id, user_id, metric_type, value, timestamp, device_type, source, created_at FROM biometric_data WHERE user_id = $1 AND metric_type = $2 ORDER BY timestamp DESC LIMIT $3"
+		args = []interface{}{userID, metricType, limit}
+	} else if offset > 0 {
+		query = "SELECT id, user_id, metric_type, value, timestamp, device_type, source, created_at FROM biometric_data WHERE user_id = $1 ORDER BY timestamp DESC LIMIT $2 OFFSET $3"
+		args = []interface{}{userID, limit, offset}
+	} else {
+		query = "SELECT id, user_id, metric_type, value, timestamp, device_type, source, created_at FROM biometric_data WHERE user_id = $1 ORDER BY timestamp DESC LIMIT $2"
+		args = []interface{}{userID, limit}
 	}
 
 	rows, err := r.db.QueryContext(ctx, query, args...)

@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"time"
 
 	"github.com/MAMUER/project/internal/apperrors"
@@ -365,25 +364,23 @@ func (r *bodyCompositionRepository) Create(ctx context.Context, bc *entity.BodyC
 }
 
 func (r *bodyCompositionRepository) List(ctx context.Context, userID string, from, to *time.Time, limit int) ([]*entity.BodyComposition, error) {
-	query := `
-		SELECT id, user_id, weight_kg, height_cm, bmi, recorded_at
-		FROM body_composition WHERE user_id = $1
-	`
-	args := []interface{}{userID}
-	argCount := 1
+	var query string
+	var args []interface{}
 
-	if from != nil {
-		argCount++
-		query += fmt.Sprintf(" AND recorded_at >= $%d", argCount)
-		args = append(args, *from)
+	switch {
+	case from != nil && to != nil:
+		query = "SELECT id, user_id, weight_kg, height_cm, bmi, recorded_at FROM body_composition WHERE user_id = $1 AND recorded_at >= $2 AND recorded_at <= $3 ORDER BY recorded_at DESC LIMIT $4"
+		args = []interface{}{userID, *from, *to, limit}
+	case from != nil:
+		query = "SELECT id, user_id, weight_kg, height_cm, bmi, recorded_at FROM body_composition WHERE user_id = $1 AND recorded_at >= $2 ORDER BY recorded_at DESC LIMIT $3"
+		args = []interface{}{userID, *from, limit}
+	case to != nil:
+		query = "SELECT id, user_id, weight_kg, height_cm, bmi, recorded_at FROM body_composition WHERE user_id = $1 AND recorded_at <= $2 ORDER BY recorded_at DESC LIMIT $3"
+		args = []interface{}{userID, *to, limit}
+	default:
+		query = "SELECT id, user_id, weight_kg, height_cm, bmi, recorded_at FROM body_composition WHERE user_id = $1 ORDER BY recorded_at DESC LIMIT $2"
+		args = []interface{}{userID, limit}
 	}
-	if to != nil {
-		argCount++
-		query += fmt.Sprintf(" AND recorded_at <= $%d", argCount)
-		args = append(args, *to)
-	}
-	query += " ORDER BY recorded_at DESC LIMIT $" + fmt.Sprintf("%d", argCount+1)
-	args = append(args, limit)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {

@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"strings"
 
+	"go.uber.org/zap"
+
 	"github.com/MAMUER/project/internal/db"
 	"github.com/MAMUER/project/internal/logger"
-	"go.uber.org/zap"
 )
 
 // ensurePgsodiumKey идемпотентно импортирует PII-ключ из DB_ENCRYPTION_KEY

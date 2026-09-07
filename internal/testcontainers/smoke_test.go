@@ -11,12 +11,12 @@ import (
 	"testing"
 	"time"
 
+	_ "github.com/lib/pq"
 	"github.com/rabbitmq/amqp091-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 
 	"github.com/MAMUER/project/internal/testcontainers"
-	_ "github.com/lib/pq"
 )
 
 func TestInfrastructureSmoke(t *testing.T) {

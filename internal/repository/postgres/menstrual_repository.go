@@ -27,20 +27,20 @@ type userMenstrualRepository struct {
 }
 
 const (
-	errFailedToListMenstrualCycles      = "failed to list menstrual cycles"
-	errFailedToCreateMenstrualCycle     = "failed to create menstrual cycle"
-	errFailedToUpdateMenstrualCycle     = "failed to update menstrual cycle"
-	errFailedToDeleteMenstrualCycle     = "failed to delete menstrual cycle"
-	errFailedToListMenstrualSymptoms    = "failed to list menstrual symptoms"
-	errFailedToCreateMenstrualSymptom   = "failed to create menstrual symptom"
-	errFailedToDeleteMenstrualSymptoms  = "failed to delete menstrual symptoms"
-	errFailedToListMenstrualMoods       = "failed to list menstrual moods"
-	errFailedToCreateMenstrualMood      = "failed to create menstrual mood"
-	errFailedToDeleteMenstrualMoods     = "failed to delete menstrual moods"
-	errFailedToBeginTransaction         = "failed to begin transaction"
-	errFailedToCommitTransaction        = "failed to commit transaction"
-	errFailedToScanMenstrualCycle       = "failed to scan menstrual cycle"
-	errFailedToIterateMenstrualCycles   = "failed to iterate menstrual cycles"
+	errFailedToListMenstrualCycles     = "failed to list menstrual cycles"
+	errFailedToCreateMenstrualCycle    = "failed to create menstrual cycle"
+	errFailedToUpdateMenstrualCycle    = "failed to update menstrual cycle"
+	errFailedToDeleteMenstrualCycle    = "failed to delete menstrual cycle"
+	errFailedToListMenstrualSymptoms   = "failed to list menstrual symptoms"
+	errFailedToCreateMenstrualSymptom  = "failed to create menstrual symptom"
+	errFailedToDeleteMenstrualSymptoms = "failed to delete menstrual symptoms"
+	errFailedToListMenstrualMoods      = "failed to list menstrual moods"
+	errFailedToCreateMenstrualMood     = "failed to create menstrual mood"
+	errFailedToDeleteMenstrualMoods    = "failed to delete menstrual moods"
+	errFailedToBeginTransaction        = "failed to begin transaction"
+	errFailedToCommitTransaction       = "failed to commit transaction"
+	errFailedToScanMenstrualCycle      = "failed to scan menstrual cycle"
+	errFailedToIterateMenstrualCycles  = "failed to iterate menstrual cycles"
 )
 
 func NewUserMenstrualRepository(db *sql.DB) port.UserMenstrualRepository {

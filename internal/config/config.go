@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"github.com/MAMUER/project/internal/logger"
-	"github.com/spf13/viper"
 )
 
 const redacted = "[REDACTED]"
@@ -120,8 +120,8 @@ func (c Config) Validate() error {
 
 func LoadConfig(v *viper.Viper) Config {
 	return Config{
-		App:      GetViperString(v, "app.name", "fitpulse"),
-		Server:   ServerConfig{Addr: GetViperString(v, "server.addr", ":8080")},
+		App:    GetViperString(v, "app.name", "fitpulse"),
+		Server: ServerConfig{Addr: GetViperString(v, "server.addr", ":8080")},
 		Database: DatabaseConfig{
 			Host:     GetViperString(v, "database.host", "localhost"),
 			Port:     GetViperString(v, "database.port", "5432"),

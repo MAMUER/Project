@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/MAMUER/project/internal/apperrors"
-	"github.com/MAMUER/project/internal/domain/entity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/MAMUER/project/internal/apperrors"
+	"github.com/MAMUER/project/internal/domain/entity"
 )
 
 // DeviceRepositoryPGX implements device operations using pgxpool.Pool.

@@ -9,6 +9,7 @@ import (
 
 	userpb "github.com/MAMUER/project/api/gen/user"
 	"github.com/MAMUER/project/internal/middleware"
+	"github.com/MAMUER/project/internal/sanitize"
 )
 
 // @Summary      List users
@@ -219,7 +220,7 @@ func (g *gateway) adminRevokeInviteHandler(w http.ResponseWriter, r *http.Reques
 		Code: code,
 	})
 	if err != nil {
-		g.log.Error("Failed to revoke invite", zap.Error(err), zap.String("code", code))
+		g.log.Error("Failed to revoke invite", zap.Error(err), zap.String("code", sanitize.LogString(code)))
 		httpCode, errMsg := grpcToHTTPStatus(err)
 		http.Error(w, errMsg, httpCode)
 		return

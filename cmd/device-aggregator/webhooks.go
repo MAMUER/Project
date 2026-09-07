@@ -24,7 +24,7 @@ func handleAggregatorWebhook(w http.ResponseWriter, r *http.Request, extractFiel
 	log := logger.New("device-aggregator-webhook")
 
 	if r.Method != http.MethodPost {
-		log.Error("Method not allowed", zap.String("method", r.Method), zap.String("path", r.URL.Path))
+		log.Error("Method not allowed", zap.String("method", sanitize.LogString(r.Method)), zap.String("path", sanitize.LogString(r.URL.Path)))
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}

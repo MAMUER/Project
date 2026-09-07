@@ -35,6 +35,7 @@ import (
 	grpctls "github.com/MAMUER/project/internal/grpc"
 	"github.com/MAMUER/project/internal/logger"
 	"github.com/MAMUER/project/internal/middleware"
+	"github.com/MAMUER/project/internal/sanitize"
 	"github.com/MAMUER/project/internal/telemetry"
 )
 
@@ -532,20 +533,20 @@ func buildHTTPRedirectHandler(log *zap.Logger, publicHost, port string) http.Han
 
 		host, err := resolveRedirectHost(publicHost, r)
 		if err != nil {
-			log.Error("Failed to resolve redirect host", zap.Error(err), zap.String("path", r.URL.Path))
+			log.Error("Failed to resolve redirect host", zap.Error(err), zap.String("path", sanitize.LogString(r.URL.Path)))
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		if err := validateRequestURI(r); err != nil {
-			log.Error("Invalid request URI", zap.Error(err), zap.String("path", r.URL.Path))
+			log.Error("Invalid request URI", zap.Error(err), zap.String("path", sanitize.LogString(r.URL.Path)))
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
 		redirectURL := buildRedirectURL(host, port, r)
 		if err := validateRedirectTarget(redirectURL, host); err != nil {
-			log.Error("Invalid redirect target", zap.Error(err), zap.String("path", r.URL.Path))
+			log.Error("Invalid redirect target", zap.Error(err), zap.String("path", sanitize.LogString(r.URL.Path)))
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -813,7 +814,7 @@ func (g *gateway) proxyToBiometricWebhook(w http.ResponseWriter, r *http.Request
 func (g *gateway) jwksHandler(w http.ResponseWriter, r *http.Request) {
 	publicKeyPEM := g.tokenProvider.PublicKeyPEM()
 	if publicKeyPEM == "" {
-		g.log.Error("JWT public key not configured", zap.String("path", r.URL.Path))
+		g.log.Error("JWT public key not configured", zap.String("path", sanitize.LogString(r.URL.Path)))
 		http.Error(w, "JWT public key not configured", http.StatusInternalServerError)
 		return
 	}

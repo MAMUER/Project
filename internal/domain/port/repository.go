@@ -130,20 +130,20 @@ type UserBodyCompositionRepository interface {
 }
 
 type UserBodyComposition struct {
-	ID                     string
-	UserID                 string
-	RecordedAt             time.Time
-	WeightKG               float64
-	HeightCM               float64
-	BMI                    float64
-	BodyFatPercentage      *float64
-	MuscleMassPercentage   *float64
-	BoneMassPercentage     *float64
-	WaterPercentage        *float64
-	VisceralFatRating      *float64
-	MetabolicAge           *float64
-	Source                 string
-	CreatedAt              time.Time
+	ID                   string
+	UserID               string
+	RecordedAt           time.Time
+	WeightKG             float64
+	HeightCM             float64
+	BMI                  float64
+	BodyFatPercentage    *float64
+	MuscleMassPercentage *float64
+	BoneMassPercentage   *float64
+	WaterPercentage      *float64
+	VisceralFatRating    *float64
+	MetabolicAge         *float64
+	Source               string
+	CreatedAt            time.Time
 }
 
 type MenstrualCycleRepository interface {
@@ -207,14 +207,14 @@ type DeviceRepository interface {
 }
 
 type EmailVerification struct {
-	ID           string
-	UserID       string
-	Email        string
-	EmailHash    string
-	Token        string
-	Used         bool
-	ExpiresAt    time.Time
-	CreatedAt    time.Time
+	ID        string
+	UserID    string
+	Email     string
+	EmailHash string
+	Token     string
+	Used      bool
+	ExpiresAt time.Time
+	CreatedAt time.Time
 }
 
 type EmailVerificationRepository interface {

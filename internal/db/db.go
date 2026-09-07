@@ -9,12 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	// Register PostgreSQL driver for database/sql.
 	_ "github.com/lib/pq"
 
 	"github.com/MAMUER/project/internal/config"
 	"github.com/MAMUER/project/internal/metrics"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Config holds database connection settings.

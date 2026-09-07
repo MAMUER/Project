@@ -31,7 +31,7 @@ func setupUserService(db *sql.DB) *userServer {
 	privateKeyPEM := string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privateKeyBytes}))
 	return &userServer{
 		db:            db,
-		userRepo:     postgres.NewPgsodiumUserRepository(db),
+		userRepo:      postgres.NewPgsodiumUserRepository(db),
 		log:           &logger.Logger{Logger: zapLog},
 		tokenProvider: jwt.NewJWTAdapter(privateKeyPEM, ""),
 	}

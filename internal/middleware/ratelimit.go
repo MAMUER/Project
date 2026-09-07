@@ -7,6 +7,8 @@ import (
 
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
+
+	"github.com/MAMUER/project/internal/sanitize"
 )
 
 type visitor struct {
@@ -109,7 +111,7 @@ func AuthRateLimit(log *zap.Logger) func(http.Handler) http.Handler {
 			av := v.(*authVisitor)
 			av.lastSeen = time.Now()
 			if !av.limiter.Allow() {
-				log.Warn("Auth rate limit exceeded", zap.String("path", r.URL.Path), zap.String("ip", ip))
+				log.Warn("Auth rate limit exceeded", zap.String("path", sanitize.LogString(r.URL.Path)), zap.String("ip", sanitize.LogString(ip)))
 				http.Error(w, "Превышен лимит запросов для авторизации", http.StatusTooManyRequests)
 				return
 			}
@@ -136,7 +138,7 @@ func RateLimit(log *zap.Logger) func(http.Handler) http.Handler {
 			vis := v.(*visitor)
 			vis.lastSeen = time.Now()
 			if !vis.limiter.Allow() {
-				log.Warn("Rate limit exceeded", zap.String("path", r.URL.Path), zap.String("ip", ip))
+				log.Warn("Rate limit exceeded", zap.String("path", sanitize.LogString(r.URL.Path)), zap.String("ip", sanitize.LogString(ip)))
 				http.Error(w, "Превышен лимит запросов", http.StatusTooManyRequests)
 				return
 			}
@@ -167,7 +169,7 @@ func UserRateLimit(log *zap.Logger) func(http.Handler) http.Handler {
 			vis := v.(*userVisitor)
 			vis.lastSeen = time.Now()
 			if !vis.limiter.Allow() {
-				log.Warn("User rate limit exceeded", zap.String("user_id", userID), zap.String("path", r.URL.Path))
+				log.Warn("User rate limit exceeded", zap.String("user_id", sanitize.LogString(userID)), zap.String("path", sanitize.LogString(r.URL.Path)))
 				http.Error(w, "Превышен лимит запросов для пользователя", http.StatusTooManyRequests)
 				return
 			}

@@ -23,21 +23,21 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	pb "github.com/MAMUER/project/api/gen/biometric"
+	"github.com/MAMUER/project/internal/apperrors"
 	"github.com/MAMUER/project/internal/config"
 	"github.com/MAMUER/project/internal/db"
+	"github.com/MAMUER/project/internal/domain/entity"
+	"github.com/MAMUER/project/internal/domain/service"
 	grpctls "github.com/MAMUER/project/internal/grpc"
 	"github.com/MAMUER/project/internal/logger"
 	"github.com/MAMUER/project/internal/metrics"
 	"github.com/MAMUER/project/internal/middleware"
 	"github.com/MAMUER/project/internal/queue"
+	"github.com/MAMUER/project/internal/repository/pgx"
+	_ "github.com/MAMUER/project/internal/repository/postgres"
 	"github.com/MAMUER/project/internal/telemetry"
 	"github.com/MAMUER/project/internal/validator"
 	"github.com/MAMUER/project/internal/webhook"
-	"github.com/MAMUER/project/internal/domain/entity"
-	"github.com/MAMUER/project/internal/domain/service"
-	"github.com/MAMUER/project/internal/apperrors"
-	_ "github.com/MAMUER/project/internal/repository/postgres"
-	"github.com/MAMUER/project/internal/repository/pgx"
 )
 
 const (
@@ -366,13 +366,13 @@ func (s *biometricServer) GetRecords(ctx context.Context, req *pb.GetRecordsRequ
 		pbRecords := make([]*pb.BiometricRecord, 0, len(records))
 		for _, r := range records {
 			pbRecords = append(pbRecords, &pb.BiometricRecord{
-				Id:        r.ID,
-				UserId:    r.UserID,
+				Id:         r.ID,
+				UserId:     r.UserID,
 				MetricType: r.MetricType,
-				Value:     r.Value,
-				Timestamp: timestamppb.New(r.Timestamp),
+				Value:      r.Value,
+				Timestamp:  timestamppb.New(r.Timestamp),
 				DeviceType: r.DeviceType,
-				CreatedAt: timestamppb.New(r.CreatedAt),
+				CreatedAt:  timestamppb.New(r.CreatedAt),
 			})
 		}
 
@@ -436,13 +436,13 @@ func (s *biometricServer) GetLatest(ctx context.Context, req *pb.GetLatestReques
 		}
 
 		return &pb.BiometricRecord{
-			Id:        record.ID,
-			UserId:    record.UserID,
+			Id:         record.ID,
+			UserId:     record.UserID,
 			MetricType: record.MetricType,
-			Value:     record.Value,
-			Timestamp: timestamppb.New(record.Timestamp),
+			Value:      record.Value,
+			Timestamp:  timestamppb.New(record.Timestamp),
 			DeviceType: record.DeviceType,
-			CreatedAt: timestamppb.New(record.CreatedAt),
+			CreatedAt:  timestamppb.New(record.CreatedAt),
 		}, nil
 	}
 
@@ -481,9 +481,9 @@ func (s *biometricServer) UpdateRecord(ctx context.Context, req *pb.UpdateRecord
 
 	if s.biometricSvc != nil {
 		record := &entity.BiometricRecord{
-			ID:        req.Id,
-			Value:     req.Value,
-			Timestamp: req.Timestamp.AsTime(),
+			ID:         req.Id,
+			Value:      req.Value,
+			Timestamp:  req.Timestamp.AsTime(),
 			DeviceType: req.DeviceType,
 		}
 
@@ -502,13 +502,13 @@ func (s *biometricServer) UpdateRecord(ctx context.Context, req *pb.UpdateRecord
 		)
 
 		return &pb.BiometricRecord{
-			Id:        stored.ID,
-			UserId:    stored.UserID,
+			Id:         stored.ID,
+			UserId:     stored.UserID,
 			MetricType: stored.MetricType,
-			Value:     stored.Value,
-			Timestamp: timestamppb.New(stored.Timestamp),
+			Value:      stored.Value,
+			Timestamp:  timestamppb.New(stored.Timestamp),
 			DeviceType: stored.DeviceType,
-			CreatedAt: timestamppb.New(stored.CreatedAt),
+			CreatedAt:  timestamppb.New(stored.CreatedAt),
 		}, nil
 	}
 

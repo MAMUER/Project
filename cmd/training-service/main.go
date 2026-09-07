@@ -29,26 +29,26 @@ import (
 	pb "github.com/MAMUER/project/api/gen/training"
 	"github.com/MAMUER/project/internal/config"
 	"github.com/MAMUER/project/internal/db"
+	"github.com/MAMUER/project/internal/domain/service"
 	grpctls "github.com/MAMUER/project/internal/grpc"
 	"github.com/MAMUER/project/internal/logger"
 	"github.com/MAMUER/project/internal/middleware"
 	"github.com/MAMUER/project/internal/queue"
+	"github.com/MAMUER/project/internal/repository/pgx"
+	_ "github.com/MAMUER/project/internal/repository/postgres"
 	"github.com/MAMUER/project/internal/sanitize"
 	"github.com/MAMUER/project/internal/telemetry"
 	"github.com/MAMUER/project/internal/validator"
-	"github.com/MAMUER/project/internal/domain/service"
-	_ "github.com/MAMUER/project/internal/repository/postgres"
-	"github.com/MAMUER/project/internal/repository/pgx"
 )
 
 const personalizedPlanName = "Персонализированная программа"
 
 type trainingServer struct {
 	pb.UnimplementedTrainingServiceServer
-	db           *sql.DB
-	trainingSvc  service.TrainingService
-	log          *logger.Logger
-	rabbitQueue  queue.Publisher
+	db          *sql.DB
+	trainingSvc service.TrainingService
+	log         *logger.Logger
+	rabbitQueue queue.Publisher
 }
 
 func (s *trainingServer) GeneratePlan(ctx context.Context, req *pb.GeneratePlanRequest) (*pb.GeneratePlanResponse, error) {
@@ -389,13 +389,13 @@ func (s *trainingServer) ListPlans(ctx context.Context, req *pb.ListPlansRequest
 			planDataStruct, _ := structpb.NewStruct(planData)
 
 			pbPlans = append(pbPlans, &pb.TrainingPlan{
-				Id:       plan.ID,
-				UserId:   plan.UserID,
-				PlanData: planDataStruct,
+				Id:          plan.ID,
+				UserId:      plan.UserID,
+				PlanData:    planDataStruct,
 				GeneratedAt: timestamppb.New(plan.CreatedAt),
 				StartDate:   timestamppb.New(plan.CreatedAt),
 				EndDate:     timestamppb.New(plan.UpdatedAt),
-				Status:     "active",
+				Status:      "active",
 			})
 		}
 

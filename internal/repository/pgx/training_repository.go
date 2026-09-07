@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/MAMUER/project/internal/apperrors"
-	"github.com/MAMUER/project/internal/domain/entity"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/MAMUER/project/internal/apperrors"
+	"github.com/MAMUER/project/internal/domain/entity"
 )
 
 // TrainingRepositoryPGX implements training operations using pgxpool.Pool.

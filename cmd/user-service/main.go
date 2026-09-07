@@ -20,17 +20,15 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"go.uber.org/zap"
 	"golang.org/x/crypto/argon2"
 	"google.golang.org/api/idtoken"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/health"
-	"google.golang.org/grpc/status"
-
 	grpc_health_v1 "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/reflection"
+	"google.golang.org/grpc/status"
 
 	pb "github.com/MAMUER/project/api/gen/user"
 	"github.com/MAMUER/project/cmd/user-service/ports"
@@ -38,9 +36,9 @@ import (
 	"github.com/MAMUER/project/internal/auth/jwt"
 	"github.com/MAMUER/project/internal/config"
 	"github.com/MAMUER/project/internal/crypto"
-	"github.com/MAMUER/project/internal/domain/port"
 	"github.com/MAMUER/project/internal/db"
 	"github.com/MAMUER/project/internal/domain/entity"
+	"github.com/MAMUER/project/internal/domain/port"
 	"github.com/MAMUER/project/internal/domain/service"
 	"github.com/MAMUER/project/internal/email"
 	grpctls "github.com/MAMUER/project/internal/grpc"
@@ -64,28 +62,28 @@ type User struct {
 
 type userServer struct {
 	pb.UnimplementedUserServiceServer
-	db                  *sql.DB
-	userSvc             service.UserService
-	userRepo            *postgres.PgsodiumUserRepository
-	profileRepo         port.ProfileRepository
-	emailVerifRepo      port.EmailVerificationRepository
-	refreshTokenRepo    port.RefreshTokenRepository
-	achievementExRepo   port.AchievementRepositoryEx
-	inviteCodeRepo      port.InviteCodeRepository
-	userHealthRepo      port.UserHealthConditionRepository
-	userBodyCompRepo    port.UserBodyCompositionRepository
-	userMenstrualRepo   port.UserMenstrualRepository
-	log                 *logger.Logger
-	tokenProvider       ports.TokenProvider
-	emailSender         email.EmailSender
-	baseURL             string
-	googleClientID      string
-	totpService         *totp.Service
+	db                *sql.DB
+	userSvc           service.UserService
+	userRepo          *postgres.PgsodiumUserRepository
+	profileRepo       port.ProfileRepository
+	emailVerifRepo    port.EmailVerificationRepository
+	refreshTokenRepo  port.RefreshTokenRepository
+	achievementExRepo port.AchievementRepositoryEx
+	inviteCodeRepo    port.InviteCodeRepository
+	userHealthRepo    port.UserHealthConditionRepository
+	userBodyCompRepo  port.UserBodyCompositionRepository
+	userMenstrualRepo port.UserMenstrualRepository
+	log               *logger.Logger
+	tokenProvider     ports.TokenProvider
+	emailSender       email.EmailSender
+	baseURL           string
+	googleClientID    string
+	totpService       *totp.Service
 }
 
 const (
-	argon2idParams             = "m=65536,t=3,p=1"
-	dateFormat                 = "2006-01-02"
+	argon2idParams = "m=65536,t=3,p=1"
+	dateFormat     = "2006-01-02"
 
 	logFailedToGenerateNonce = "Failed to generate nonce"
 	errFailedToGenerateNonce = "failed to generate nonce"
@@ -102,7 +100,7 @@ const (
 	sqlSelectPrefix          = "SELECT "
 	sqlCommaNewlinePrefix    = ",\n               "
 	errFailedToValidateTOTP  = "failed to validate TOTP code"
-	errFailedToListDevices    = "failed to list devices"
+	errFailedToListDevices   = "failed to list devices"
 )
 
 func hashPasswordArgon2id(password string) (string, error) {
@@ -203,7 +201,7 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 		ID:           userID,
 		Email:        email,
 		PasswordHash: string(hashed),
-		FullName:      fullName,
+		FullName:     fullName,
 		Role:         req.Role,
 	}
 	if err := s.userRepo.Create(ctx, user); err != nil {
@@ -491,13 +489,13 @@ func (s *userServer) GetUserByEmail(ctx context.Context, req *pb.GetUserByEmailR
 	}
 
 	profile := &pb.UserProfile{
-		UserId:       user.ID,
-		Email:        user.Email,
-		FullName:     user.FullName,
-		Nickname:     user.Nickname,
-		Role:         user.Role,
-		CreatedAt:    user.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:    user.UpdatedAt.Format(time.RFC3339),
+		UserId:    user.ID,
+		Email:     user.Email,
+		FullName:  user.FullName,
+		Nickname:  user.Nickname,
+		Role:      user.Role,
+		CreatedAt: user.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: user.UpdatedAt.Format(time.RFC3339),
 	}
 
 	return profile, nil
@@ -1317,17 +1315,17 @@ func (s *userServer) CreateBodyComposition(ctx context.Context, req *pb.CreateBo
 		return nil, status.Error(codes.InvalidArgument, "user_id and weight_kg are required")
 	}
 	bc := &port.UserBodyComposition{
-		UserID:                 req.UserId,
-		WeightKG:               req.WeightKg,
-		HeightCM:               float64(req.HeightCm),
-		BMI:                    req.Bmi,
-		BodyFatPercentage:      float64Ptr(req.BodyFatPercentage),
-		MuscleMassPercentage:   float64Ptr(req.MuscleMassPercentage),
-		BoneMassPercentage:     float64Ptr(req.BoneMassPercentage),
-		WaterPercentage:        float64Ptr(req.WaterPercentage),
-		VisceralFatRating:      float64Ptr(float64(req.VisceralFatRating)),
-		MetabolicAge:           float64Ptr(float64(req.MetabolicAge)),
-		Source:                 req.Source,
+		UserID:               req.UserId,
+		WeightKG:             req.WeightKg,
+		HeightCM:             float64(req.HeightCm),
+		BMI:                  req.Bmi,
+		BodyFatPercentage:    float64Ptr(req.BodyFatPercentage),
+		MuscleMassPercentage: float64Ptr(req.MuscleMassPercentage),
+		BoneMassPercentage:   float64Ptr(req.BoneMassPercentage),
+		WaterPercentage:      float64Ptr(req.WaterPercentage),
+		VisceralFatRating:    float64Ptr(float64(req.VisceralFatRating)),
+		MetabolicAge:         float64Ptr(float64(req.MetabolicAge)),
+		Source:               req.Source,
 	}
 	if req.RecordedAt != "" {
 		t, parseErr := time.Parse(time.RFC3339, req.RecordedAt)
@@ -1701,44 +1699,44 @@ func (s *userServer) AdminRevokeInvite(ctx context.Context, req *pb.AdminRevokeI
 }
 
 type userServerConfig struct {
-	database           *sql.DB
-	log                *logger.Logger
-	tokenProvider      ports.TokenProvider
-	baseURL            string
-	googleClientID     string
-	emailSender        email.EmailSender
-	totpService        *totp.Service
-	userSvc            service.UserService
-	userRepo           *postgres.PgsodiumUserRepository
-	profileRepo        port.ProfileRepository
-	emailVerifRepo     port.EmailVerificationRepository
-	refreshTokenRepo   port.RefreshTokenRepository
-	achievementExRepo  port.AchievementRepositoryEx
-	inviteCodeRepo     port.InviteCodeRepository
-	userHealthRepo     port.UserHealthConditionRepository
-	userBodyCompRepo   port.UserBodyCompositionRepository
-	userMenstrualRepo  port.UserMenstrualRepository
+	database          *sql.DB
+	log               *logger.Logger
+	tokenProvider     ports.TokenProvider
+	baseURL           string
+	googleClientID    string
+	emailSender       email.EmailSender
+	totpService       *totp.Service
+	userSvc           service.UserService
+	userRepo          *postgres.PgsodiumUserRepository
+	profileRepo       port.ProfileRepository
+	emailVerifRepo    port.EmailVerificationRepository
+	refreshTokenRepo  port.RefreshTokenRepository
+	achievementExRepo port.AchievementRepositoryEx
+	inviteCodeRepo    port.InviteCodeRepository
+	userHealthRepo    port.UserHealthConditionRepository
+	userBodyCompRepo  port.UserBodyCompositionRepository
+	userMenstrualRepo port.UserMenstrualRepository
 }
 
 func buildUserServer(cfg userServerConfig) *userServer {
 	return &userServer{
-		db:                  cfg.database,
-		userSvc:             cfg.userSvc,
-		userRepo:            cfg.userRepo,
-		profileRepo:         cfg.profileRepo,
-		emailVerifRepo:      cfg.emailVerifRepo,
-		refreshTokenRepo:    cfg.refreshTokenRepo,
-		achievementExRepo:   cfg.achievementExRepo,
-		inviteCodeRepo:      cfg.inviteCodeRepo,
-		userHealthRepo:      cfg.userHealthRepo,
-		userBodyCompRepo:    cfg.userBodyCompRepo,
-		userMenstrualRepo:   cfg.userMenstrualRepo,
-		log:                 cfg.log,
-		tokenProvider:       cfg.tokenProvider,
-		emailSender:         cfg.emailSender,
-		baseURL:             cfg.baseURL,
-		googleClientID:      cfg.googleClientID,
-		totpService:         cfg.totpService,
+		db:                cfg.database,
+		userSvc:           cfg.userSvc,
+		userRepo:          cfg.userRepo,
+		profileRepo:       cfg.profileRepo,
+		emailVerifRepo:    cfg.emailVerifRepo,
+		refreshTokenRepo:  cfg.refreshTokenRepo,
+		achievementExRepo: cfg.achievementExRepo,
+		inviteCodeRepo:    cfg.inviteCodeRepo,
+		userHealthRepo:    cfg.userHealthRepo,
+		userBodyCompRepo:  cfg.userBodyCompRepo,
+		userMenstrualRepo: cfg.userMenstrualRepo,
+		log:               cfg.log,
+		tokenProvider:     cfg.tokenProvider,
+		emailSender:       cfg.emailSender,
+		baseURL:           cfg.baseURL,
+		googleClientID:    cfg.googleClientID,
+		totpService:       cfg.totpService,
 	}
 }
 
@@ -1843,23 +1841,23 @@ func initializeUserService(ctx context.Context, log *logger.Logger, database *sq
 	})
 
 	svc := buildUserServer(userServerConfig{
-		database:           database,
-		log:                log,
-		tokenProvider:      tokenProvider,
-		baseURL:            baseURL,
-		googleClientID:     googleClientID,
-		emailSender:        emailSender,
-		totpService:        totp.NewService(totpEncryptor),
-		userSvc:            userSvc,
-		userRepo:           userRepo,
-		profileRepo:        profileRepo,
-		emailVerifRepo:     emailVerifRepo,
-		refreshTokenRepo:   refreshTokenRepo,
-		achievementExRepo:  achievementExRepo,
-		inviteCodeRepo:     inviteCodeRepo,
-		userHealthRepo:     userHealthRepo,
-		userBodyCompRepo:   userBodyCompRepo,
-		userMenstrualRepo:  userMenstrualRepo,
+		database:          database,
+		log:               log,
+		tokenProvider:     tokenProvider,
+		baseURL:           baseURL,
+		googleClientID:    googleClientID,
+		emailSender:       emailSender,
+		totpService:       totp.NewService(totpEncryptor),
+		userSvc:           userSvc,
+		userRepo:          userRepo,
+		profileRepo:       profileRepo,
+		emailVerifRepo:    emailVerifRepo,
+		refreshTokenRepo:  refreshTokenRepo,
+		achievementExRepo: achievementExRepo,
+		inviteCodeRepo:    inviteCodeRepo,
+		userHealthRepo:    userHealthRepo,
+		userBodyCompRepo:  userBodyCompRepo,
+		userMenstrualRepo: userMenstrualRepo,
 	})
 	if err := ensurePgsodiumKey(ctx, database, log); err != nil {
 		log.Fatal("Failed to initialize pgsodium keyring", zap.Error(err))

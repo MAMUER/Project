@@ -33,7 +33,7 @@ import (
 const (
 	totpRateLimitAttempts = 5
 
-	errUnauthorized            = "Unauthorized access"
+	errUnauthorized             = "Unauthorized access"
 	errGoogleOAuthNotConfigured = "Google OAuth not configured"
 	errCriticalSessionRequired  = "Critical session required"
 	errTOTPRateLimitExceeded    = "TOTP rate limit exceeded"

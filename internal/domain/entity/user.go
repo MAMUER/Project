@@ -82,24 +82,24 @@ type Achievement struct {
 }
 
 type PlanWeek struct {
-	ID                    string
-	TrainingPlanID        string
-	WeekNumber            int32
-	TotalTrainingDays     int32
-	TotalDurationMinutes  int32
-	Days                  []*PlanDay
+	ID                   string
+	TrainingPlanID       string
+	WeekNumber           int32
+	TotalTrainingDays    int32
+	TotalDurationMinutes int32
+	Days                 []*PlanDay
 }
 
 type PlanDay struct {
-	ID                    string
-	WeekID                string
-	DayOfWeek             int32
-	TrainingDate          time.Time
-	TrainingType          string
-	IsRestDay             bool
-	TotalDurationMinutes  int32
-	Notes                 string
-	Exercises             []*PlanExercise
+	ID                   string
+	WeekID               string
+	DayOfWeek            int32
+	TrainingDate         time.Time
+	TrainingType         string
+	IsRestDay            bool
+	TotalDurationMinutes int32
+	Notes                string
+	Exercises            []*PlanExercise
 }
 
 type PlanExercise struct {
@@ -116,13 +116,13 @@ type PlanExercise struct {
 }
 
 type Device struct {
-	ID         string
-	UserID     string
-	DeviceType string
-	DeviceName string
-	Token      string
+	ID          string
+	UserID      string
+	DeviceType  string
+	DeviceName  string
+	Token       string
 	IsConnected bool
-	LastSync   time.Time
+	LastSync    time.Time
 }
 
 type EmailVerification struct {
@@ -159,20 +159,20 @@ type UserHealthCondition struct {
 }
 
 type UserBodyComposition struct {
-	ID                    string
-	UserID                string
-	RecordedAt            time.Time
-	WeightKG              float64
-	HeightCM              float64
-	BMI                   float64
-	BodyFatPercentage     *float64
-	MuscleMassPercentage  *float64
-	BoneMassPercentage    *float64
-	WaterPercentage       *float64
-	VisceralFatRating     *float64
-	MetabolicAge          *float64
-	Source                string
-	CreatedAt             time.Time
+	ID                   string
+	UserID               string
+	RecordedAt           time.Time
+	WeightKG             float64
+	HeightCM             float64
+	BMI                  float64
+	BodyFatPercentage    *float64
+	MuscleMassPercentage *float64
+	BoneMassPercentage   *float64
+	WaterPercentage      *float64
+	VisceralFatRating    *float64
+	MetabolicAge         *float64
+	Source               string
+	CreatedAt            time.Time
 }
 
 type MenstrualSymptom struct {
