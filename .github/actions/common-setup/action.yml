@@ -1,0 +1,15 @@
+name: "Common Setup"
+description: "Checkout repository and configure git"
+inputs:
+  fetch-depth:
+    description: "Fetch depth for checkout"
+    required: false
+    default: "0"
+runs:
+  using: "composite"
+  steps:
+    - run: git config --global init.defaultBranch main
+      shell: bash
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        fetch-depth: ${{ inputs.fetch-depth }}
