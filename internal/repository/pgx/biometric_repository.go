@@ -2,21 +2,21 @@ package pgx
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"time"
 
 	"github.com/MAMUER/project/internal/apperrors"
 	"github.com/MAMUER/project/internal/domain/entity"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// BiometricRepositoryPGX implements biometric operations using database/sql for now.
-// This is a bridge to allow gradual migration to pgx.
+// BiometricRepositoryPGX implements biometric operations using pgxpool.Pool.
 type BiometricRepositoryPGX struct {
-	db *sql.DB
+	db *pgxpool.Pool
 }
 
-func NewBiometricRepositoryPGX(db *sql.DB) *BiometricRepositoryPGX {
+func NewBiometricRepositoryPGX(db *pgxpool.Pool) *BiometricRepositoryPGX {
 	return &BiometricRepositoryPGX{db: db}
 }
 
@@ -27,7 +27,7 @@ func (r *BiometricRepositoryPGX) Create(ctx context.Context, record *entity.Biom
 		ON CONFLICT (user_id, metric_type, timestamp, source) DO UPDATE SET id = biometric_data.id
 		RETURNING id
 	`
-	err := r.db.QueryRowContext(ctx, query,
+	err := r.db.QueryRow(ctx, query,
 		record.ID, record.UserID, record.MetricType, record.Value, record.Timestamp, record.DeviceType, record.Source,
 	).Scan(&record.ID)
 	if err != nil {
@@ -37,11 +37,11 @@ func (r *BiometricRepositoryPGX) Create(ctx context.Context, record *entity.Biom
 }
 
 func (r *BiometricRepositoryPGX) BatchCreate(ctx context.Context, records []*entity.BiometricRecord) (int, error) {
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return 0, apperrors.Internal("failed to begin transaction", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	query := `
 		INSERT INTO biometric_data (id, user_id, metric_type, value, timestamp, device_type, source, created_at)
@@ -55,18 +55,18 @@ func (r *BiometricRepositoryPGX) BatchCreate(ctx context.Context, records []*ent
 			return 0, apperrors.Internal("request canceled", ctx.Err())
 		}
 
-		result, err := tx.ExecContext(ctx, query,
+		result, err := tx.Exec(ctx, query,
 			rec.ID, rec.UserID, rec.MetricType, rec.Value, rec.Timestamp, rec.DeviceType, rec.Source,
 		)
 		if err != nil {
 			return 0, apperrors.Internal("failed to insert biometric record", err)
 		}
-		if n, _ := result.RowsAffected(); n > 0 {
+		if n := result.RowsAffected(); n > 0 {
 			inserted++
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return 0, apperrors.Internal("failed to commit transaction", err)
 	}
 	return inserted, nil
@@ -96,7 +96,7 @@ func (r *BiometricRepositoryPGX) GetByUserID(ctx context.Context, userID, metric
 		args = append(args, offset)
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.db.Query(ctx, query, args...)
 	if err != nil {
 		return nil, apperrors.Internal("failed to get biometric records", err)
 	}
@@ -128,12 +128,12 @@ func (r *BiometricRepositoryPGX) GetLatest(ctx context.Context, userID, metricTy
 		LIMIT 1
 	`
 	record := &entity.BiometricRecord{}
-	err := r.db.QueryRowContext(ctx, query, userID, metricType).Scan(
+	err := r.db.QueryRow(ctx, query, userID, metricType).Scan(
 		&record.ID, &record.UserID, &record.MetricType, &record.Value,
 		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			return nil, apperrors.NotFound("no records found")
 		}
 		return nil, apperrors.Internal("failed to get latest biometric record", err)
@@ -148,14 +148,14 @@ func (r *BiometricRepositoryPGX) Update(ctx context.Context, record *entity.Biom
 		WHERE id = $4
 		RETURNING id, user_id, metric_type, value, timestamp, device_type, source, created_at
 	`
-	err := r.db.QueryRowContext(ctx, query,
+	err := r.db.QueryRow(ctx, query,
 		record.Value, record.Timestamp, record.DeviceType, record.ID,
 	).Scan(
 		&record.ID, &record.UserID, &record.MetricType, &record.Value,
 		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			return nil, apperrors.NotFound("record not found")
 		}
 		return nil, apperrors.Internal("failed to update biometric record", err)
@@ -164,8 +164,7 @@ func (r *BiometricRepositoryPGX) Update(ctx context.Context, record *entity.Biom
 }
 
 func (r *BiometricRepositoryPGX) Delete(ctx context.Context, id string) error {
-	query := `DELETE FROM biometric_data WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, id)
+	_, err := r.db.Exec(ctx, `DELETE FROM biometric_data WHERE id = $1`, id)
 	if err != nil {
 		return apperrors.Internal("failed to delete biometric record", err)
 	}
@@ -178,12 +177,12 @@ func (r *BiometricRepositoryPGX) GetByID(ctx context.Context, id string) (*entit
 		FROM biometric_data WHERE id = $1
 	`
 	record := &entity.BiometricRecord{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
+	err := r.db.QueryRow(ctx, query, id).Scan(
 		&record.ID, &record.UserID, &record.MetricType, &record.Value,
 		&record.Timestamp, &record.DeviceType, &record.Source, &record.CreatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == pgx.ErrNoRows {
 			return nil, apperrors.NotFound("record not found")
 		}
 		return nil, apperrors.Internal("failed to get biometric record", err)
@@ -193,8 +192,7 @@ func (r *BiometricRepositoryPGX) GetByID(ctx context.Context, id string) (*entit
 
 func (r *BiometricRepositoryPGX) CountByUser(ctx context.Context, userID string) (int, error) {
 	var count int
-	query := `SELECT COUNT(*) FROM biometric_data WHERE user_id = $1`
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM biometric_data WHERE user_id = $1`, userID).Scan(&count)
 	if err != nil {
 		return 0, apperrors.Internal("failed to count biometric records", err)
 	}
@@ -202,12 +200,11 @@ func (r *BiometricRepositoryPGX) CountByUser(ctx context.Context, userID string)
 }
 
 func (r *BiometricRepositoryPGX) DeleteByUser(ctx context.Context, userID string) (int64, error) {
-	query := `DELETE FROM biometric_data WHERE user_id = $1`
-	result, err := r.db.ExecContext(ctx, query, userID)
+	result, err := r.db.Exec(ctx, `DELETE FROM biometric_data WHERE user_id = $1`, userID)
 	if err != nil {
 		return 0, apperrors.Internal("failed to delete biometric records", err)
 	}
-	return result.RowsAffected()
+	return result.RowsAffected(), nil
 }
 
 func (r *BiometricRepositoryPGX) GetMetricsSummary(ctx context.Context, userID string) (map[string]interface{}, error) {
@@ -217,7 +214,7 @@ func (r *BiometricRepositoryPGX) GetMetricsSummary(ctx context.Context, userID s
 		WHERE user_id = $1
 		GROUP BY metric_type
 	`
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, apperrors.Internal("failed to get metrics summary", err)
 	}

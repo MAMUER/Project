@@ -81,6 +81,40 @@ type Achievement struct {
 	EarnedAt    time.Time
 }
 
+type PlanWeek struct {
+	ID                    string
+	TrainingPlanID        string
+	WeekNumber            int32
+	TotalTrainingDays     int32
+	TotalDurationMinutes  int32
+	Days                  []*PlanDay
+}
+
+type PlanDay struct {
+	ID                    string
+	WeekID                string
+	DayOfWeek             int32
+	TrainingDate          time.Time
+	TrainingType          string
+	IsRestDay             bool
+	TotalDurationMinutes  int32
+	Notes                 string
+	Exercises             []*PlanExercise
+}
+
+type PlanExercise struct {
+	ID              string
+	DayID           string
+	ExerciseName    string
+	DurationMinutes int32
+	Intensity       float64
+	Sets            int32
+	Reps            int32
+	RestSeconds     int32
+	Description     string
+	SortOrder       int32
+}
+
 type Device struct {
 	ID         string
 	UserID     string
@@ -89,4 +123,88 @@ type Device struct {
 	Token      string
 	IsConnected bool
 	LastSync   time.Time
+}
+
+type EmailVerification struct {
+	ID        string
+	UserID    string
+	Email     string
+	EmailHash string
+	Token     string
+	Used      bool
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+type RefreshToken struct {
+	ID        string
+	UserID    string
+	Token     string
+	Used      bool
+	ExpiresAt time.Time
+	CreatedAt time.Time
+}
+
+type UserHealthCondition struct {
+	ID            string
+	UserID        string
+	ConditionType string
+	ConditionName string
+	Severity      string
+	DiagnosedAt   *time.Time
+	IsActive      bool
+	Notes         *string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
+type UserBodyComposition struct {
+	ID                    string
+	UserID                string
+	RecordedAt            time.Time
+	WeightKG              float64
+	HeightCM              float64
+	BMI                   float64
+	BodyFatPercentage     *float64
+	MuscleMassPercentage  *float64
+	BoneMassPercentage    *float64
+	WaterPercentage       *float64
+	VisceralFatRating     *float64
+	MetabolicAge          *float64
+	Source                string
+	CreatedAt             time.Time
+}
+
+type MenstrualSymptom struct {
+	ID      string
+	CycleID string
+	Symptom string
+}
+
+type MenstrualMood struct {
+	ID      string
+	CycleID string
+	Mood    string
+}
+
+type UserMenstrualCycle struct {
+	ID             string
+	UserID         string
+	CycleStartDate string
+	CycleEndDate   string
+	FlowIntensity  string
+	Notes          string
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+}
+
+type InviteCode struct {
+	Code      string
+	Role      string
+	Specialty *string
+	MaxUses   int
+	UsedCount int
+	IsActive  bool
+	CreatedBy string
+	CreatedAt time.Time
 }

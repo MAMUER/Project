@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -36,7 +37,8 @@ import (
 	"github.com/MAMUER/project/internal/telemetry"
 	"github.com/MAMUER/project/internal/validator"
 	"github.com/MAMUER/project/internal/domain/service"
-	"github.com/MAMUER/project/internal/repository/postgres"
+	_ "github.com/MAMUER/project/internal/repository/postgres"
+	"github.com/MAMUER/project/internal/repository/pgx"
 )
 
 const personalizedPlanName = "Персонализированная программа"
@@ -1164,7 +1166,17 @@ func main() {
 		}
 	}()
 
-	trainingRepo := postgres.NewTrainingRepository(database)
+	var pgxPool *pgxpool.Pool
+	var err error
+	pgxPool, err = db.NewPgxPool(dbCfg)
+	if err != nil {
+		log.Fatal("Failed to connect to pgx pool", zap.Error(err))
+	}
+	defer func() {
+		pgxPool.Close()
+	}()
+
+	trainingRepo := pgx.NewTrainingRepositoryPGX(pgxPool)
 	trainingSvc := service.NewTrainingService(trainingRepo)
 
 	rabbitURL := config.GetEnv("RABBITMQ_URL")

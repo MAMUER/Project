@@ -21,6 +21,7 @@ import (
 	pb "github.com/MAMUER/project/api/gen/user"
 	"github.com/MAMUER/project/internal/auth/jwt"
 	"github.com/MAMUER/project/internal/logger"
+	"github.com/MAMUER/project/internal/repository/postgres"
 )
 
 func setupUserService(db *sql.DB) *userServer {
@@ -30,6 +31,7 @@ func setupUserService(db *sql.DB) *userServer {
 	privateKeyPEM := string(pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privateKeyBytes}))
 	return &userServer{
 		db:            db,
+		userRepo:     postgres.NewPgsodiumUserRepository(db),
 		log:           &logger.Logger{Logger: zapLog},
 		tokenProvider: jwt.NewJWTAdapter(privateKeyPEM, ""),
 	}

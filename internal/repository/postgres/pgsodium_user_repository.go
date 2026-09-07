@@ -41,6 +41,14 @@ const (
 	errDatabaseCheckToken               = "database error checking verification token"
 	errDatabaseDuringLogin              = "database error during login"
 	errDatabaseGetProfile               = "database error getting profile"
+	errFailedToGetPasswordHash          = "failed to get password hash"
+	errFailedToCheckNickname            = "failed to check nickname"
+	errFailedToUpdateProfilePhoto       = "failed to update profile photo"
+	errFailedToGetTOTPState             = "failed to get TOTP state"
+	errFailedToEnableTOTP               = "failed to enable TOTP"
+	errFailedToDisableTOTP              = "failed to disable TOTP"
+	errFailedToRemoveBackupCode         = "failed to remove backup code"
+	errFailedToDeleteProfile            = "failed to delete profile"
 	sqlSelectPrefix                     = "SELECT "
 	sqlUsersByIDPrefix                  = "SELECT id, email_hash, password_hash, full_name_hash, role, email_verified, created_at, updated_at FROM users WHERE id = $1"
 	sqlUsersByEmailHashPrefix           = "SELECT id, email_hash, password_hash, full_name_hash, role, email_verified, created_at, updated_at FROM users WHERE email_hash = $1"
@@ -161,6 +169,35 @@ func (r *PgsodiumUserRepository) GetByEmail(ctx context.Context, email string) (
 	}
 	if err != nil {
 		return nil, apperrors.Internal(errFailedToGetUser+" by email", err)
+	}
+
+	if db.PgsodiumKeyID() > 0 {
+		var emailVal string
+		emailQuery := strings.Builder{}
+		emailQuery.WriteString(sqlSelectPrefix)
+		emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
+		emailQuery.WriteString(sqlFromUsersByID)
+		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&emailVal); err != nil {
+			return nil, apperrors.Internal(errFailedToDecryptEmail, err)
+		}
+		user.Email = emailVal
+	}
+
+	return &user, nil
+}
+
+func (r *PgsodiumUserRepository) GetByEmailHash(ctx context.Context, emailHash string) (*entity.User, error) {
+	var user entity.User
+	var fullNameHash string
+	err := r.db.QueryRowContext(ctx, sqlUsersByEmailHashPrefix, emailHash).Scan(
+		&user.ID, &user.Email, &user.PasswordHash, &fullNameHash,
+		&user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, apperrors.NotFound(errUserNotFound)
+	}
+	if err != nil {
+		return nil, apperrors.Internal(errFailedToGetUser+" by email hash", err)
 	}
 
 	if db.PgsodiumKeyID() > 0 {
@@ -609,4 +646,279 @@ func buildGoogleUserInsertQuery(p googleUserInsertData) (string, []interface{}) 
 	b.WriteString("'client', 'google', $11, true, NOW(), NOW())")
 	args := []interface{}{p.userID, p.emailVal, p.emailNonce, p.emailNonce, p.emailHash, "", p.nickname, p.nicknameNonce, p.nicknameNonce, p.nicknameHash, p.googleSub}
 	return b.String(), args
+}
+
+func (r *PgsodiumUserRepository) GetPasswordHash(ctx context.Context, userID string) (string, error) {
+	var passwordHash string
+	err := r.db.QueryRowContext(ctx, "SELECT password_hash FROM users WHERE id = $1", userID).Scan(&passwordHash)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", apperrors.NotFound(errUserNotFound)
+	}
+	if err != nil {
+		return "", apperrors.Internal(errFailedToGetPasswordHash, err)
+	}
+	return passwordHash, nil
+}
+
+func (r *PgsodiumUserRepository) NicknameExists(ctx context.Context, nickname string, excludeUserID string) (bool, error) {
+	var exists bool
+	err := r.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE nickname = $1 AND id != $2)", nickname, excludeUserID).Scan(&exists)
+	if err != nil {
+		return false, apperrors.Internal(errFailedToCheckNickname, err)
+	}
+	return exists, nil
+}
+
+func (r *PgsodiumUserRepository) FindGoogleUser(ctx context.Context, googleSub string) (*entity.User, error) {
+	var user entity.User
+	var emailHash, fullNameHash string
+	err := r.db.QueryRowContext(ctx, "SELECT id, email_hash, password_hash, full_name_hash, role, email_confirmed, created_at, updated_at FROM users WHERE provider = 'google' AND external_id = $1", googleSub).Scan(
+		&user.ID, &emailHash, &user.PasswordHash, &fullNameHash, &user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, apperrors.NotFound(errUserNotFound)
+	}
+	if err != nil {
+		return nil, apperrors.Internal("failed to find Google user", err)
+	}
+	if db.PgsodiumKeyID() > 0 {
+		var email, fullName string
+		emailQuery := strings.Builder{}
+		emailQuery.WriteString(sqlSelectPrefix)
+		emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
+		emailQuery.WriteString(sqlFromUsersByID)
+		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&email); err != nil {
+			return nil, apperrors.Internal(errFailedToDecryptEmail, err)
+		}
+		fullNameQuery := strings.Builder{}
+		fullNameQuery.WriteString(sqlSelectPrefix)
+		fullNameQuery.WriteString(db.PgsodiumDecryptParam("full_name_encrypted", "full_name_nonce", "full_name"))
+		fullNameQuery.WriteString(sqlFromUsersByID)
+		if err := r.db.QueryRowContext(ctx, fullNameQuery.String(), user.ID).Scan(&fullName); err != nil {
+			return nil, apperrors.Internal(errFailedToDecryptFullName, err)
+		}
+		user.Email = email
+		user.FullName = fullName
+	}
+	return &user, nil
+}
+
+func (r *PgsodiumUserRepository) LinkGoogleAccount(ctx context.Context, googleSub, userID string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users SET provider = 'google', external_id = $1, email_confirmed = true, updated_at = NOW()
+		WHERE id = $2
+	`, googleSub, userID)
+	if err != nil {
+		return apperrors.Internal("failed to link Google account", err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) MarkEmailVerified(ctx context.Context, userID string) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE users SET email_verified = true, updated_at = NOW() WHERE id = $1", userID)
+	if err != nil {
+		return apperrors.Internal("failed to mark email as verified", err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) CreateUserProfile(ctx context.Context, userID string) error {
+	_, err := r.db.ExecContext(ctx, `INSERT INTO user_profiles (user_id) VALUES ($1)`, userID)
+	if err != nil {
+		return apperrors.Internal("failed to create user profile", err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) UpsertUserProfile(ctx context.Context, userID string, age int32, gender string, heightCm int32, weightKg float64, fitnessLevel string, nutrition string, sleepHours float32) error {
+	query := `
+		INSERT INTO user_profiles (user_id, age, gender, height_cm, weight_kg, fitness_level, nutrition, sleep_hours, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+		ON CONFLICT (user_id) DO UPDATE SET
+			age = COALESCE(EXCLUDED.age, user_profiles.age),
+			gender = COALESCE(EXCLUDED.gender, user_profiles.gender),
+			height_cm = COALESCE(EXCLUDED.height_cm, user_profiles.height_cm),
+			weight_kg = COALESCE(EXCLUDED.weight_kg, user_profiles.weight_kg),
+			fitness_level = COALESCE(EXCLUDED.fitness_level, user_profiles.fitness_level),
+			nutrition = COALESCE(EXCLUDED.nutrition, user_profiles.nutrition),
+			sleep_hours = COALESCE(EXCLUDED.sleep_hours, user_profiles.sleep_hours),
+			updated_at = NOW()
+	`
+	_, err := r.db.ExecContext(ctx, query, userID, age, gender, heightCm, weightKg, fitnessLevel, nutrition, sleepHours)
+	if err != nil {
+		return apperrors.Internal("failed to upsert user profile", err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) GetUserRole(ctx context.Context, userID string) (string, error) {
+	var role string
+	err := r.db.QueryRowContext(ctx, "SELECT role FROM users WHERE id = $1", userID).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", apperrors.NotFound(errUserNotFound)
+	}
+	if err != nil {
+		return "", apperrors.Internal("failed to get user role", err)
+	}
+	return role, nil
+}
+
+func (r *PgsodiumUserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2", passwordHash, userID)
+	if err != nil {
+		return apperrors.Internal("failed to update password", err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) UpdateProfilePhoto(ctx context.Context, userID, photoURL string) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE users SET profile_photo_url = $1, updated_at = NOW() WHERE id = $2", photoURL, userID)
+	if err != nil {
+		return apperrors.Internal(errFailedToUpdateProfilePhoto, err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) RemoveProfilePhoto(ctx context.Context, userID string) error {
+	_, err := r.db.ExecContext(ctx, "UPDATE users SET profile_photo_url = NULL, updated_at = NOW() WHERE id = $1", userID)
+	if err != nil {
+		return apperrors.Internal(errFailedToUpdateProfilePhoto, err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) GetTOTPState(ctx context.Context, userID string) ([]byte, bool, []string, int32, error) {
+	var encryptedSecret []byte
+	var totpEnabled bool
+	var backupCodesHash []string
+	var backupCodesRemaining int32
+	err := r.db.QueryRowContext(ctx, `
+		SELECT totp_secret_encrypted, totp_enabled, totp_backup_codes_hash, totp_backup_codes_remaining
+		FROM users WHERE id = $1
+	`, userID).Scan(&encryptedSecret, &totpEnabled, pq.Array(&backupCodesHash), &backupCodesRemaining)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, false, nil, 0, apperrors.NotFound(errUserNotFound)
+	}
+	if err != nil {
+		return nil, false, nil, 0, apperrors.Internal(errFailedToGetTOTPState, err)
+	}
+	return encryptedSecret, totpEnabled, backupCodesHash, backupCodesRemaining, nil
+}
+
+func (r *PgsodiumUserRepository) EnableTOTP(ctx context.Context, userID string, encryptedSecret []byte, hashedCodes []string, backupCodesRemaining int32) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users 
+		SET totp_secret_encrypted = $1, totp_enabled = true, totp_backup_codes_hash = $2, totp_backup_codes_remaining = $3, updated_at = NOW()
+		WHERE id = $4
+	`, encryptedSecret, pq.Array(hashedCodes), backupCodesRemaining, userID)
+	if err != nil {
+		return apperrors.Internal(errFailedToEnableTOTP, err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) RemoveBackupCode(ctx context.Context, userID string, codeHash string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users 
+		SET totp_backup_codes_hash = array_remove(totp_backup_codes_hash, $1),
+		    totp_backup_codes_remaining = GREATEST(totp_backup_codes_remaining - 1, 0)
+		WHERE id = $2
+	`, codeHash, userID)
+	if err != nil {
+		return apperrors.Internal(errFailedToRemoveBackupCode, err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) DisableTOTP(ctx context.Context, userID string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users 
+		SET totp_secret_encrypted = NULL, totp_enabled = false, 
+		    totp_backup_codes_hash = NULL, totp_backup_codes_remaining = 0, updated_at = NOW()
+		WHERE id = $1
+	`, userID)
+	if err != nil {
+		return apperrors.Internal(errFailedToDisableTOTP, err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) DeleteProfileData(ctx context.Context, userID string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE users SET
+			email_encrypted = NULL,
+			email_hash = NULL,
+			full_name_encrypted = NULL,
+			full_name_nonce = NULL,
+			full_name_hash = NULL,
+			nickname_encrypted = NULL,
+			nickname_nonce = NULL,
+			nickname_hash = NULL,
+			profile_photo_url = NULL,
+			password_hash = NULL,
+			email_confirmed = FALSE,
+			updated_at = NOW()
+		WHERE id = $1
+	`, userID)
+	if err != nil {
+		return apperrors.Internal(errFailedToDeleteProfile, err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) ReplaceUserGoals(ctx context.Context, userID string, goals []string) error {
+	if err := r.deleteListItems(ctx, userID, "user_goals"); err != nil {
+		return err
+	}
+	for _, goal := range goals {
+		if err := r.insertListItem(ctx, userID, "user_goals", "goal", goal); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) ReplaceUserContraindications(ctx context.Context, userID string, contraindications []string) error {
+	if err := r.deleteListItems(ctx, userID, "user_contraindications"); err != nil {
+		return err
+	}
+	for _, contra := range contraindications {
+		if err := r.insertListItem(ctx, userID, "user_contraindications", "contraindication", contra); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) deleteListItems(ctx context.Context, userID, tableName string) error {
+	_, err := r.db.ExecContext(ctx, fmt.Sprintf("DELETE FROM %s WHERE user_id = $1", tableName), userID)
+	if err != nil {
+		return apperrors.Internal("failed to delete list items", err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) insertListItem(ctx context.Context, userID, tableName, columnName, value string) error {
+	query := fmt.Sprintf("INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING", tableName, columnName)
+	_, err := r.db.ExecContext(ctx, query, userID, value)
+	if err != nil {
+		return apperrors.Internal("failed to insert list item", err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) DeleteHealthCondition(ctx context.Context, id, userID string) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM user_health_conditions WHERE id = $1 AND user_id = $2", id, userID)
+	if err != nil {
+		return apperrors.Internal("failed to delete health condition", err)
+	}
+	return nil
+}
+
+func (r *PgsodiumUserRepository) DeleteMenstrualCycle(ctx context.Context, id, userID string) error {
+	_, err := r.db.ExecContext(ctx, "DELETE FROM user_menstrual_cycles WHERE id = $1 AND user_id = $2", id, userID)
+	if err != nil {
+		return apperrors.Internal("failed to delete menstrual cycle", err)
+	}
+	return nil
 }

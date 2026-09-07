@@ -20,8 +20,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
 	"go.uber.org/zap"
 	"golang.org/x/crypto/argon2"
 	"google.golang.org/api/idtoken"
@@ -38,6 +38,7 @@ import (
 	"github.com/MAMUER/project/internal/auth/jwt"
 	"github.com/MAMUER/project/internal/config"
 	"github.com/MAMUER/project/internal/crypto"
+	"github.com/MAMUER/project/internal/domain/port"
 	"github.com/MAMUER/project/internal/db"
 	"github.com/MAMUER/project/internal/domain/entity"
 	"github.com/MAMUER/project/internal/domain/service"
@@ -63,15 +64,23 @@ type User struct {
 
 type userServer struct {
 	pb.UnimplementedUserServiceServer
-	db             *sql.DB
-	userSvc        service.UserService
-	userRepo       *postgres.PgsodiumUserRepository
-	log            *logger.Logger
-	tokenProvider  ports.TokenProvider
-	emailSender    email.EmailSender
-	baseURL        string
-	googleClientID string
-	totpService    *totp.Service
+	db                  *sql.DB
+	userSvc             service.UserService
+	userRepo            *postgres.PgsodiumUserRepository
+	profileRepo         port.ProfileRepository
+	emailVerifRepo      port.EmailVerificationRepository
+	refreshTokenRepo    port.RefreshTokenRepository
+	achievementExRepo   port.AchievementRepositoryEx
+	inviteCodeRepo      port.InviteCodeRepository
+	userHealthRepo      port.UserHealthConditionRepository
+	userBodyCompRepo    port.UserBodyCompositionRepository
+	userMenstrualRepo   port.UserMenstrualRepository
+	log                 *logger.Logger
+	tokenProvider       ports.TokenProvider
+	emailSender         email.EmailSender
+	baseURL             string
+	googleClientID      string
+	totpService         *totp.Service
 }
 
 const (
@@ -135,6 +144,27 @@ func toString(v *string) string {
 	return *v
 }
 
+func toInt32(v *int32) int32 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func toFloat64(v *float64) float64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func toFloat32(v *float32) float32 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
 func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
 	s.log.Info("Register request", zap.String("email", req.Email))
 
@@ -148,8 +178,9 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 	emailHash := db.EmailHash(email)
 
 	var exists bool
-	if queryErr := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE email_hash = $1)", emailHash).Scan(&exists); queryErr != nil {
-		s.log.Error("Database error checking user existence", zap.Error(queryErr))
+	exists, err := s.userRepo.ExistsByEmail(ctx, email)
+	if err != nil {
+		s.log.Error("Database error checking user existence", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 	if exists {
@@ -193,9 +224,9 @@ func (s *userServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb
 
 	sendVerificationEmailIfNeeded(ctx, s, email, verificationToken)
 
-	if _, profileErr := s.db.ExecContext(ctx, `INSERT INTO user_profiles (user_id) VALUES ($1)`, userID); profileErr != nil {
+	if err := s.profileRepo.CreateProfile(ctx, userID); err != nil {
 		s.log.Warn("Failed to create user profile, user will need to complete profile manually",
-			zap.Error(profileErr),
+			zap.Error(err),
 			zap.String("user_id", userID))
 	}
 
@@ -234,18 +265,12 @@ func (s *userServer) ConfirmEmail(ctx context.Context, req *pb.ConfirmEmailReque
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	_, err = s.db.ExecContext(ctx, `
-		UPDATE email_verifications SET used = true WHERE token = $1
-	`, req.Token)
-	if err != nil {
+	if err := s.emailVerifRepo.MarkUsed(ctx, req.Token); err != nil {
 		s.log.Error("Failed to update verification token", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to confirm email")
 	}
 
-	_, err = s.db.ExecContext(ctx, `
-		UPDATE users SET email_verified = true WHERE id = $1
-	`, userID)
-	if err != nil {
+	if err := s.emailVerifRepo.MarkUserEmailVerified(ctx, userID); err != nil {
 		s.log.Error("Failed to update user email_confirmed", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to confirm email")
 	}
@@ -370,31 +395,29 @@ func (s *userServer) findOrCreateGoogleUser(ctx context.Context, googleSub, emai
 }
 
 func (s *userServer) findGoogleUserBySub(ctx context.Context, googleSub string) (userID, role string, emailConfirmed bool, err error) {
-	err = s.db.QueryRowContext(ctx, `
-		SELECT id, role, email_confirmed FROM users WHERE provider = 'google' AND external_id = $1
-	`, googleSub).Scan(&userID, &role, &emailConfirmed)
+	user, err := s.userRepo.FindGoogleUser(ctx, googleSub)
 	if err == nil {
-		if !emailConfirmed {
-			_, _ = s.db.ExecContext(ctx, `UPDATE users SET email_confirmed = true, updated_at = NOW() WHERE id = $1`, userID)
+		if !user.EmailVerified {
+			if err := s.userRepo.MarkEmailVerified(ctx, user.ID); err != nil {
+				s.log.Warn("Failed to mark Google user email as confirmed", zap.Error(err), zap.String("user_id", user.ID))
+			} else {
+				emailConfirmed = true
+			}
+		} else {
 			emailConfirmed = true
 		}
-		return userID, role, emailConfirmed, nil
+		return user.ID, user.Role, emailConfirmed, nil
 	}
 	return "", "", false, err
 }
 
 func (s *userServer) linkGoogleToEmailUser(ctx context.Context, googleSub, emailHash string) (userID, role string, emailConfirmed bool, err error) {
-	err = s.db.QueryRowContext(ctx, `
-		SELECT id, role, email_confirmed FROM users WHERE email_hash = $1
-	`, emailHash).Scan(&userID, &role, &emailConfirmed)
+	user, err := s.userRepo.GetByEmailHash(ctx, emailHash)
 	if err == nil {
-		_, linkErr := s.db.ExecContext(ctx, `
-			UPDATE users SET provider = 'google', external_id = $1, email_confirmed = true, updated_at = NOW() WHERE id = $2
-		`, googleSub, userID)
-		if linkErr != nil {
-			s.log.Warn("Failed to link Google account", zap.Error(linkErr), zap.String("user_id", userID))
+		if linkErr := s.userRepo.LinkGoogleAccount(ctx, googleSub, user.ID); linkErr != nil {
+			s.log.Warn("Failed to link Google account", zap.Error(linkErr), zap.String("user_id", user.ID))
 		}
-		return userID, role, emailConfirmed, nil
+		return user.ID, user.Role, user.EmailVerified, nil
 	}
 	return "", "", false, err
 }
@@ -409,9 +432,8 @@ func (s *userServer) createGoogleUser(ctx context.Context, googleSub, emailHash,
 		return "", "", false, status.Error(codes.Internal, "failed to create user")
 	}
 
-	_, profileErr := s.db.ExecContext(ctx, `INSERT INTO user_profiles (user_id) VALUES ($1)`, userID)
-	if profileErr != nil {
-		s.log.Warn("Failed to create profile for OAuth user", zap.Error(profileErr), zap.String("user_id", userID))
+	if err := s.profileRepo.CreateProfile(ctx, userID); err != nil {
+		s.log.Warn("Failed to create profile for OAuth user", zap.Error(err), zap.String("user_id", userID))
 	}
 
 	return userID, role, emailConfirmed, nil
@@ -481,45 +503,43 @@ func (s *userServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenReque
 		return nil, status.Error(codes.InvalidArgument, "refresh_token is required")
 	}
 
-	var userID string
-	var expiresAt time.Time
-	err := s.db.QueryRowContext(ctx, `
-		SELECT user_id, expires_at FROM refresh_tokens WHERE token = $1 AND used = FALSE
-	`, req.RefreshToken).Scan(&userID, &expiresAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
-	}
+	rt, err := s.refreshTokenRepo.GetValid(ctx, req.RefreshToken)
 	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return nil, status.Error(codes.Unauthenticated, "invalid refresh token")
+		}
 		s.log.Error("Database error checking refresh token", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	if expiresAt.Before(time.Now()) {
+	if rt.ExpiresAt.Before(time.Now()) {
 		return nil, status.Error(codes.Unauthenticated, "refresh token expired")
 	}
 
-	_, err = s.db.ExecContext(ctx, `UPDATE refresh_tokens SET used = TRUE WHERE token = $1`, req.RefreshToken)
-	if err != nil {
+	if err := s.refreshTokenRepo.MarkUsed(ctx, req.RefreshToken); err != nil {
 		s.log.Error("Failed to mark refresh token as used", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	var email, role string
-	if err = s.db.QueryRowContext(ctx, `SELECT email, role FROM users WHERE id = $1`, userID).Scan(&email, &role); err != nil {
+	user, err := s.userRepo.GetByID(ctx, rt.UserID)
+	if err != nil {
 		s.log.Error("Failed to get user for refresh", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 
-	accessToken, err := s.tokenProvider.GenerateAccessToken(userID, email, role, 15*time.Minute)
+	accessToken, err := s.tokenProvider.GenerateAccessToken(user.ID, user.Email, user.Role, 15*time.Minute)
 	if err != nil {
 		s.log.Error("Failed to generate access token", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to generate access token")
 	}
 
 	newRefresh := s.tokenProvider.GenerateRefreshToken()
-	if _, err := s.db.ExecContext(ctx, `
-		INSERT INTO refresh_tokens (user_id, token, expires_at) VALUES ($1, $2, $3)
-	`, userID, newRefresh, time.Now().Add(7*24*time.Hour)); err != nil {
+	newRT := &port.RefreshToken{
+		UserID:    rt.UserID,
+		Token:     newRefresh,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	}
+	if err := s.refreshTokenRepo.Create(ctx, newRT); err != nil {
 		s.log.Error("Failed to store new refresh token", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
@@ -528,8 +548,8 @@ func (s *userServer) RefreshToken(ctx context.Context, req *pb.RefreshTokenReque
 		AccessToken:  accessToken,
 		TokenType:    "Bearer",
 		ExpiresIn:    900,
-		UserId:       userID,
-		Role:         role,
+		UserId:       user.ID,
+		Role:         user.Role,
 		RefreshToken: newRefresh,
 	}, nil
 }
@@ -548,7 +568,7 @@ func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReq
 	}
 
 	var userExists bool
-	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", req.UserId).Scan(&userExists)
+	userExists, err := s.profileRepo.UserExists(ctx, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to check user existence", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, errDatabaseError)
@@ -558,80 +578,23 @@ func (s *userServer) UpdateProfile(ctx context.Context, req *pb.UpdateProfileReq
 		return nil, status.Error(codes.NotFound, errUserNotFound)
 	}
 
-	profileQuery := `
-        INSERT INTO user_profiles (user_id, age, gender, height_cm, weight_kg, fitness_level, nutrition, sleep_hours, updated_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
-        ON CONFLICT (user_id) DO UPDATE SET
-            age = COALESCE(EXCLUDED.age, user_profiles.age),
-            gender = COALESCE(EXCLUDED.gender, user_profiles.gender),
-            height_cm = COALESCE(EXCLUDED.height_cm, user_profiles.height_cm),
-            weight_kg = COALESCE(EXCLUDED.weight_kg, user_profiles.weight_kg),
-            fitness_level = COALESCE(EXCLUDED.fitness_level, user_profiles.fitness_level),
-            nutrition = COALESCE(EXCLUDED.nutrition, user_profiles.nutrition),
-            sleep_hours = COALESCE(EXCLUDED.sleep_hours, user_profiles.sleep_hours),
-            updated_at = NOW()
-    `
-
-	_, err = s.db.ExecContext(ctx, profileQuery,
-		req.UserId,
-		req.Age, req.Gender, req.HeightCm, req.WeightKg, req.FitnessLevel,
-		req.Nutrition, req.SleepHours,
-	)
-	if err != nil {
+	if err := s.profileRepo.UpsertProfile(ctx, req.UserId,
+		toInt32(req.Age), toString(req.Gender), toInt32(req.HeightCm), toFloat64(req.WeightKg), toString(req.FitnessLevel),
+		toString(req.Nutrition), toFloat32(req.SleepHours),
+	); err != nil {
 		s.log.Error("Failed to update profile", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to update profile")
 	}
 
-	if err := s.updateUserList(ctx, req.UserId, "user_goals", "goal", req.Goals, "goals"); err != nil {
+	if err := s.userRepo.ReplaceUserGoals(ctx, req.UserId, req.Goals); err != nil {
 		return nil, err
 	}
 
-	if err := s.updateUserList(ctx, req.UserId, "user_contraindications", "contraindication", req.Contraindications, "contraindications"); err != nil {
+	if err := s.userRepo.ReplaceUserContraindications(ctx, req.UserId, req.Contraindications); err != nil {
 		return nil, err
 	}
 
 	return s.GetProfile(ctx, &pb.GetProfileRequest{UserId: req.UserId})
-}
-
-func (s *userServer) updateUserList(ctx context.Context, userID, tableName, columnName string, items []string, logMsg string) error {
-	if len(items) == 0 {
-		return nil
-	}
-	validTables := map[string]bool{
-		"user_goals":             true,
-		"user_contraindications": true,
-	}
-	validColumns := map[string]bool{
-		"goal":             true,
-		"contraindication": true,
-	}
-	if !validTables[tableName] || !validColumns[columnName] {
-		return status.Error(codes.Internal, "invalid table or column name")
-	}
-	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE user_id = $1`, tableName), userID) // NOSONAR go:S2077 - tableName validated against allow-list: user_goals, user_contraindications
-	if err != nil {
-		s.log.Error("Failed to delete old "+logMsg, zap.Error(err), zap.String("user_id", userID))
-		return status.Errorf(codes.Internal, "failed to update %s", logMsg)
-	}
-	for _, item := range items {
-		_, err = s.db.ExecContext(ctx, // NOSONAR go:S2077
-			fmt.Sprintf(`INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING`, tableName, columnName), // NOSONAR go:S2077 - tableName and columnName validated against allow-lists: user_goals/user_contraindications, goal/contraindication
-			userID, item)
-		if err != nil {
-			s.log.Error("Failed to insert "+logMsg, zap.Error(err), zap.String("user_id", userID))
-			return status.Errorf(codes.Internal, "failed to update %s", logMsg)
-		}
-	}
-	return nil
-}
-
-func (s *userServer) deleteRecord(ctx context.Context, tableName, idField, userID, recordID, logMsg string) error {
-	_, err := s.db.ExecContext(ctx, fmt.Sprintf(`DELETE FROM %s WHERE %s = $1 AND user_id = $2`, tableName, idField), recordID, userID) // NOSONAR go:S2077 - tableName and idField are validated constants, not user input
-	if err != nil {
-		s.log.Error("Failed to delete "+logMsg, zap.Error(err))
-		return status.Error(codes.Internal, errDatabaseError)
-	}
-	return nil
 }
 
 // ChangePassword changes the user's password after verifying the current one.
@@ -656,12 +619,11 @@ func (s *userServer) ChangePassword(ctx context.Context, req *pb.ChangePasswordR
 	}
 
 	// Fetch current password hash
-	var currentHash string
-	err := s.db.QueryRowContext(ctx, "SELECT password_hash FROM users WHERE id = $1", req.UserId).Scan(&currentHash)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, status.Error(codes.NotFound, errUserNotFound)
-	}
+	currentHash, err := s.userRepo.GetPasswordHash(ctx, req.UserId)
 	if err != nil {
+		if apperrors.IsNotFound(err) {
+			return nil, status.Error(codes.NotFound, errUserNotFound)
+		}
 		s.log.Error("Failed to fetch password hash", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
@@ -680,8 +642,7 @@ func (s *userServer) ChangePassword(ctx context.Context, req *pb.ChangePasswordR
 	}
 
 	// Update password
-	_, err = s.db.ExecContext(ctx, "UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2", string(newHash), req.UserId)
-	if err != nil {
+	if err := s.userRepo.UpdatePassword(ctx, req.UserId, string(newHash)); err != nil {
 		s.log.Error("Failed to update password", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to update password")
 	}
@@ -700,7 +661,8 @@ func (s *userServer) ChangeNickname(ctx context.Context, req *pb.ChangeNicknameR
 	}
 
 	var exists bool
-	err := s.db.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM users WHERE nickname = $1 AND id != $2)", req.NewNickname, req.UserId).Scan(&exists)
+	var err error
+	exists, err = s.userRepo.NicknameExists(ctx, req.NewNickname, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to check nickname uniqueness", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
@@ -744,8 +706,7 @@ func (s *userServer) UploadProfilePhoto(ctx context.Context, req *pb.UploadProfi
 	// For now, simulate by updating DB with URL
 	photoURL := s.baseURL + "/uploads/profile_photos/" + filename
 
-	_, err := s.db.ExecContext(ctx, "UPDATE users SET profile_photo_url = $1, updated_at = NOW() WHERE id = $2", photoURL, req.UserId)
-	if err != nil {
+	if err := s.userRepo.UpdateProfilePhoto(ctx, req.UserId, photoURL); err != nil {
 		s.log.Error("Failed to update profile photo URL", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to update profile photo")
 	}
@@ -761,8 +722,7 @@ func (s *userServer) RemoveProfilePhoto(ctx context.Context, req *pb.RemoveProfi
 	}
 
 	// Update DB to remove photo URL
-	_, err := s.db.ExecContext(ctx, "UPDATE users SET profile_photo_url = NULL, updated_at = NOW() WHERE id = $1", req.UserId)
-	if err != nil {
+	if err := s.userRepo.RemoveProfilePhoto(ctx, req.UserId); err != nil {
 		s.log.Error("Failed to remove profile photo", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to remove profile photo")
 	}
@@ -797,34 +757,23 @@ func (s *userServer) ListDevices(ctx context.Context, req *pb.ListDevicesRequest
 		return &pb.ListDevicesResponse{Devices: pbDevices}, nil
 	}
 
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id as device_id, device_type, device_name, is_connected, last_sync
-		FROM devices WHERE user_id = $1
-	`, req.UserId)
+	devices, err := s.userSvc.ListDevices(ctx, req.UserId)
 	if err != nil {
-		s.log.Error("Failed to list devices", zap.Error(err), zap.String("user_id", req.UserId))
+		s.log.Error("Failed to list devices", zap.Error(err))
 		return nil, status.Error(codes.Internal, errFailedToListDevices)
 	}
-	defer func() { _ = rows.Close() }()
 
-	var devices []*pb.Device
-	for rows.Next() {
-		var d pb.Device
-		var lastSync sql.NullString
-		err := rows.Scan(&d.DeviceId, &d.DeviceType, &d.DeviceName, &d.IsConnected, &lastSync)
-		if err != nil {
-			s.log.Error("Failed to scan device", zap.Error(err))
-			continue
-		}
-		if lastSync.Valid {
-			d.LastSync = lastSync.String
-		}
-		devices = append(devices, &d)
+	var pbDevices []*pb.Device
+	for _, d := range devices {
+		pbDevices = append(pbDevices, &pb.Device{
+			DeviceId:    d.ID,
+			DeviceType:  d.DeviceType,
+			DeviceName:  d.DeviceName,
+			IsConnected: d.IsConnected,
+			LastSync:    d.LastSync.Format(time.RFC3339),
+		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, status.Error(codes.Internal, errFailedToListDevices)
-	}
-	return &pb.ListDevicesResponse{Devices: devices}, nil
+	return &pb.ListDevicesResponse{Devices: pbDevices}, nil
 }
 
 // AddDevice adds a new device for the user.
@@ -833,83 +782,41 @@ func (s *userServer) AddDevice(ctx context.Context, req *pb.AddDeviceRequest) (*
 		return nil, status.Error(codes.InvalidArgument, "user_id and device_type are required")
 	}
 
-	if s.userSvc != nil {
-		device := &entity.Device{
-			ID:         uuid.New().String(),
-			UserID:     req.UserId,
-			DeviceType: req.DeviceType,
-			DeviceName: req.DeviceName,
-			Token:      uuid.New().String(),
-		}
-
-		_, err := s.userSvc.AddDevice(ctx, device)
-		if err != nil {
-			s.log.Error("Failed to add device", zap.Error(err))
-			return nil, status.Error(codes.Internal, "failed to add device")
-		}
-
-		s.log.Info("Device added", zap.String("user_id", req.UserId), zap.String("device_id", device.ID))
-		return &pb.AddDeviceResponse{
-			Device: &pb.Device{
-				DeviceId:    device.ID,
-				DeviceType:  device.DeviceType,
-				DeviceName:  device.DeviceName,
-				IsConnected: true,
-				LastSync:    time.Now().Format(time.RFC3339),
-			},
-		}, nil
+	device := &entity.Device{
+		ID:         uuid.New().String(),
+		UserID:     req.UserId,
+		DeviceType: req.DeviceType,
+		DeviceName: req.DeviceName,
+		Token:      uuid.New().String(),
 	}
 
-	deviceID := uuid.New().String()
-	deviceName := req.DeviceName
-	if deviceName == "" {
-		deviceName = req.DeviceType + " Device"
-	}
-
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO devices (id, user_id, device_type, device_name, token, is_connected, last_sync)
-		VALUES ($1, $2, $3, $4, $5, true, NOW())
-	`, deviceID, req.UserId, req.DeviceType, deviceName, uuid.New().String())
+	_, err := s.userSvc.AddDevice(ctx, device)
 	if err != nil {
 		s.log.Error("Failed to add device", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to add device")
 	}
 
-	s.log.Info("Device added", zap.String("user_id", req.UserId), zap.String("device_id", deviceID))
+	s.log.Info("Device added", zap.String("user_id", req.UserId), zap.String("device_id", device.ID))
 	return &pb.AddDeviceResponse{
 		Device: &pb.Device{
-			DeviceId:    deviceID,
-			DeviceType:  req.DeviceType,
-			DeviceName:  deviceName,
+			DeviceId:    device.ID,
+			DeviceType:  device.DeviceType,
+			DeviceName:  device.DeviceName,
 			IsConnected: true,
 			LastSync:    time.Now().Format(time.RFC3339),
 		},
 	}, nil
 }
 
-// RemoveDevice removes a device from the user.
+// RemoveDevice removes a device for the user.
 func (s *userServer) RemoveDevice(ctx context.Context, req *pb.RemoveDeviceRequest) (*pb.RemoveDeviceResponse, error) {
 	if req.UserId == "" || req.DeviceId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and device_id are required")
 	}
 
-	if s.userSvc != nil {
-		if err := s.userSvc.RemoveDevice(ctx, req.UserId, req.DeviceId); err != nil {
-			s.log.Error("Failed to remove device", zap.Error(err))
-			return nil, status.Error(codes.Internal, "failed to remove device")
-		}
-		s.log.Info("Device removed", zap.String("user_id", req.UserId), zap.String("device_id", req.DeviceId))
-		return &pb.RemoveDeviceResponse{Message: "Device removed successfully"}, nil
-	}
-
-	result, err := s.db.ExecContext(ctx, "DELETE FROM devices WHERE user_id = $1 AND id = $2", req.UserId, req.DeviceId)
-	if err != nil {
+	if err := s.userSvc.RemoveDevice(ctx, req.UserId, req.DeviceId); err != nil {
 		s.log.Error("Failed to remove device", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to remove device")
-	}
-
-	if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
-		return nil, status.Error(codes.NotFound, "device not found")
 	}
 
 	s.log.Info("Device removed", zap.String("user_id", req.UserId), zap.String("device_id", req.DeviceId))
@@ -940,53 +847,32 @@ func (s *userServer) GetAchievements(ctx context.Context, req *pb.GetAchievement
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
 
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT a.id, a.name, a.description, a.icon_url, ua.earned_at
-		FROM achievements a
-		LEFT JOIN user_achievements ua ON ua.achievement_id = a.id AND ua.user_id = $1
-		ORDER BY a.created_at ASC
-	`, req.UserId)
+	achievements, err := s.achievementExRepo.ListWithEarnedStatus(ctx, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to query achievements", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to query achievements")
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Warn("Failed to close achievements rows", zap.Error(closeErr))
-		}
-	}()
 
-	var achievements []*pb.Achievement
-	for rows.Next() {
-		var id, name, description, iconURL string
-		var earnedAt sql.NullTime
-		if err := rows.Scan(&id, &name, &description, &iconURL, &earnedAt); err != nil {
-			s.log.Error("Failed to scan achievement", zap.Error(err))
-			continue
-		}
+	var pbAchievements []*pb.Achievement
+	for _, a := range achievements {
 		earnedDate := ""
-		if earnedAt.Valid {
-			earnedDate = earnedAt.Time.Format(time.RFC3339)
+		if a.EarnedAt != nil {
+			earnedDate = a.EarnedAt.Format(time.RFC3339)
 		}
-		achievements = append(achievements, &pb.Achievement{
-			AchievementId: id,
-			Title:         name,
-			Description:   description,
+		pbAchievements = append(pbAchievements, &pb.Achievement{
+			AchievementId: a.ID,
+			Title:         a.Name,
+			Description:   a.Description,
 			EarnedDate:    earnedDate,
-			IconUrl:       iconURL,
+			IconUrl:       a.IconURL,
 		})
 	}
 
-	if err := rows.Err(); err != nil {
-		s.log.Error("Achievement rows error", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to read achievements")
+	if pbAchievements == nil {
+		pbAchievements = []*pb.Achievement{}
 	}
 
-	if achievements == nil {
-		achievements = []*pb.Achievement{}
-	}
-
-	return &pb.GetAchievementsResponse{Achievements: achievements}, nil
+	return &pb.GetAchievementsResponse{Achievements: pbAchievements}, nil
 }
 
 // Helper functions for password validation
@@ -1182,12 +1068,7 @@ func (s *userServer) ConfirmTOTP(ctx context.Context, req *pb.ConfirmTOTPRequest
 
 	hashedCodes := totp.HashBackupCodes(req.BackupCodes)
 
-	_, err = s.db.ExecContext(ctx, `
-		UPDATE users 
-		SET totp_secret_encrypted = $1, totp_enabled = true, totp_backup_codes_hash = $2, totp_backup_codes_remaining = $3, updated_at = NOW()
-		WHERE id = $4
-	`, encryptedSecret, pq.Array(hashedCodes), len(req.BackupCodes), req.UserId)
-	if err != nil {
+	if err := s.userRepo.EnableTOTP(ctx, req.UserId, encryptedSecret, hashedCodes, int32(len(req.BackupCodes))); err != nil {
 		s.log.Error("Failed to enable TOTP", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to enable TOTP")
 	}
@@ -1204,15 +1085,7 @@ func (s *userServer) VerifyTOTP(ctx context.Context, req *pb.VerifyTOTPRequest) 
 		return nil, status.Error(codes.InvalidArgument, "passcode is required")
 	}
 
-	var encryptedSecret []byte
-	var totpEnabled bool
-	var backupCodesHash []string
-	var backupCodesRemaining int32
-
-	err := s.db.QueryRowContext(ctx, `
-		SELECT totp_secret_encrypted, totp_enabled, totp_backup_codes_hash, totp_backup_codes_remaining
-		FROM users WHERE id = $1
-	`, req.UserId).Scan(&encryptedSecret, &totpEnabled, pq.Array(&backupCodesHash), &backupCodesRemaining)
+	encryptedSecret, totpEnabled, backupCodesHash, backupCodesRemaining, err := s.userRepo.GetTOTPState(ctx, req.UserId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, errUserNotFound)
@@ -1232,13 +1105,7 @@ func (s *userServer) VerifyTOTP(ctx context.Context, req *pb.VerifyTOTPRequest) 
 		}
 
 		remaining := backupCodesRemaining
-		_, err = s.db.ExecContext(ctx, `
-			UPDATE users 
-			SET totp_backup_codes_hash = array_remove(totp_backup_codes_hash, $1),
-			    totp_backup_codes_remaining = GREATEST(totp_backup_codes_remaining - 1, 0)
-			WHERE id = $2
-		`, backupCodesHash[idx], req.UserId)
-		if err != nil {
+		if err := s.userRepo.RemoveBackupCode(ctx, req.UserId, backupCodesHash[idx]); err != nil {
 			s.log.Warn("Failed to remove used backup code", zap.Error(err))
 		} else if remaining > 0 {
 			remaining--
@@ -1271,16 +1138,16 @@ func (s *userServer) DisableTOTP(ctx context.Context, req *pb.DisableTOTPRequest
 		return nil, status.Error(codes.InvalidArgument, "passcode is required")
 	}
 
-	var encryptedSecret []byte
-	err := s.db.QueryRowContext(ctx, `
-		SELECT totp_secret_encrypted FROM users 
-		WHERE id = $1 AND totp_enabled = true
-	`, req.UserId).Scan(&encryptedSecret)
+	encryptedSecret, totpEnabled, _, _, err := s.userRepo.GetTOTPState(ctx, req.UserId)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, status.Error(codes.NotFound, "TOTP not enabled for user")
 		}
 		return nil, status.Error(codes.Internal, errDatabaseError)
+	}
+
+	if !totpEnabled {
+		return nil, status.Error(codes.NotFound, "TOTP not enabled for user")
 	}
 
 	secret, err := s.totpService.DecryptSecret(encryptedSecret)
@@ -1298,13 +1165,7 @@ func (s *userServer) DisableTOTP(ctx context.Context, req *pb.DisableTOTPRequest
 		return &pb.DisableTOTPResponse{Success: false, Message: "Invalid TOTP code"}, nil
 	}
 
-	_, err = s.db.ExecContext(ctx, `
-		UPDATE users 
-		SET totp_secret_encrypted = NULL, totp_enabled = false, 
-		    totp_backup_codes_hash = NULL, totp_backup_codes_remaining = 0, updated_at = NOW()
-		WHERE id = $1
-	`, req.UserId)
-	if err != nil {
+	if err := s.userRepo.DisableTOTP(ctx, req.UserId); err != nil {
 		s.log.Error("Failed to disable TOTP", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to disable TOTP")
 	}
@@ -1317,68 +1178,64 @@ func (s *userServer) ListHealthConditions(ctx context.Context, req *pb.ListHealt
 	if req.UserId == "" {
 		return nil, status.Error(codes.InvalidArgument, errUserIDRequired)
 	}
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, user_id, condition_type, condition_name, severity, diagnosed_at, is_active, notes, created_at, updated_at
-		FROM user_health_conditions
-		WHERE user_id = $1
-		ORDER BY created_at DESC
-	`, req.UserId)
+	conditions, err := s.userHealthRepo.List(ctx, req.UserId)
 	if err != nil {
 		s.log.Error("Failed to query health conditions", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Error("Failed to close rows for health conditions", zap.Error(closeErr))
-		}
-	}()
 
-	conditions := make([]*pb.HealthCondition, 0)
-	for rows.Next() {
-		var c pb.HealthCondition
-		var diagnosedAt sql.NullTime
-		var notes sql.NullString
-		if err := rows.Scan(&c.Id, &c.UserId, &c.ConditionType, &c.ConditionName, &c.Severity, &diagnosedAt, &c.IsActive, &notes, &c.CreatedAt, &c.UpdatedAt); err != nil {
-			s.log.Error("Failed to scan health condition", zap.Error(err))
-			return nil, status.Error(codes.Internal, errDatabaseError)
+	var pbConditions []*pb.HealthCondition
+	for _, c := range conditions {
+		diagnosedAt := ""
+		if c.DiagnosedAt != nil {
+			diagnosedAt = c.DiagnosedAt.Format("2006-01-02")
 		}
-		if diagnosedAt.Valid {
-			c.DiagnosedAt = diagnosedAt.Time.Format("2006-01-02")
+		notes := ""
+		if c.Notes != nil {
+			notes = *c.Notes
 		}
-		if notes.Valid {
-			c.Notes = notes.String
-		}
-		conditions = append(conditions, &c)
+		pbConditions = append(pbConditions, &pb.HealthCondition{
+			Id: c.ID, UserId: c.UserID, ConditionType: c.ConditionType, ConditionName: c.ConditionName,
+			Severity: c.Severity, DiagnosedAt: diagnosedAt, IsActive: c.IsActive, Notes: notes,
+			CreatedAt: c.CreatedAt.Format(time.RFC3339), UpdatedAt: c.UpdatedAt.Format(time.RFC3339),
+		})
 	}
-	if err := rows.Err(); err != nil {
-		return nil, status.Error(codes.Internal, errDatabaseError)
+	if pbConditions == nil {
+		pbConditions = []*pb.HealthCondition{}
 	}
-	return &pb.ListHealthConditionsResponse{Conditions: conditions, Total: safeInt32(len(conditions))}, nil
+	return &pb.ListHealthConditionsResponse{Conditions: pbConditions, Total: safeInt32(len(pbConditions))}, nil
 }
 
 func (s *userServer) UpsertHealthCondition(ctx context.Context, req *pb.UpsertHealthConditionRequest) (*pb.HealthCondition, error) {
 	if req.UserId == "" || req.ConditionName == "" || req.ConditionType == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id, condition_type and condition_name are required")
 	}
-	var id string
-	err := s.db.QueryRowContext(ctx, `
-		INSERT INTO user_health_conditions (user_id, condition_type, condition_name, severity, diagnosed_at, is_active, notes, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-		ON CONFLICT (user_id, condition_type, condition_name) DO UPDATE SET
-			severity = EXCLUDED.severity,
-			diagnosed_at = EXCLUDED.diagnosed_at,
-			is_active = EXCLUDED.is_active,
-			notes = EXCLUDED.notes,
-			updated_at = NOW()
-		RETURNING id
-	`, req.UserId, req.ConditionType, req.ConditionName, req.Severity, req.DiagnosedAt, req.IsActive, req.Notes).Scan(&id)
+	condition := &port.UserHealthCondition{
+		UserID:        req.UserId,
+		ConditionType: req.ConditionType,
+		ConditionName: req.ConditionName,
+		Severity:      req.Severity,
+		IsActive:      req.IsActive,
+	}
+	if req.DiagnosedAt != "" {
+		t, parseErr := time.Parse("2006-01-02", req.DiagnosedAt)
+		if parseErr != nil {
+			return nil, status.Error(codes.InvalidArgument, "invalid diagnosed_at format, use YYYY-MM-DD")
+		}
+		condition.DiagnosedAt = &t
+	}
+	if req.Notes != "" {
+		notes := req.Notes
+		condition.Notes = &notes
+	}
+	result, err := s.userHealthRepo.Upsert(ctx, condition)
 	if err != nil {
 		s.log.Error("Failed to upsert health condition", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 	return &pb.HealthCondition{
-		Id: id, UserId: req.UserId, ConditionType: req.ConditionType, ConditionName: req.ConditionName,
-		Severity: req.Severity, DiagnosedAt: req.DiagnosedAt, IsActive: req.IsActive, Notes: req.Notes,
+		Id: result.ID, UserId: result.UserID, ConditionType: result.ConditionType, ConditionName: result.ConditionName,
+		Severity: result.Severity, DiagnosedAt: req.DiagnosedAt, IsActive: result.IsActive, Notes: req.Notes,
 	}, nil
 }
 
@@ -1386,7 +1243,7 @@ func (s *userServer) DeleteHealthCondition(ctx context.Context, req *pb.DeleteHe
 	if req.UserId == "" || req.ConditionId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and condition_id are required")
 	}
-	if err := s.deleteRecord(ctx, "user_health_conditions", "id", req.UserId, req.ConditionId, "health condition"); err != nil {
+	if err := s.userRepo.DeleteHealthCondition(ctx, req.ConditionId, req.UserId); err != nil {
 		return nil, err
 	}
 	return &pb.DeleteHealthConditionResponse{Success: true, Message: "Health condition deleted"}, nil
@@ -1465,22 +1322,41 @@ func (s *userServer) CreateBodyComposition(ctx context.Context, req *pb.CreateBo
 	if req.UserId == "" || req.WeightKg <= 0 {
 		return nil, status.Error(codes.InvalidArgument, "user_id and weight_kg are required")
 	}
-	var id string
-	var recordedAt string
-	err := s.db.QueryRowContext(ctx, `
-		INSERT INTO user_body_composition (user_id, recorded_at, weight_kg, height_cm, bmi, body_fat_percentage, muscle_mass_percentage, bone_mass_percentage, water_percentage, visceral_fat_rating, metabolic_age, source)
-		VALUES ($1, COALESCE($2, NOW()), $3, $4, $5, $6, $7, $8, $9, $10, $11, COALESCE($12, 'manual'))
-		RETURNING id, recorded_at
-	`, req.UserId, req.RecordedAt, req.WeightKg, req.HeightCm, req.Bmi, req.BodyFatPercentage, req.MuscleMassPercentage, req.BoneMassPercentage, req.WaterPercentage, req.VisceralFatRating, req.MetabolicAge, req.Source).Scan(&id, &recordedAt)
+	bc := &port.UserBodyComposition{
+		UserID:                 req.UserId,
+		WeightKG:               req.WeightKg,
+		HeightCM:               req.HeightCm,
+		BMI:                    req.Bmi,
+		BodyFatPercentage:      req.BodyFatPercentage,
+		MuscleMassPercentage:   req.MuscleMassPercentage,
+		BoneMassPercentage:     req.BoneMassPercentage,
+		WaterPercentage:        req.WaterPercentage,
+		VisceralFatRating:      req.VisceralFatRating,
+		MetabolicAge:           req.MetabolicAge,
+		Source:                 req.Source,
+	}
+	if req.RecordedAt != "" {
+		t, parseErr := time.Parse(time.RFC3339, req.RecordedAt)
+		if parseErr != nil {
+			t, parseErr = time.Parse("2006-01-02", req.RecordedAt)
+			if parseErr != nil {
+				return nil, status.Error(codes.InvalidArgument, "invalid recorded_at format")
+			}
+		}
+		bc.RecordedAt = t
+	} else {
+		bc.RecordedAt = time.Now()
+	}
+	result, err := s.userBodyCompRepo.Create(ctx, bc)
 	if err != nil {
 		s.log.Error("Failed to create body composition record", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
 	return &pb.BodyCompositionRecord{
-		Id: id, UserId: req.UserId, RecordedAt: recordedAt, WeightKg: req.WeightKg, HeightCm: req.HeightCm,
-		Bmi: req.Bmi, BodyFatPercentage: req.BodyFatPercentage, MuscleMassPercentage: req.MuscleMassPercentage,
-		BoneMassPercentage: req.BoneMassPercentage, WaterPercentage: req.WaterPercentage,
-		VisceralFatRating: req.VisceralFatRating, MetabolicAge: req.MetabolicAge, Source: req.Source,
+		Id: result.ID, UserId: result.UserID, RecordedAt: result.RecordedAt.Format(time.RFC3339), WeightKg: result.WeightKG, HeightCm: result.HeightCM,
+		Bmi: result.BMI, BodyFatPercentage: result.BodyFatPercentage, MuscleMassPercentage: result.MuscleMassPercentage,
+		BoneMassPercentage: result.BoneMassPercentage, WaterPercentage: result.WaterPercentage,
+		VisceralFatRating: result.VisceralFatRating, MetabolicAge: result.MetabolicAge, Source: result.Source,
 	}, nil
 }
 
@@ -1671,7 +1547,7 @@ func (s *userServer) DeleteMenstrualCycle(ctx context.Context, req *pb.DeleteMen
 	if req.UserId == "" || req.CycleId == "" {
 		return nil, status.Error(codes.InvalidArgument, "user_id and cycle_id are required")
 	}
-	if err := s.deleteRecord(ctx, "user_menstrual_cycles", "id", req.UserId, req.CycleId, "menstrual cycle"); err != nil {
+	if err := s.userRepo.DeleteMenstrualCycle(ctx, req.CycleId, req.UserId); err != nil {
 		return nil, err
 	}
 	return &pb.DeleteMenstrualCycleResponse{Success: true, Message: "Menstrual cycle deleted"}, nil
@@ -1708,9 +1584,10 @@ func (s *userServer) DeleteProfile(ctx context.Context, req *pb.DeleteProfileReq
 	}
 
 	var passwordHash string
-	err := s.db.QueryRowContext(ctx, "SELECT password_hash FROM users WHERE id = $1", req.UserId).Scan(&passwordHash)
+	var err error
+	passwordHash, err = s.userRepo.GetPasswordHash(ctx, req.UserId)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if apperrors.IsNotFound(err) {
 			return nil, status.Error(codes.NotFound, errUserNotFound)
 		}
 		s.log.Error("Failed to load user for deletion", zap.Error(err), zap.String("user_id", req.UserId))
@@ -1721,41 +1598,9 @@ func (s *userServer) DeleteProfile(ctx context.Context, req *pb.DeleteProfileReq
 		return nil, status.Error(codes.Unauthenticated, "invalid password")
 	}
 
-	tx, err := s.db.BeginTx(ctx, nil)
-	if err != nil {
-		s.log.Error("Failed to begin delete profile transaction", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to begin transaction")
-	}
-	defer func() {
-		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			s.log.Warn("Failed to rollback delete profile transaction", zap.Error(rollbackErr))
-		}
-	}()
-
-	_, err = tx.ExecContext(ctx, `
-		UPDATE users SET
-			email_encrypted = NULL,
-			email_hash = NULL,
-			full_name_encrypted = NULL,
-			full_name_nonce = NULL,
-			full_name_hash = NULL,
-			nickname_encrypted = NULL,
-			nickname_nonce = NULL,
-			nickname_hash = NULL,
-			profile_photo_url = NULL,
-			password_hash = NULL,
-			email_confirmed = FALSE,
-			updated_at = NOW()
-		WHERE id = $1
-	`, req.UserId)
-	if err != nil {
+	if err := s.userRepo.DeleteProfileData(ctx, req.UserId); err != nil {
 		s.log.Error("Failed to delete profile", zap.Error(err), zap.String("user_id", req.UserId))
 		return nil, status.Error(codes.Internal, "failed to delete profile")
-	}
-
-	if err := tx.Commit(); err != nil {
-		s.log.Error("Failed to commit delete profile transaction", zap.Error(err))
-		return nil, status.Error(codes.Internal, "failed to commit transaction")
 	}
 
 	s.log.Info("Profile deleted (GDPR)", zap.String("user_id", req.UserId))
@@ -1768,7 +1613,8 @@ func (s *userServer) requireAdminRole(ctx context.Context, requesterID string) e
 	}
 
 	var role string
-	err := s.db.QueryRowContext(ctx, "SELECT role FROM users WHERE id = $1", requesterID).Scan(&role)
+	var err error
+	role, err = s.userRepo.GetUserRole(ctx, requesterID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return status.Error(codes.NotFound, "requester not found")
@@ -1840,55 +1686,37 @@ func (s *userServer) AdminListInvites(ctx context.Context, req *pb.AdminListInvi
 		req.Page = 0
 	}
 
-	offset := req.Page * req.PageSize
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT code, role, specialty, max_uses, used_count, is_active, created_at
-		FROM invite_codes
-		ORDER BY created_at DESC
-		LIMIT $1 OFFSET $2
-	`, req.PageSize, offset)
+	inviteCodes, _, err := s.inviteCodeRepo.List(ctx, int(req.Page), int(req.PageSize))
 	if err != nil {
 		s.log.Error("Failed to list invites", zap.Error(err))
 		return nil, status.Error(codes.Internal, errDatabaseError)
 	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			s.log.Warn("Failed to close rows", zap.Error(closeErr))
-		}
-	}()
 
 	var invites []*pb.InviteInfo
 	baseURL := s.baseURL
 	if baseURL == "" {
 		baseURL = "https://fittpulse.duckdns.org"
 	}
-	for rows.Next() {
-		var inv pb.InviteInfo
-		var specialty sql.NullString
-		if scanErr := rows.Scan(&inv.Code, &inv.Role, &specialty, &inv.MaxUses, &inv.UsedCount, &inv.IsActive, &inv.CreatedAt); scanErr != nil {
-			s.log.Error("Failed to scan invite", zap.Error(scanErr))
-			continue
+	for _, inv := range inviteCodes {
+		specialty := ""
+		if inv.Specialty != nil {
+			specialty = *inv.Specialty
 		}
-		if specialty.Valid {
-			inv.Specialty = specialty.String
-		}
-		inv.InviteUrl = fmt.Sprintf("%s/register?invite=%s", baseURL, inv.Code)
-		invites = append(invites, &inv)
-	}
-	if rows.Err() != nil {
-		s.log.Error("Rows iteration error", zap.Error(rows.Err()))
-		return nil, status.Error(codes.Internal, "error reading invites")
-	}
-
-	var total int32
-	err = s.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM invite_codes").Scan(&total)
-	if err != nil {
-		s.log.Warn("Failed to count invites", zap.Error(err))
+		invites = append(invites, &pb.InviteInfo{
+			Code:      inv.Code,
+			Role:      inv.Role,
+			Specialty: specialty,
+			MaxUses:   int32(inv.MaxUses),
+			UsedCount: int32(inv.UsedCount),
+			IsActive:  inv.IsActive,
+			CreatedAt: inv.CreatedAt.Format(time.RFC3339),
+			InviteUrl: fmt.Sprintf("%s/register?invite=%s", baseURL, inv.Code),
+		})
 	}
 
 	return &pb.AdminListInvitesResponse{
 		Invites: invites,
-		Total:   total,
+		Total:   int32(len(inviteCodes)),
 	}, nil
 }
 
@@ -1915,16 +1743,23 @@ func (s *userServer) AdminCreateInvite(ctx context.Context, req *pb.AdminCreateI
 
 	code := "INV-" + generateInviteCode()
 
-	var specialty interface{}
+	var specialty *string
 	if req.GetSpecialty() != "" {
-		specialty = req.GetSpecialty()
+		s := req.GetSpecialty()
+		specialty = &s
 	}
 
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO invite_codes (code, role, specialty, max_uses, created_by, is_active, created_at)
-		VALUES ($1, $2, $3, $4, $5, TRUE, NOW())
-	`, code, role, specialty, maxUses, "")
-	if err != nil {
+	invite := &port.InviteCode{
+		Code:      code,
+		Role:      role,
+		Specialty: specialty,
+		MaxUses:   int(maxUses),
+		UsedCount: 0,
+		IsActive:  true,
+		CreatedBy: "",
+		CreatedAt: time.Now(),
+	}
+	if err := s.inviteCodeRepo.Create(ctx, invite); err != nil {
 		s.log.Error("Failed to create invite", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to create invite")
 	}
@@ -1960,17 +1795,9 @@ func (s *userServer) AdminRevokeInvite(ctx context.Context, req *pb.AdminRevokeI
 		return nil, status.Error(codes.InvalidArgument, "code is required")
 	}
 
-	result, err := s.db.ExecContext(ctx, `
-		UPDATE invite_codes SET is_active = FALSE WHERE code = $1
-	`, req.GetCode())
-	if err != nil {
+	if err := s.inviteCodeRepo.Revoke(ctx, req.GetCode()); err != nil {
 		s.log.Error("Failed to revoke invite", zap.Error(err))
 		return nil, status.Error(codes.Internal, "failed to revoke invite")
-	}
-
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		return nil, status.Error(codes.NotFound, "invite not found")
 	}
 
 	s.log.Info("Invite code revoked", zap.String("code", req.GetCode()))
@@ -2206,28 +2033,44 @@ func (s *userServer) backfillEncryptedPII(ctx context.Context) {
 }
 
 type userServerConfig struct {
-	database       *sql.DB
-	log            *logger.Logger
-	tokenProvider  ports.TokenProvider
-	baseURL        string
-	googleClientID string
-	emailSender    email.EmailSender
-	totpService    *totp.Service
-	userSvc        service.UserService
-	userRepo       *postgres.PgsodiumUserRepository
+	database           *sql.DB
+	log                *logger.Logger
+	tokenProvider      ports.TokenProvider
+	baseURL            string
+	googleClientID     string
+	emailSender        email.EmailSender
+	totpService        *totp.Service
+	userSvc            service.UserService
+	userRepo           *postgres.PgsodiumUserRepository
+	profileRepo        port.ProfileRepository
+	emailVerifRepo     port.EmailVerificationRepository
+	refreshTokenRepo   port.RefreshTokenRepository
+	achievementExRepo  port.AchievementRepositoryEx
+	inviteCodeRepo     port.InviteCodeRepository
+	userHealthRepo     port.UserHealthConditionRepository
+	userBodyCompRepo   port.UserBodyCompositionRepository
+	userMenstrualRepo  port.UserMenstrualRepository
 }
 
 func buildUserServer(cfg userServerConfig) *userServer {
 	return &userServer{
-		db:             cfg.database,
-		userSvc:        cfg.userSvc,
-		userRepo:       cfg.userRepo,
-		log:            cfg.log,
-		tokenProvider:  cfg.tokenProvider,
-		emailSender:    cfg.emailSender,
-		baseURL:        cfg.baseURL,
-		googleClientID: cfg.googleClientID,
-		totpService:    cfg.totpService,
+		db:                  cfg.database,
+		userSvc:             cfg.userSvc,
+		userRepo:            cfg.userRepo,
+		profileRepo:         cfg.profileRepo,
+		emailVerifRepo:      cfg.emailVerifRepo,
+		refreshTokenRepo:    cfg.refreshTokenRepo,
+		achievementExRepo:   cfg.achievementExRepo,
+		inviteCodeRepo:      cfg.inviteCodeRepo,
+		userHealthRepo:      cfg.userHealthRepo,
+		userBodyCompRepo:    cfg.userBodyCompRepo,
+		userMenstrualRepo:   cfg.userMenstrualRepo,
+		log:                 cfg.log,
+		tokenProvider:       cfg.tokenProvider,
+		emailSender:         cfg.emailSender,
+		baseURL:             cfg.baseURL,
+		googleClientID:      cfg.googleClientID,
+		totpService:         cfg.totpService,
 	}
 }
 
@@ -2299,27 +2142,56 @@ func initializeUserService(ctx context.Context, log *logger.Logger, database *sq
 
 	deviceRepo := postgres.NewDeviceRepository(database)
 	userRepo := postgres.NewPgsodiumUserRepository(database)
+	profileRepo := postgres.NewProfileRepository(database)
+	inviteRepo := postgres.NewInviteRepository(database)
+	inviteCodeRepo := postgres.NewInviteCodeRepository(database)
+	healthRepo := postgres.NewHealthConditionRepository(database)
+	userHealthRepo := postgres.NewUserHealthConditionRepository(database)
+	bodyCompRepo := postgres.NewBodyCompositionRepository(database)
+	userBodyCompRepo := postgres.NewUserBodyCompositionRepository(database)
+	menstrualRepo := postgres.NewMenstrualCycleRepository(database)
+	userMenstrualRepo := postgres.NewUserMenstrualRepository(database)
+	achievementRepo := postgres.NewAchievementRepository(database)
+	achievementExRepo := postgres.NewAchievementRepositoryEx(database)
+	emailVerifRepo := postgres.NewEmailVerificationRepository(database)
+	refreshTokenRepo := postgres.NewRefreshTokenRepository(database)
+
 	userSvc := service.NewUserService(service.UserServiceConfig{
-		Users:        nil,
-		Profiles:     nil,
-		Invites:      nil,
-		Health:       nil,
-		BodyComp:     nil,
-		Menstrual:    nil,
-		Achievements: nil,
-		Devices:      deviceRepo,
+		Users:          userRepo,
+		Profiles:       profileRepo,
+		Invites:        inviteRepo,
+		InviteCodes:    inviteCodeRepo,
+		Health:         healthRepo,
+		UserHealth:     userHealthRepo,
+		BodyComp:       bodyCompRepo,
+		UserBodyComp:   userBodyCompRepo,
+		Menstrual:      menstrualRepo,
+		UserMenstrual:  userMenstrualRepo,
+		Achievements:   achievementRepo,
+		AchievementsEx: achievementExRepo,
+		Devices:        deviceRepo,
+		EmailVerifs:    emailVerifRepo,
+		RefreshTokens:  refreshTokenRepo,
 	})
 
 	svc := buildUserServer(userServerConfig{
-		database:       database,
-		log:            log,
-		tokenProvider:  tokenProvider,
-		baseURL:        baseURL,
-		googleClientID: googleClientID,
-		emailSender:    emailSender,
-		totpService:    totp.NewService(totpEncryptor),
-		userSvc:        userSvc,
-		userRepo:       userRepo,
+		database:           database,
+		log:                log,
+		tokenProvider:      tokenProvider,
+		baseURL:            baseURL,
+		googleClientID:     googleClientID,
+		emailSender:        emailSender,
+		totpService:        totp.NewService(totpEncryptor),
+		userSvc:            userSvc,
+		userRepo:           userRepo,
+		profileRepo:        profileRepo,
+		emailVerifRepo:     emailVerifRepo,
+		refreshTokenRepo:   refreshTokenRepo,
+		achievementExRepo:  achievementExRepo,
+		inviteCodeRepo:     inviteCodeRepo,
+		userHealthRepo:     userHealthRepo,
+		userBodyCompRepo:   userBodyCompRepo,
+		userMenstrualRepo:  userMenstrualRepo,
 	})
 	if err := svc.ensurePgsodiumKey(ctx); err != nil {
 		log.Fatal("Failed to initialize pgsodium keyring", zap.Error(err))

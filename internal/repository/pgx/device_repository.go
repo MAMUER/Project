@@ -2,22 +2,22 @@ package pgx
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/MAMUER/project/internal/apperrors"
 	"github.com/MAMUER/project/internal/domain/entity"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// DeviceRepositoryPGX implements device operations using database/sql for now.
-// This is a bridge to allow gradual migration to pgx.
+// DeviceRepositoryPGX implements device operations using pgxpool.Pool.
 type DeviceRepositoryPGX struct {
-	db *sql.DB
+	db *pgxpool.Pool
 }
 
-func NewDeviceRepositoryPGX(db *sql.DB) *DeviceRepositoryPGX {
+func NewDeviceRepositoryPGX(db *pgxpool.Pool) *DeviceRepositoryPGX {
 	return &DeviceRepositoryPGX{db: db}
 }
 
@@ -26,7 +26,7 @@ func (r *DeviceRepositoryPGX) List(ctx context.Context, userID string) ([]*entit
 		SELECT id, user_id, device_type, device_name, is_connected, last_sync
 		FROM devices WHERE user_id = $1
 	`
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, apperrors.Internal("failed to list devices", err)
 	}
@@ -55,7 +55,7 @@ func (r *DeviceRepositoryPGX) Create(ctx context.Context, device *entity.Device)
 		VALUES ($1, $2, $3, $4, $5, true, NOW())
 		RETURNING id
 	`
-	err := r.db.QueryRowContext(ctx, query,
+	err := r.db.QueryRow(ctx, query,
 		device.ID, device.UserID, device.DeviceType, device.DeviceName, device.Token,
 	).Scan(&device.ID)
 	if err != nil {
@@ -65,8 +65,7 @@ func (r *DeviceRepositoryPGX) Create(ctx context.Context, device *entity.Device)
 }
 
 func (r *DeviceRepositoryPGX) Delete(ctx context.Context, userID, deviceID string) error {
-	query := `DELETE FROM devices WHERE user_id = $1 AND id = $2`
-	_, err := r.db.ExecContext(ctx, query, userID, deviceID)
+	_, err := r.db.Exec(ctx, `DELETE FROM devices WHERE user_id = $1 AND id = $2`, userID, deviceID)
 	if err != nil {
 		return apperrors.Internal("failed to delete device", err)
 	}
@@ -79,12 +78,12 @@ func (r *DeviceRepositoryPGX) GetByID(ctx context.Context, userID, deviceID stri
 		FROM devices WHERE user_id = $1 AND id = $2
 	`
 	device := &entity.Device{}
-	err := r.db.QueryRowContext(ctx, query, userID, deviceID).Scan(
+	err := r.db.QueryRow(ctx, query, userID, deviceID).Scan(
 		&device.ID, &device.UserID, &device.DeviceType, &device.DeviceName,
 		&device.IsConnected, &device.LastSync,
 	)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, apperrors.NotFound("device not found")
 		}
 		return nil, apperrors.Internal("failed to get device", err)
@@ -93,8 +92,7 @@ func (r *DeviceRepositoryPGX) GetByID(ctx context.Context, userID, deviceID stri
 }
 
 func (r *DeviceRepositoryPGX) UpdateLastSync(ctx context.Context, deviceID string) error {
-	query := `UPDATE devices SET last_sync = NOW() WHERE id = $1`
-	_, err := r.db.ExecContext(ctx, query, deviceID)
+	_, err := r.db.Exec(ctx, `UPDATE devices SET last_sync = NOW() WHERE id = $1`, deviceID)
 	if err != nil {
 		return apperrors.Internal("failed to update device last_sync", err)
 	}
@@ -103,8 +101,7 @@ func (r *DeviceRepositoryPGX) UpdateLastSync(ctx context.Context, deviceID strin
 
 func (r *DeviceRepositoryPGX) CountByUser(ctx context.Context, userID string) (int, error) {
 	var count int
-	query := `SELECT COUNT(*) FROM devices WHERE user_id = $1`
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(&count)
+	err := r.db.QueryRow(ctx, `SELECT COUNT(*) FROM devices WHERE user_id = $1`, userID).Scan(&count)
 	if err != nil {
 		return 0, apperrors.Internal("failed to count devices", err)
 	}
@@ -114,7 +111,7 @@ func (r *DeviceRepositoryPGX) CountByUser(ctx context.Context, userID string) (i
 func (r *DeviceRepositoryPGX) ExistsConnected(ctx context.Context, userID, deviceType string) (bool, error) {
 	var exists bool
 	query := `SELECT EXISTS(SELECT 1 FROM devices WHERE user_id = $1 AND device_type = $2 AND is_connected = true)`
-	err := r.db.QueryRowContext(ctx, query, userID, deviceType).Scan(&exists)
+	err := r.db.QueryRow(ctx, query, userID, deviceType).Scan(&exists)
 	if err != nil {
 		return false, apperrors.Internal("failed to check device existence", err)
 	}
@@ -122,8 +119,7 @@ func (r *DeviceRepositoryPGX) ExistsConnected(ctx context.Context, userID, devic
 }
 
 func (r *DeviceRepositoryPGX) DisconnectAll(ctx context.Context, userID string) error {
-	query := `UPDATE devices SET is_connected = false WHERE user_id = $1`
-	_, err := r.db.ExecContext(ctx, query, userID)
+	_, err := r.db.Exec(ctx, `UPDATE devices SET is_connected = false WHERE user_id = $1`, userID)
 	if err != nil {
 		return apperrors.Internal("failed to disconnect devices", err)
 	}
@@ -135,7 +131,7 @@ func (r *DeviceRepositoryPGX) ListConnected(ctx context.Context, userID string) 
 		SELECT id, user_id, device_type, device_name, is_connected, last_sync
 		FROM devices WHERE user_id = $1 AND is_connected = true
 	`
-	rows, err := r.db.QueryContext(ctx, query, userID)
+	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, apperrors.Internal("failed to list connected devices", err)
 	}
@@ -163,11 +159,11 @@ func (r *DeviceRepositoryPGX) BatchCreate(ctx context.Context, devices []*entity
 		return 0, nil
 	}
 
-	tx, err := r.db.BeginTx(ctx, nil)
+	tx, err := r.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return 0, apperrors.Internal("failed to begin transaction", err)
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() { _ = tx.Rollback(ctx) }()
 
 	query := `
 		INSERT INTO devices (id, user_id, device_type, device_name, token, is_connected, last_sync)
@@ -183,7 +179,7 @@ func (r *DeviceRepositoryPGX) BatchCreate(ctx context.Context, devices []*entity
 			device.Token = fmt.Sprintf("tok_%d_%d", time.Now().UnixNano(), inserted)
 		}
 
-		_, err := tx.ExecContext(ctx, query,
+		_, err := tx.Exec(ctx, query,
 			device.ID, device.UserID, device.DeviceType, device.DeviceName, device.Token,
 		)
 		if err != nil {
@@ -192,17 +188,16 @@ func (r *DeviceRepositoryPGX) BatchCreate(ctx context.Context, devices []*entity
 		inserted++
 	}
 
-	if err := tx.Commit(); err != nil {
+	if err := tx.Commit(ctx); err != nil {
 		return 0, apperrors.Internal("failed to commit transaction", err)
 	}
 	return inserted, nil
 }
 
 func (r *DeviceRepositoryPGX) DeleteInactive(ctx context.Context, olderThan time.Time) (int64, error) {
-	query := `DELETE FROM devices WHERE last_sync < $1 AND is_connected = false`
-	result, err := r.db.ExecContext(ctx, query, olderThan)
+	result, err := r.db.Exec(ctx, `DELETE FROM devices WHERE last_sync < $1 AND is_connected = false`, olderThan)
 	if err != nil {
 		return 0, apperrors.Internal("failed to delete inactive devices", err)
 	}
-	return result.RowsAffected()
+	return result.RowsAffected(), nil
 }

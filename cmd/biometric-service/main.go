@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -35,7 +36,8 @@ import (
 	"github.com/MAMUER/project/internal/domain/entity"
 	"github.com/MAMUER/project/internal/domain/service"
 	"github.com/MAMUER/project/internal/apperrors"
-	"github.com/MAMUER/project/internal/repository/postgres"
+	_ "github.com/MAMUER/project/internal/repository/postgres"
+	"github.com/MAMUER/project/internal/repository/pgx"
 )
 
 const (
@@ -696,7 +698,16 @@ func main() {
 		}
 	}()
 
-	biometricRepo := postgres.NewBiometricRepository(database)
+	var pgxPool *pgxpool.Pool
+	pgxPool, err = db.NewPgxPool(dbCfg)
+	if err != nil {
+		log.Fatal("Failed to connect to pgx pool", zap.Error(err))
+	}
+	defer func() {
+		pgxPool.Close()
+	}()
+
+	biometricRepo := pgx.NewBiometricRepositoryPGX(pgxPool)
 	biometricSvc := service.NewBiometricService(biometricRepo)
 
 	rabbitURL := config.GetEnv("RABBITMQ_URL")

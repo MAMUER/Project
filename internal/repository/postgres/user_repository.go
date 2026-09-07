@@ -174,21 +174,10 @@ func (r *UserRepository) ExistsByEmail(ctx context.Context, email string) (bool,
 	return exists, nil
 }
 
-type Invite struct {
-	Code      string
-	Role      string
-	Specialty string
-	MaxUses   int
-	UsedCount int
-	IsActive  bool
-	CreatedAt time.Time
-	InviteURL string
-}
-
 type InviteRepository interface {
-	Create(ctx context.Context, invite *Invite) error
-	GetByCode(ctx context.Context, code string) (*Invite, error)
-	List(ctx context.Context, page, pageSize int) ([]*Invite, int, error)
+	Create(ctx context.Context, invite *port.Invite) error
+	GetByCode(ctx context.Context, code string) (*port.Invite, error)
+	List(ctx context.Context, page, pageSize int) ([]*port.Invite, int, error)
 	Revoke(ctx context.Context, code string) error
 }
 
@@ -196,11 +185,11 @@ type inviteRepository struct {
 	db *sql.DB
 }
 
-func NewInviteRepository(db *sql.DB) InviteRepository {
+func NewInviteRepository(db *sql.DB) port.InviteRepository {
 	return &inviteRepository{db: db}
 }
 
-func (r *inviteRepository) Create(ctx context.Context, invite *Invite) error {
+func (r *inviteRepository) Create(ctx context.Context, invite *port.Invite) error {
 	query := `
 		INSERT INTO invites (code, role, specialty, max_uses, used_count, is_active, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -214,12 +203,12 @@ func (r *inviteRepository) Create(ctx context.Context, invite *Invite) error {
 	return nil
 }
 
-func (r *inviteRepository) GetByCode(ctx context.Context, code string) (*Invite, error) {
+func (r *inviteRepository) GetByCode(ctx context.Context, code string) (*port.Invite, error) {
 	query := `
 		SELECT code, role, specialty, max_uses, used_count, is_active, created_at
 		FROM invites WHERE code = $1
 	`
-	invite := &Invite{}
+	invite := &port.Invite{}
 	err := r.db.QueryRowContext(ctx, query, code).Scan(
 		&invite.Code, &invite.Role, &invite.Specialty, &invite.MaxUses, &invite.UsedCount, &invite.IsActive, &invite.CreatedAt,
 	)
@@ -232,7 +221,7 @@ func (r *inviteRepository) GetByCode(ctx context.Context, code string) (*Invite,
 	return invite, nil
 }
 
-func (r *inviteRepository) List(ctx context.Context, page, pageSize int) ([]*Invite, int, error) {
+func (r *inviteRepository) List(ctx context.Context, page, pageSize int) ([]*port.Invite, int, error) {
 	offset := (page - 1) * pageSize
 	query := `
 		SELECT code, role, specialty, max_uses, used_count, is_active, created_at
@@ -244,9 +233,9 @@ func (r *inviteRepository) List(ctx context.Context, page, pageSize int) ([]*Inv
 	}
 	defer rows.Close()
 
-	var invites []*Invite
+	var invites []*port.Invite
 	for rows.Next() {
-		invite := &Invite{}
+		invite := &port.Invite{}
 		if err := rows.Scan(
 			&invite.Code, &invite.Role, &invite.Specialty, &invite.MaxUses, &invite.UsedCount, &invite.IsActive, &invite.CreatedAt,
 		); err != nil {
@@ -275,64 +264,9 @@ func (r *inviteRepository) Revoke(ctx context.Context, code string) error {
 	return nil
 }
 
-type ProfileRepository interface {
-	GetProfile(ctx context.Context, userID string) (*entity.User, error)
-	UpdateProfile(ctx context.Context, userID, fullName string, goals, contraindications []string, nutrition string, sleepHours float32) error
-}
-
-type profileRepository struct {
-	db *sql.DB
-}
-
-func NewProfileRepository(db *sql.DB) ProfileRepository {
-	return &profileRepository{db: db}
-}
-
-func (r *profileRepository) GetProfile(ctx context.Context, userID string) (*entity.User, error) {
-	return r.getUserByID(ctx, userID)
-}
-
-func (r *profileRepository) UpdateProfile(ctx context.Context, userID, fullName string, goals, contraindications []string, nutrition string, sleepHours float32) error {
-	query := `
-		UPDATE users SET full_name = $1, updated_at = $2 WHERE id = $3
-	`
-	_, err := r.db.ExecContext(ctx, query, fullName, time.Now(), userID)
-	if err != nil {
-		return apperrors.Internal("failed to update profile", err)
-	}
-	return nil
-}
-
-func (r *profileRepository) getUserByID(ctx context.Context, id string) (*entity.User, error) {
-	query := `
-		SELECT id, email, password_hash, full_name, role, email_verified, created_at, updated_at
-		FROM users WHERE id = $1
-	`
-	user := &entity.User{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.FullName,
-		&user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound(errUserNotFound)
-		}
-		return nil, apperrors.Internal("failed to get user", err)
-	}
-	return user, nil
-}
-
-type HealthCondition struct {
-	ID            string
-	UserID        string
-	ConditionType string
-	Description   string
-	CreatedAt     time.Time
-}
-
 type HealthConditionRepository interface {
-	Create(ctx context.Context, condition *HealthCondition) (*HealthCondition, error)
-	List(ctx context.Context, userID, conditionType string) ([]*HealthCondition, error)
+	Create(ctx context.Context, condition *entity.HealthCondition) (*entity.HealthCondition, error)
+	List(ctx context.Context, userID, conditionType string) ([]*entity.HealthCondition, error)
 	Delete(ctx context.Context, id string) error
 }
 
@@ -340,11 +274,11 @@ type healthConditionRepository struct {
 	db *sql.DB
 }
 
-func NewHealthConditionRepository(db *sql.DB) HealthConditionRepository {
+func NewHealthConditionRepository(db *sql.DB) port.HealthConditionRepository {
 	return &healthConditionRepository{db: db}
 }
 
-func (r *healthConditionRepository) Create(ctx context.Context, condition *HealthCondition) (*HealthCondition, error) {
+func (r *healthConditionRepository) Create(ctx context.Context, condition *entity.HealthCondition) (*entity.HealthCondition, error) {
 	query := `
 		INSERT INTO health_conditions (id, user_id, condition_type, description, created_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -359,7 +293,7 @@ func (r *healthConditionRepository) Create(ctx context.Context, condition *Healt
 	return condition, nil
 }
 
-func (r *healthConditionRepository) List(ctx context.Context, userID, conditionType string) ([]*HealthCondition, error) {
+func (r *healthConditionRepository) List(ctx context.Context, userID, conditionType string) ([]*entity.HealthCondition, error) {
 	query := `
 		SELECT id, user_id, condition_type, description, created_at
 		FROM health_conditions WHERE user_id = $1
@@ -377,9 +311,9 @@ func (r *healthConditionRepository) List(ctx context.Context, userID, conditionT
 	}
 	defer rows.Close()
 
-	var conditions []*HealthCondition
+	var conditions []*entity.HealthCondition
 	for rows.Next() {
-		condition := &HealthCondition{}
+		condition := &entity.HealthCondition{}
 		if err := rows.Scan(
 			&condition.ID, &condition.UserID, &condition.ConditionType, &condition.Description, &condition.CreatedAt,
 		); err != nil {
@@ -411,7 +345,7 @@ type bodyCompositionRepository struct {
 	db *sql.DB
 }
 
-func NewBodyCompositionRepository(db *sql.DB) BodyCompositionRepository {
+func NewBodyCompositionRepository(db *sql.DB) port.BodyCompositionRepository {
 	return &bodyCompositionRepository{db: db}
 }
 
@@ -484,7 +418,7 @@ type menstrualCycleRepository struct {
 	db *sql.DB
 }
 
-func NewMenstrualCycleRepository(db *sql.DB) MenstrualCycleRepository {
+func NewMenstrualCycleRepository(db *sql.DB) port.MenstrualCycleRepository {
 	return &menstrualCycleRepository{db: db}
 }
 
@@ -560,7 +494,7 @@ type achievementRepository struct {
 	db *sql.DB
 }
 
-func NewAchievementRepository(db *sql.DB) AchievementRepository {
+func NewAchievementRepository(db *sql.DB) port.AchievementRepository {
 	return &achievementRepository{db: db}
 }
 
@@ -616,7 +550,7 @@ type deviceRepository struct {
 	db *sql.DB
 }
 
-func NewDeviceRepository(db *sql.DB) DeviceRepository {
+func NewDeviceRepository(db *sql.DB) port.DeviceRepository {
 	return &deviceRepository{db: db}
 }
 

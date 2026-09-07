@@ -20,7 +20,11 @@ func LoadViper(appName string) (*viper.Viper, error) {
 	v.SetEnvPrefix(appName)
 	v.AutomaticEnv()
 
-	_ = v.ReadInConfig()
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			return nil, fmt.Errorf("read config: %w", err)
+		}
+	}
 
 	return v, nil
 }
@@ -28,7 +32,7 @@ func LoadViper(appName string) (*viper.Viper, error) {
 func MustLoadViper(appName string) *viper.Viper {
 	v, err := LoadViper(appName)
 	if err != nil {
-		_ = fmt.Errorf("failed to load config: %w", err)
+		panic(fmt.Sprintf("failed to load config: %v", err))
 	}
 	return v
 }

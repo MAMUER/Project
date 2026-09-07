@@ -11,37 +11,58 @@ import (
 )
 
 type userService struct {
-	users        port.UserRepository
-	profiles     port.ProfileRepository
-	invites      port.InviteRepository
-	health       port.HealthConditionRepository
-	bodyComp     port.BodyCompositionRepository
-	menstrual    port.MenstrualCycleRepository
-	achievements port.AchievementRepository
-	devices      port.DeviceRepository
+	users            port.UserRepository
+	profiles         port.ProfileRepository
+	invites          port.InviteRepository
+	inviteCodes      port.InviteCodeRepository
+	health           port.HealthConditionRepository
+	userHealth       port.UserHealthConditionRepository
+	bodyComp         port.BodyCompositionRepository
+	userBodyComp     port.UserBodyCompositionRepository
+	menstrual        port.MenstrualCycleRepository
+	userMenstrual    port.UserMenstrualRepository
+	achievements     port.AchievementRepository
+	achievementsEx   port.AchievementRepositoryEx
+	devices          port.DeviceRepository
+	emailVerifs      port.EmailVerificationRepository
+	refreshTokens    port.RefreshTokenRepository
 }
 
 type UserServiceConfig struct {
-	Users        port.UserRepository
-	Profiles     port.ProfileRepository
-	Invites      port.InviteRepository
-	Health       port.HealthConditionRepository
-	BodyComp     port.BodyCompositionRepository
-	Menstrual    port.MenstrualCycleRepository
-	Achievements port.AchievementRepository
-	Devices      port.DeviceRepository
+	Users            port.UserRepository
+	Profiles         port.ProfileRepository
+	Invites          port.InviteRepository
+	InviteCodes      port.InviteCodeRepository
+	Health           port.HealthConditionRepository
+	UserHealth       port.UserHealthConditionRepository
+	BodyComp         port.BodyCompositionRepository
+	UserBodyComp     port.UserBodyCompositionRepository
+	Menstrual        port.MenstrualCycleRepository
+	UserMenstrual    port.UserMenstrualRepository
+	Achievements     port.AchievementRepository
+	AchievementsEx   port.AchievementRepositoryEx
+	Devices          port.DeviceRepository
+	EmailVerifs      port.EmailVerificationRepository
+	RefreshTokens    port.RefreshTokenRepository
 }
 
 func NewUserService(cfg UserServiceConfig) UserService {
 	return &userService{
-		users:        cfg.Users,
-		profiles:     cfg.Profiles,
-		invites:      cfg.Invites,
-		health:       cfg.Health,
-		bodyComp:     cfg.BodyComp,
-		menstrual:    cfg.Menstrual,
-		achievements: cfg.Achievements,
-		devices:      cfg.Devices,
+		users:         cfg.Users,
+		profiles:      cfg.Profiles,
+		invites:       cfg.Invites,
+		inviteCodes:   cfg.InviteCodes,
+		health:        cfg.Health,
+		userHealth:    cfg.UserHealth,
+		bodyComp:      cfg.BodyComp,
+		userBodyComp:  cfg.UserBodyComp,
+		menstrual:     cfg.Menstrual,
+		userMenstrual: cfg.UserMenstrual,
+		achievements:  cfg.Achievements,
+		achievementsEx: cfg.AchievementsEx,
+		devices:       cfg.Devices,
+		emailVerifs:   cfg.EmailVerifs,
+		refreshTokens: cfg.RefreshTokens,
 	}
 }
 
