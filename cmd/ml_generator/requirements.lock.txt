@@ -73,7 +73,7 @@ dynaconf==3.3.5
     # via evidently
 evidently==0.7.21
     # via -r requirements.txt
-faker==40.36.0
+faker==40.37.0
     # via polyfactory
 fastapi==0.141.1
     # via -r requirements.txt
@@ -127,7 +127,7 @@ iterative-telemetry==0.0.10
     # via evidently
 jinja2==3.1.6
     # via torch
-joblib==1.5.3
+joblib==1.6.0
     # via
     #   nltk
     #   scikit-learn
@@ -262,13 +262,13 @@ pyarrow==25.0.1
     # via pandas
 pycparser==3.0
     # via cffi
-pydantic==2.13.4
+pydantic==2.13.5
     # via
     #   -r requirements.txt
     #   evidently
     #   fastapi
     #   wandb
-pydantic-core==2.46.4
+pydantic-core==2.48.0
     # via pydantic
 pygments==2.20.0
     # via rich
@@ -361,9 +361,9 @@ tqdm==4.70.0
     #   nltk
     #   pytorch-lightning
     #   transformers
-transformers==5.15.0
+transformers==5.16.1
     # via optimum
-typer==0.27.1
+typer==0.27.2
     # via
     #   evidently
     #   transformers
@@ -408,7 +408,7 @@ urllib3==2.7.0
     #   sentry-sdk
 uuid6==2025.0.1
     # via evidently
-uvicorn[standard]==0.52.3
+uvicorn[standard]==0.52.4
     # via
     #   -r requirements.txt
     #   evidently
