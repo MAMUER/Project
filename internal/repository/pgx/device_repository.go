@@ -13,6 +13,27 @@ import (
 	"github.com/MAMUER/project/internal/domain/entity"
 )
 
+func scanDevices(rows pgx.Rows) ([]*entity.Device, error) {
+	return scanSlice(rows, func(d *entity.Device) error {
+		return rows.Scan(&d.ID, &d.UserID, &d.DeviceType, &d.DeviceName, &d.IsConnected, &d.LastSync)
+	})
+}
+
+func scanSlice[T any](rows pgx.Rows, scanFunc func(*T) error) ([]*T, error) {
+	var items []*T
+	for rows.Next() {
+		item := new(T)
+		if err := scanFunc(item); err != nil {
+			return nil, apperrors.Internal("failed to scan item", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate items", err)
+	}
+	return items, nil
+}
+
 // DeviceRepositoryPGX implements device operations using pgxpool.Pool.
 type DeviceRepositoryPGX struct {
 	db *pgxpool.Pool
@@ -33,21 +54,7 @@ func (r *DeviceRepositoryPGX) List(ctx context.Context, userID string) ([]*entit
 	}
 	defer rows.Close()
 
-	var devices []*entity.Device
-	for rows.Next() {
-		device := &entity.Device{}
-		if err := rows.Scan(
-			&device.ID, &device.UserID, &device.DeviceType, &device.DeviceName,
-			&device.IsConnected, &device.LastSync,
-		); err != nil {
-			return nil, apperrors.Internal("failed to scan device", err)
-		}
-		devices = append(devices, device)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperrors.Internal("failed to iterate devices", err)
-	}
-	return devices, nil
+	return scanDevices(rows)
 }
 
 func (r *DeviceRepositoryPGX) Create(ctx context.Context, device *entity.Device) (*entity.Device, error) {
@@ -138,21 +145,7 @@ func (r *DeviceRepositoryPGX) ListConnected(ctx context.Context, userID string) 
 	}
 	defer rows.Close()
 
-	var devices []*entity.Device
-	for rows.Next() {
-		device := &entity.Device{}
-		if err := rows.Scan(
-			&device.ID, &device.UserID, &device.DeviceType, &device.DeviceName,
-			&device.IsConnected, &device.LastSync,
-		); err != nil {
-			return nil, apperrors.Internal("failed to scan device", err)
-		}
-		devices = append(devices, device)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperrors.Internal("failed to iterate connected devices", err)
-	}
-	return devices, nil
+	return scanDevices(rows)
 }
 
 func (r *DeviceRepositoryPGX) BatchCreate(ctx context.Context, devices []*entity.Device) (int, error) {

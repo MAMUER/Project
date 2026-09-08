@@ -4,6 +4,7 @@
 # Core ML — PyTorch с torch.compile()
 torch>=2.13.0
 lightning @ git+https://github.com/Lightning-AI/pytorch-lightning.git@e1cfc4d
+lightning-utilities>=0.15.3,<2.0
 numpy>=2.5.2
 pandas>=3.0.5
 

@@ -142,9 +142,17 @@ func (r *userMenstrualRepository) DeleteCycle(ctx context.Context, id, userID st
 }
 
 func (r *userMenstrualRepository) ListSymptoms(ctx context.Context, cycleID string) ([]string, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT symptom FROM user_menstrual_symptoms WHERE cycle_id = $1`, cycleID)
+	return r.listStrings(ctx, `SELECT symptom FROM user_menstrual_symptoms WHERE cycle_id = $1`, cycleID, errFailedToListMenstrualSymptoms)
+}
+
+func (r *userMenstrualRepository) ListMoods(ctx context.Context, cycleID string) ([]string, error) {
+	return r.listStrings(ctx, `SELECT mood FROM user_menstrual_moods WHERE cycle_id = $1`, cycleID, errFailedToListMenstrualMoods)
+}
+
+func (r *userMenstrualRepository) listStrings(ctx context.Context, query, errMsg string, args ...interface{}) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
-		return nil, apperrors.Internal(errFailedToListMenstrualSymptoms, err)
+		return nil, apperrors.Internal(errMsg, err)
 	}
 	defer func() { _ = rows.Close() }()
 
@@ -156,7 +164,7 @@ func (r *userMenstrualRepository) ListSymptoms(ctx context.Context, cycleID stri
 		}
 	}
 	if err := rows.Err(); err != nil {
-		return nil, apperrors.Internal(errFailedToListMenstrualSymptoms, err)
+		return nil, apperrors.Internal(errMsg, err)
 	}
 	return items, nil
 }
@@ -178,26 +186,6 @@ func (r *userMenstrualRepository) DeleteSymptoms(ctx context.Context, cycleID st
 		return apperrors.Internal(errFailedToDeleteMenstrualSymptoms, err)
 	}
 	return nil
-}
-
-func (r *userMenstrualRepository) ListMoods(ctx context.Context, cycleID string) ([]string, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT mood FROM user_menstrual_moods WHERE cycle_id = $1`, cycleID)
-	if err != nil {
-		return nil, apperrors.Internal(errFailedToListMenstrualMoods, err)
-	}
-	defer func() { _ = rows.Close() }()
-
-	items := make([]string, 0)
-	for rows.Next() {
-		var item string
-		if err := rows.Scan(&item); err == nil {
-			items = append(items, item)
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperrors.Internal(errFailedToListMenstrualMoods, err)
-	}
-	return items, nil
 }
 
 func (r *userMenstrualRepository) CreateMood(ctx context.Context, cycleID, mood string) error {

@@ -1,7 +1,9 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"strings"
 
@@ -41,7 +43,15 @@ type completeWorkoutRequest struct {
 // @Failure      503  {object}  map[string]interface{}
 // @Router       /api/v1/training/generate [post]
 
+type generatePlanPayload struct {
+	DurationWeeks int     `json:"duration_weeks"`
+	AvailableDays []int   `json:"available_days"`
+	Class         string  `json:"class"`
+	Confidence    float64 `json:"confidence"`
+}
+
 func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
+	defer func() { _ = r.Body.Close() }()
 	userID, ok := r.Context().Value(middleware.UserIDKey).(string)
 	if !ok {
 		g.log.Error(errUnauthorized, zap.String("handler", "generatePlan"))
@@ -49,21 +59,41 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req struct {
-		DurationWeeks int     `json:"duration_weeks"`
-		AvailableDays []int   `json:"available_days"`
-		Class         string  `json:"class"`
-		Confidence    float64 `json:"confidence"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		g.log.Error("Failed to decode generate plan request", zap.Error(err))
-		http.Error(w, errBadRequest, http.StatusBadRequest)
+	req, writeErr := parseGeneratePlanRequest(w, r) // nolint:bodyclose
+	if writeErr != nil {
 		return
 	}
 
-	class := req.Class
-	if class == "" {
-		class = "endurance_basic"
+	resp, err := g.executeGeneratePlan(r.Context(), userID, req)
+	if err != nil {
+		writeGeneratePlanError(g, w, err, userID, req.Class)
+		return
+	}
+
+	writeGeneratePlanResponse(g, w, resp, req)
+}
+
+func parseGeneratePlanRequest(w http.ResponseWriter, r *http.Request) (generatePlanPayload, *http.Response) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, errBadRequest, http.StatusBadRequest)
+		return generatePlanPayload{}, &http.Response{StatusCode: http.StatusBadRequest}
+	}
+	var req generatePlanPayload
+	if err := json.Unmarshal(body, &req); err != nil {
+		http.Error(w, errBadRequest, http.StatusBadRequest)
+		return generatePlanPayload{}, &http.Response{StatusCode: http.StatusBadRequest}
+	}
+	if req.Class == "" {
+		req.Class = "endurance_basic"
+	}
+	return req, nil
+}
+
+func (g *gateway) executeGeneratePlan(ctx context.Context, userID string, req generatePlanPayload) (*trainingpb.GeneratePlanResponse, error) {
+	client, err := g.getTrainingClient()
+	if err != nil {
+		return nil, err
 	}
 
 	availableDays := make([]int32, len(req.AvailableDays))
@@ -71,45 +101,16 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 		availableDays[i] = safeIntToInt32(d)
 	}
 
-	client, err := g.getTrainingClient()
-	if err != nil {
-		g.log.Error(errFailedToGetTrainingClient, zap.Error(err))
-		http.Error(w, serviceTrainingUnavailable, http.StatusServiceUnavailable)
-		return
-	}
-
-	resp, err := client.GeneratePlan(r.Context(), &trainingpb.GeneratePlanRequest{
+	return client.GeneratePlan(ctx, &trainingpb.GeneratePlanRequest{
 		UserId:              userID,
-		ClassificationClass: class,
+		ClassificationClass: req.Class,
 		Confidence:          req.Confidence,
 		DurationWeeks:       safeIntToInt32(req.DurationWeeks),
 		AvailableDays:       availableDays,
 	})
-	sanitize := func(s string) string {
-		return strings.ReplaceAll(strings.ReplaceAll(s, "\n", ""), "\r", "")
-	}
-	if err != nil {
-		g.log.Error("Failed to generate plan",
-			zap.Error(err),
-			zap.String("user_id", sanitize(userID)),
-			zap.String("class", sanitize(class)),
-		)
-		httpCode, errMsg := grpcToHTTPStatus(err)
-		g.log.Info("gRPC error details",
-			zap.Int("httpCode", httpCode),
-			zap.String("errMsg", sanitize(errMsg)),
-			zap.String("grpc_code", sanitize(err.Error())),
-		)
-		if httpCode == http.StatusInternalServerError {
-			g.log.Error("Training service unavailable during plan generation", zap.Error(err))
-			http.Error(w, "Сервис тренировок временно недоступен. Попробуйте позже.", http.StatusServiceUnavailable)
-			return
-		}
-		g.log.Error("Plan generation failed", zap.Int("http_code", httpCode), zap.String("error", errMsg))
-		http.Error(w, errMsg, httpCode)
-		return
-	}
+}
 
+func writeGeneratePlanResponse(g *gateway, w http.ResponseWriter, resp *trainingpb.GeneratePlanResponse, req generatePlanPayload) {
 	planDataJSON, err := json.Marshal(resp.PlanData)
 	if err != nil {
 		g.log.Error("Failed to marshal plan data", zap.Error(err))
@@ -124,23 +125,45 @@ func (g *gateway) generatePlanHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 	planData["duration_weeks"] = req.DurationWeeks
-	planData["training_goal"] = class
+	planData["training_goal"] = req.Class
 
 	response := map[string]interface{}{
 		"status":        "ok",
 		"plan_id":       resp.PlanId,
 		"plan_data":     planData,
-		"training_type": class,
+		"training_type": req.Class,
 	}
 
 	w.Header().Set(headerContentType, contentTypeJSON)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		g.log.Error(logFailedToEncodeResponse, zap.Error(err))
 		http.Error(w, "encodeResponseError", http.StatusInternalServerError)
+	}
+}
+
+func writeGeneratePlanError(g *gateway, w http.ResponseWriter, err error, userID, class string) {
+	sanitize := func(s string) string {
+		return strings.ReplaceAll(strings.ReplaceAll(s, "\n", ""), "\r", "")
+	}
+	g.log.Error("Failed to generate plan",
+		zap.Error(err),
+		zap.String("user_id", sanitize(userID)),
+		zap.String("class", sanitize(class)),
+	)
+	httpCode, errMsg := grpcToHTTPStatus(err)
+	g.log.Info("gRPC error details",
+		zap.Int("httpCode", httpCode),
+		zap.String("errMsg", sanitize(errMsg)),
+		zap.String("grpc_code", sanitize(err.Error())),
+	)
+	if httpCode == http.StatusInternalServerError {
+		g.log.Error("Training service unavailable during plan generation", zap.Error(err))
+		http.Error(w, "Сервис тренировок временно недоступен. Попробуйте позже.", http.StatusServiceUnavailable)
 		return
 	}
+	g.log.Error("Plan generation failed", zap.Int("http_code", httpCode), zap.String("error", errMsg))
+	http.Error(w, errMsg, httpCode)
 }
 
 // @Summary      List training plans

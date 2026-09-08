@@ -135,26 +135,33 @@ func (r *PgsodiumUserRepository) GetByID(ctx context.Context, id string) (*entit
 	}
 
 	if db.PgsodiumKeyID() > 0 {
-		var email, fullName string
-		emailQuery := strings.Builder{}
-		emailQuery.WriteString(sqlSelectPrefix)
-		emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
-		emailQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&email); err != nil { // NOSONAR go:S2077
-			return nil, apperrors.Internal(errFailedToDecryptEmail, err)
+		if err := r.decryptUserFields(ctx, &user); err != nil {
+			return nil, err
 		}
-		fullNameQuery := strings.Builder{}
-		fullNameQuery.WriteString(sqlSelectPrefix)
-		fullNameQuery.WriteString(db.PgsodiumDecryptParam("full_name_encrypted", "full_name_nonce", "full_name"))
-		fullNameQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, fullNameQuery.String(), user.ID).Scan(&fullName); err != nil { // NOSONAR go:S2077
-			return nil, apperrors.Internal(errFailedToDecryptFullName, err)
-		}
-		user.Email = email
-		user.FullName = fullName
 	}
 
 	return &user, nil
+}
+
+func (r *PgsodiumUserRepository) decryptUserFields(ctx context.Context, user *entity.User) error {
+	var email, fullName string
+	emailQuery := strings.Builder{}
+	emailQuery.WriteString(sqlSelectPrefix)
+	emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
+	emailQuery.WriteString(sqlFromUsersByID)
+	if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&email); err != nil { // NOSONAR go:S2077
+		return apperrors.Internal(errFailedToDecryptEmail, err)
+	}
+	fullNameQuery := strings.Builder{}
+	fullNameQuery.WriteString(sqlSelectPrefix)
+	fullNameQuery.WriteString(db.PgsodiumDecryptParam("full_name_encrypted", "full_name_nonce", "full_name"))
+	fullNameQuery.WriteString(sqlFromUsersByID)
+	if err := r.db.QueryRowContext(ctx, fullNameQuery.String(), user.ID).Scan(&fullName); err != nil { // NOSONAR go:S2077
+		return apperrors.Internal(errFailedToDecryptFullName, err)
+	}
+	user.Email = email
+	user.FullName = fullName
+	return nil
 }
 
 func (r *PgsodiumUserRepository) GetByEmail(ctx context.Context, email string) (*entity.User, error) {
@@ -683,23 +690,9 @@ func (r *PgsodiumUserRepository) FindGoogleUser(ctx context.Context, googleSub s
 		return nil, apperrors.Internal("failed to find Google user", err)
 	}
 	if db.PgsodiumKeyID() > 0 {
-		var email, fullName string
-		emailQuery := strings.Builder{}
-		emailQuery.WriteString(sqlSelectPrefix)
-		emailQuery.WriteString(db.PgsodiumDecryptParam("email_encrypted", "email_nonce", "email"))
-		emailQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, emailQuery.String(), user.ID).Scan(&email); err != nil { // NOSONAR go:S2077
-			return nil, apperrors.Internal(errFailedToDecryptEmail, err)
+		if err := r.decryptUserFields(ctx, &user); err != nil {
+			return nil, err
 		}
-		fullNameQuery := strings.Builder{}
-		fullNameQuery.WriteString(sqlSelectPrefix)
-		fullNameQuery.WriteString(db.PgsodiumDecryptParam("full_name_encrypted", "full_name_nonce", "full_name"))
-		fullNameQuery.WriteString(sqlFromUsersByID)
-		if err := r.db.QueryRowContext(ctx, fullNameQuery.String(), user.ID).Scan(&fullName); err != nil { // NOSONAR go:S2077
-			return nil, apperrors.Internal(errFailedToDecryptFullName, err)
-		}
-		user.Email = email
-		user.FullName = fullName
 	}
 	return &user, nil
 }
@@ -879,8 +872,8 @@ func (r *PgsodiumUserRepository) deleteListItems(ctx context.Context, userID, ta
 }
 
 func (r *PgsodiumUserRepository) insertListItem(ctx context.Context, userID, tableName, columnName, value string) error {
-	query := fmt.Sprintf("INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING", tableName, columnName) // nolint:G201
-	_, err := r.db.ExecContext(ctx, query, userID, value)
+	query := fmt.Sprintf("INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING", tableName, columnName) //nolint:gosec // tableName and columnName are hardcoded allow-listed constants, not user input
+	_, err := r.db.ExecContext(ctx, query, userID, value)                                                              // NOSONAR go:S2077
 	if err != nil {
 		return apperrors.Internal("failed to insert list item", err)
 	}

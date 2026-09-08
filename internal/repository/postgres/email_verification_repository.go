@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/MAMUER/project/internal/apperrors"
 	"github.com/MAMUER/project/internal/domain/port"
@@ -24,6 +25,20 @@ func NewEmailVerificationRepository(db *sql.DB) port.EmailVerificationRepository
 	return &emailVerificationRepository{db: db}
 }
 
+func (r *emailVerificationRepository) queryEmailVerification(ctx context.Context, query string, notFoundMsg string, args ...interface{}) (*port.EmailVerification, error) {
+	ev := &port.EmailVerification{}
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(
+		&ev.ID, &ev.UserID, &ev.Email, &ev.EmailHash, &ev.Token, &ev.Used, &ev.ExpiresAt, &ev.CreatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, apperrors.NotFound(notFoundMsg)
+		}
+		return nil, apperrors.Internal("failed to get email verification", err)
+	}
+	return ev, nil
+}
+
 func (r *emailVerificationRepository) Create(ctx context.Context, ev *port.EmailVerification) error {
 	query := `
 		INSERT INTO email_verifications (user_id, email, email_hash, token, used, expires_at, created_at)
@@ -39,43 +54,21 @@ func (r *emailVerificationRepository) Create(ctx context.Context, ev *port.Email
 }
 
 func (r *emailVerificationRepository) GetValidToken(ctx context.Context, token string) (*port.EmailVerification, error) {
-	query := `
+	return r.queryEmailVerification(ctx, `
 		SELECT id, user_id, email, email_hash, token, used, expires_at, created_at
 		FROM email_verifications
 		WHERE token = $1 AND used = false AND expires_at > NOW()
-	`
-	ev := &port.EmailVerification{}
-	err := r.db.QueryRowContext(ctx, query, token).Scan(
-		&ev.ID, &ev.UserID, &ev.Email, &ev.EmailHash, &ev.Token, &ev.Used, &ev.ExpiresAt, &ev.CreatedAt,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound("email verification token not found")
-		}
-		return nil, apperrors.Internal("failed to get email verification", err)
-	}
-	return ev, nil
+	`, "email verification token not found", token)
 }
 
 func (r *emailVerificationRepository) GetByUserID(ctx context.Context, userID string) (*port.EmailVerification, error) {
-	query := `
+	return r.queryEmailVerification(ctx, `
 		SELECT id, user_id, email, email_hash, token, used, expires_at, created_at
 		FROM email_verifications
 		WHERE user_id = $1
 		ORDER BY created_at DESC
 		LIMIT 1
-	`
-	ev := &port.EmailVerification{}
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
-		&ev.ID, &ev.UserID, &ev.Email, &ev.EmailHash, &ev.Token, &ev.Used, &ev.ExpiresAt, &ev.CreatedAt,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound("email verification not found")
-		}
-		return nil, apperrors.Internal("failed to get email verification by user id", err)
-	}
-	return ev, nil
+	`, "email verification not found", userID)
 }
 
 func (r *emailVerificationRepository) MarkUsed(ctx context.Context, token string) error {

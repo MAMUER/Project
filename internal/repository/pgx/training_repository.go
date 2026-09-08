@@ -18,6 +18,12 @@ type TrainingRepositoryPGX struct {
 	db *pgxpool.Pool
 }
 
+func scanAchievements(rows pgx.Rows) ([]*entity.Achievement, error) {
+	return scanSlice(rows, func(a *entity.Achievement) error {
+		return rows.Scan(&a.ID, &a.UserID, &a.Type, &a.Title, &a.Description, &a.EarnedAt)
+	})
+}
+
 func NewTrainingRepositoryPGX(db *pgxpool.Pool) *TrainingRepositoryPGX {
 	return &TrainingRepositoryPGX{db: db}
 }
@@ -154,20 +160,7 @@ func (r *TrainingRepositoryPGX) GetAchievements(ctx context.Context, userID stri
 	}
 	defer rows.Close()
 
-	var achievements []*entity.Achievement
-	for rows.Next() {
-		achievement := &entity.Achievement{}
-		if err := rows.Scan(
-			&achievement.ID, &achievement.UserID, &achievement.Type, &achievement.Title, &achievement.Description, &achievement.EarnedAt,
-		); err != nil {
-			return nil, apperrors.Internal("failed to scan achievement", err)
-		}
-		achievements = append(achievements, achievement)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperrors.Internal("failed to iterate achievements", err)
-	}
-	return achievements, nil
+	return scanAchievements(rows)
 }
 
 func (r *TrainingRepositoryPGX) CreateAchievement(ctx context.Context, achievement *entity.Achievement) (*entity.Achievement, error) {

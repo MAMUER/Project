@@ -19,6 +19,27 @@ func NewTrainingRepository(db *sql.DB) port.TrainingRepository {
 	return &TrainingRepository{db: db}
 }
 
+func scanAchievements(rows *sql.Rows) ([]*entity.Achievement, error) {
+	return scanSlice(rows, func(a *entity.Achievement) error {
+		return rows.Scan(&a.ID, &a.UserID, &a.Type, &a.Title, &a.Description, &a.EarnedAt)
+	})
+}
+
+func scanSlice[T any](rows *sql.Rows, scanFunc func(*T) error) ([]*T, error) {
+	var items []*T
+	for rows.Next() {
+		item := new(T)
+		if err := scanFunc(item); err != nil {
+			return nil, apperrors.Internal("failed to scan item", err)
+		}
+		items = append(items, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, apperrors.Internal("failed to iterate items", err)
+	}
+	return items, nil
+}
+
 func (r *TrainingRepository) CreatePlan(ctx context.Context, plan *entity.TrainingPlan) (*entity.TrainingPlan, error) {
 	planDataJSON, err := json.Marshal(plan.PlanData)
 	if err != nil {
@@ -153,18 +174,5 @@ func (r *TrainingRepository) GetAchievements(ctx context.Context, userID string)
 	}
 	defer func() { _ = rows.Close() }()
 
-	var achievements []*entity.Achievement
-	for rows.Next() {
-		achievement := &entity.Achievement{}
-		if err := rows.Scan(
-			&achievement.ID, &achievement.UserID, &achievement.Type, &achievement.Title, &achievement.Description, &achievement.EarnedAt,
-		); err != nil {
-			return nil, apperrors.Internal("failed to scan achievement", err)
-		}
-		achievements = append(achievements, achievement)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperrors.Internal("failed to iterate achievements", err)
-	}
-	return achievements, nil
+	return scanAchievements(rows)
 }

@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/MAMUER/project/internal/apperrors"
@@ -18,23 +19,26 @@ func NewProfileRepository(db *sql.DB) port.ProfileRepository {
 	return &profileRepository{db: db}
 }
 
-func (r *profileRepository) GetProfile(ctx context.Context, userID string) (*entity.User, error) {
-	query := `
-		SELECT id, email, password_hash, full_name, role, email_verified, created_at, updated_at
-		FROM users WHERE id = $1
-	`
+func (r *profileRepository) queryUser(ctx context.Context, query string, args ...interface{}) (*entity.User, error) {
 	user := &entity.User{}
-	err := r.db.QueryRowContext(ctx, query, userID).Scan(
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(
 		&user.ID, &user.Email, &user.PasswordHash, &user.FullName,
 		&user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, apperrors.NotFound("user not found")
 		}
 		return nil, apperrors.Internal("failed to get user", err)
 	}
 	return user, nil
+}
+
+func (r *profileRepository) GetProfile(ctx context.Context, userID string) (*entity.User, error) {
+	return r.queryUser(ctx, `
+		SELECT id, email, password_hash, full_name, role, email_verified, created_at, updated_at
+		FROM users WHERE id = $1
+	`, userID)
 }
 
 func (r *profileRepository) UpdateProfile(ctx context.Context, userID, fullName string, goals, contraindications []string, nutrition string, sleepHours float32) error {

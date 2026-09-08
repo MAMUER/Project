@@ -4,6 +4,7 @@
 # Core ML — PyTorch (последний стабильный на Windows/Py 3.14 — 2.12.1)
 torch>=2.13.0
 lightning @ git+https://github.com/Lightning-AI/pytorch-lightning.git@e1cfc4d
+lightning-utilities>=0.15.3,<2.0
 numpy>=2.5.2
 pandas>=3.0.5
 

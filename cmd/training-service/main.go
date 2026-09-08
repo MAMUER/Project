@@ -1147,56 +1147,22 @@ func main() {
 		}
 	}()
 
-	config.InitViper("training-service")
-	v := config.GetViper()
-
-	port := config.GetEnv("TRAINING_SERVICE_PORT", "50053")
-	metricsPort := config.GetEnv("TRAINING_SERVICE_METRICS_PORT", "9095")
-
-	_ = v
-
+	port, metricsPort, dbCfg := loadTrainingConfig()
 	metricsSrv := createMetricsServer(metricsPort)
+	database, pgxPool, trainingSvc, rabbitQueue := initTrainingServices(dbCfg, log)
 
-	dbCfg := db.Config{
-		Host:     config.GetEnv("DB_HOST"),
-		Port:     config.GetEnv("DB_PORT"),
-		User:     config.GetEnv("POSTGRES_USER"),
-		Password: config.GetEnv("POSTGRES_PASSWORD"),
-		DBName:   config.GetEnv("POSTGRES_DB"),
-		SSLMode:  config.GetEnv("DB_SSLMODE"),
-	}
-
-	database := connectDatabase(dbCfg, log)
 	defer func() {
 		if closeErr := database.Close(); closeErr != nil {
 			log.Error("Failed to close database", zap.Error(closeErr))
 		}
 	}()
-
-	var pgxPool *pgxpool.Pool
-	var err error
-	pgxPool, err = db.NewPgxPool(dbCfg)
-	if err != nil {
-		log.Fatal("Failed to connect to pgx pool", zap.Error(err))
-	}
 	defer func() {
 		pgxPool.Close()
 	}()
 
-	trainingRepo := pgx.NewTrainingRepositoryPGX(pgxPool)
-	trainingSvc := service.NewTrainingService(trainingRepo)
-
-	rabbitURL := config.GetEnv("RABBITMQ_URL")
-	queueName := "training_events"
-	rabbitQueue := createRabbitQueue(rabbitURL, queueName, log)
-	if rabbitQueue != nil {
-		defer func() { _ = rabbitQueue.Close() }()
-	}
-
 	s := setupGRPCServer(log, database, trainingSvc, rabbitQueue)
 
-	lc := net.ListenConfig{}
-	lis, err := lc.Listen(context.Background(), "tcp", ":"+port)
+	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatal("Failed to listen", zap.Error(err))
 	}
@@ -1257,4 +1223,37 @@ func float64Value(nf sql.NullFloat64) float64 {
 		return nf.Float64
 	}
 	return 0
+}
+
+func loadTrainingConfig() (port, metricsPort string, dbCfg db.Config) {
+	config.InitViper("training-service")
+	port = config.GetEnv("TRAINING_SERVICE_PORT", "50053")
+	metricsPort = config.GetEnv("TRAINING_SERVICE_METRICS_PORT", "9095")
+	dbCfg = db.Config{
+		Host:     config.GetEnv("DB_HOST"),
+		Port:     config.GetEnv("DB_PORT"),
+		User:     config.GetEnv("POSTGRES_USER"),
+		Password: config.GetEnv("POSTGRES_PASSWORD"),
+		DBName:   config.GetEnv("POSTGRES_DB"),
+		SSLMode:  config.GetEnv("DB_SSLMODE"),
+	}
+	return port, metricsPort, dbCfg
+}
+
+func initTrainingServices(dbCfg db.Config, log *logger.Logger) (*sql.DB, *pgxpool.Pool, service.TrainingService, queue.Publisher) {
+	database := connectDatabase(dbCfg, log)
+
+	pgxPool, err := db.NewPgxPool(dbCfg)
+	if err != nil {
+		log.Fatal("Failed to connect to pgx pool", zap.Error(err))
+	}
+
+	trainingRepo := pgx.NewTrainingRepositoryPGX(pgxPool)
+	trainingSvc := service.NewTrainingService(trainingRepo)
+
+	rabbitURL := config.GetEnv("RABBITMQ_URL")
+	queueName := "training_events"
+	rabbitQueue := createRabbitQueue(rabbitURL, queueName, log)
+
+	return database, pgxPool, trainingSvc, rabbitQueue
 }

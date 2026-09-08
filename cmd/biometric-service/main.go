@@ -638,7 +638,7 @@ func startHealthCheckLoop(db *sql.DB, rq queue.Publisher, hs *health.Server, log
 	}()
 }
 
-func setupGracefulShutdown(log *logger.Logger, grpcServer *grpc.Server, metricsSrv *http.Server) context.Context {
+func setupGracefulShutdown(log *logger.Logger, grpcServer *grpc.Server, metricsSrv *http.Server, database *sql.DB, pgxPool *pgxpool.Pool, rabbitQueue queue.Publisher, webhookSrv *webhook.Server) context.Context {
 	ctx, stop := signal.NotifyContext(context.Background(),
 		syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 
@@ -651,6 +651,20 @@ func setupGracefulShutdown(log *logger.Logger, grpcServer *grpc.Server, metricsS
 		if err := metricsSrv.Shutdown(shutdownCtx); err != nil {
 			log.Error("Failed to shutdown metrics server", zap.Error(err))
 		}
+		if webhookSrv != nil {
+			if err := webhookSrv.Stop(shutdownCtx); err != nil {
+				log.Error("Failed to shutdown webhook server", zap.Error(err))
+			}
+		}
+		if rabbitQueue != nil {
+			if err := rabbitQueue.Close(); err != nil {
+				log.Error("Failed to close rabbit queue", zap.Error(err))
+			}
+		}
+		if closeErr := database.Close(); closeErr != nil {
+			log.Error("Failed to close database", zap.Error(closeErr))
+		}
+		pgxPool.Close()
 		stop()
 	}()
 
@@ -667,88 +681,21 @@ func main() {
 		}
 	}()
 
-	config.InitViper(serviceName)
-	v := config.GetViper()
+	port, metricsPort, webhookPort, jwtPublicKeyPEM, dbCfg := loadBiometricConfig()
+	database, pgxPool, biometricSvc, rabbitQueue := initBiometricDependencies(dbCfg, log)
+	grpcServer := createBiometricGRPCServer(log, jwtPublicKeyPEM)
+	metricsSrv := buildMetricsServer(metricsPort, log)
+	webhookSrv := startWebhookServer(webhookPort, database, log)
 
-	port := config.GetEnv("BIOMETRIC_SERVICE_PORT", "50052")
-	metricsPort := config.GetEnv("BIOMETRIC_METRICS_PORT", "9090")
-	webhookPort := config.GetEnv("OPEN_WEARABLES_WEBHOOK_PORT", "8085")
-	jwtPublicKeyPEM := config.GetEnv("JWT_PUBLIC_KEY_PEM")
+	registerBiometricGRPC(grpcServer, database, biometricSvc, rabbitQueue, log)
+	startHealthChecks(database, rabbitQueue, log)
 
-	dbCfg := db.Config{
-		Host:     config.GetEnv("DB_HOST"),
-		Port:     config.GetEnv("DB_PORT"),
-		User:     config.GetEnv("POSTGRES_USER"),
-		Password: config.GetEnv("POSTGRES_PASSWORD"),
-		DBName:   config.GetEnv("POSTGRES_DB"),
-		SSLMode:  config.GetEnv("DB_SSLMODE"),
-	}
-
-	_ = v
-
-	grpcServer := createGRPCServer(log, jwtPublicKeyPEM)
-
-	database, err := db.NewConnection(dbCfg)
-	if err != nil {
-		log.Fatal("Failed to connect to database", zap.Error(err))
-	}
-	defer func() {
-		if closeErr := database.Close(); closeErr != nil {
-			log.Error("Failed to close database", zap.Error(closeErr))
-		}
-	}()
-
-	var pgxPool *pgxpool.Pool
-	pgxPool, err = db.NewPgxPool(dbCfg)
-	if err != nil {
-		log.Fatal("Failed to connect to pgx pool", zap.Error(err))
-	}
-	defer func() {
-		pgxPool.Close()
-	}()
-
-	biometricRepo := pgx.NewBiometricRepositoryPGX(pgxPool)
-	biometricSvc := service.NewBiometricService(biometricRepo)
-
-	rabbitURL := config.GetEnv("RABBITMQ_URL")
-	queueName := "biometric_events"
-	var rabbitQueue queue.Publisher
-	if rabbitURL != "" {
-		rabbitQueue, err = queue.NewPublisher(rabbitURL, queueName, log)
-		if err != nil {
-			log.Warn("Failed to connect to RabbitMQ", zap.Error(err))
-		} else {
-			defer func() { _ = rabbitQueue.Close() }()
-			log.Info("RabbitMQ connected", zap.String("queue", queueName))
-		}
-	}
-
-	lc := net.ListenConfig{}
-	lis, err := lc.Listen(context.Background(), "tcp", ":"+port)
+	lis, err := net.Listen("tcp", ":"+port)
 	if err != nil {
 		log.Fatal("Failed to listen", zap.Error(err))
 	}
 
-	healthServer := health.NewServer()
-
-	pb.RegisterBiometricServiceServer(grpcServer, &biometricServer{
-		db:           database,
-		biometricSvc: biometricSvc,
-		log:          log,
-		rabbitQueue:  rabbitQueue,
-	})
-
-	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
-	startHealthCheckLoop(database, rabbitQueue, healthServer, log)
-
-	metricsSrv := createMetricsServer(metricsPort)
-	startMetricsServer(metricsSrv, log)
-
-	webhookSrv := webhook.NewServer(webhookPort, webhook.NewSQLDBAdapter(database), log.Logger)
-	webhookSrv.Start()
-	defer func() { _ = webhookSrv.Stop(context.Background()) }()
-
-	setupGracefulShutdown(log, grpcServer, metricsSrv)
+	setupGracefulShutdown(log, grpcServer, metricsSrv, database, pgxPool, rabbitQueue, webhookSrv)
 
 	log.Info("Biometric service starting", zap.String("port", port))
 	if err := grpcServer.Serve(lis); err != nil && !strings.Contains(err.Error(), "Server closed") {
@@ -780,4 +727,83 @@ func checkHealth(db *sql.DB, rq queue.Publisher, hs *health.Server, log *logger.
 
 	hs.SetServingStatus("", status)
 	hs.SetServingStatus("biometric.BiometricService", status)
+}
+
+func loadBiometricConfig() (port, metricsPort, webhookPort, jwtPublicKeyPEM string, dbCfg db.Config) {
+	config.InitViper(serviceName)
+	port = config.GetEnv("BIOMETRIC_SERVICE_PORT", "50052")
+	metricsPort = config.GetEnv("BIOMETRIC_METRICS_PORT", "9090")
+	webhookPort = config.GetEnv("OPEN_WEARABLES_WEBHOOK_PORT", "8085")
+	jwtPublicKeyPEM = config.GetEnv("JWT_PUBLIC_KEY_PEM")
+	dbCfg = db.Config{
+		Host:     config.GetEnv("DB_HOST"),
+		Port:     config.GetEnv("DB_PORT"),
+		User:     config.GetEnv("POSTGRES_USER"),
+		Password: config.GetEnv("POSTGRES_PASSWORD"),
+		DBName:   config.GetEnv("POSTGRES_DB"),
+		SSLMode:  config.GetEnv("DB_SSLMODE"),
+	}
+	return port, metricsPort, webhookPort, jwtPublicKeyPEM, dbCfg
+}
+
+func initBiometricDependencies(dbCfg db.Config, log *logger.Logger) (*sql.DB, *pgxpool.Pool, service.BiometricService, queue.Publisher) {
+	database, err := db.NewConnection(dbCfg)
+	if err != nil {
+		log.Fatal("Failed to connect to database", zap.Error(err))
+	}
+
+	pgxPool, err := db.NewPgxPool(dbCfg)
+	if err != nil {
+		log.Fatal("Failed to connect to pgx pool", zap.Error(err))
+	}
+
+	biometricRepo := pgx.NewBiometricRepositoryPGX(pgxPool)
+	biometricSvc := service.NewBiometricService(biometricRepo)
+
+	rabbitURL := config.GetEnv("RABBITMQ_URL")
+	queueName := "biometric_events"
+	var rabbitQueue queue.Publisher
+	if rabbitURL != "" {
+		rabbitQueue, err = queue.NewPublisher(rabbitURL, queueName, log)
+		if err != nil {
+			log.Warn("Failed to connect to RabbitMQ", zap.Error(err))
+		} else {
+			log.Info("RabbitMQ connected", zap.String("queue", queueName))
+		}
+	}
+
+	return database, pgxPool, biometricSvc, rabbitQueue
+}
+
+func createBiometricGRPCServer(log *logger.Logger, jwtPublicKeyPEM string) *grpc.Server {
+	return createGRPCServer(log, jwtPublicKeyPEM)
+}
+
+func buildMetricsServer(metricsPort string, log *logger.Logger) *http.Server {
+	metricsSrv := createMetricsServer(metricsPort)
+	startMetricsServer(metricsSrv, log)
+	return metricsSrv
+}
+
+func startWebhookServer(webhookPort string, database *sql.DB, log *logger.Logger) *webhook.Server {
+	webhookSrv := webhook.NewServer(webhookPort, webhook.NewSQLDBAdapter(database), log.Logger)
+	webhookSrv.Start()
+	return webhookSrv
+}
+
+func registerBiometricGRPC(grpcServer *grpc.Server, database *sql.DB, biometricSvc service.BiometricService, rabbitQueue queue.Publisher, log *logger.Logger) {
+	healthServer := health.NewServer()
+	pb.RegisterBiometricServiceServer(grpcServer, &biometricServer{
+		db:           database,
+		biometricSvc: biometricSvc,
+		log:          log,
+		rabbitQueue:  rabbitQueue,
+	})
+	grpc_health_v1.RegisterHealthServer(grpcServer, healthServer)
+	startHealthCheckLoop(database, rabbitQueue, healthServer, log)
+}
+
+func startHealthChecks(db *sql.DB, rq queue.Publisher, log *logger.Logger) {
+	healthServer := health.NewServer()
+	startHealthCheckLoop(db, rq, healthServer, log)
 }

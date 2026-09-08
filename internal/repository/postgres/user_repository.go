@@ -4,6 +4,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/MAMUER/project/internal/apperrors"
@@ -17,6 +18,21 @@ type UserRepository struct {
 
 func NewUserRepository(db *sql.DB) port.UserRepository {
 	return &UserRepository{db: db}
+}
+
+func (r *UserRepository) queryUser(ctx context.Context, query string, args ...interface{}) (*entity.User, error) {
+	user := &entity.User{}
+	err := r.db.QueryRowContext(ctx, query, args...).Scan(
+		&user.ID, &user.Email, &user.PasswordHash, &user.FullName,
+		&user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, apperrors.NotFound(errUserNotFound)
+		}
+		return nil, apperrors.Internal("failed to get user", err)
+	}
+	return user, nil
 }
 
 func (r *UserRepository) Create(ctx context.Context, user *entity.User) error {
@@ -35,41 +51,17 @@ func (r *UserRepository) Create(ctx context.Context, user *entity.User) error {
 }
 
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*entity.User, error) {
-	query := `
+	return r.queryUser(ctx, `
 		SELECT id, email, password_hash, full_name, role, email_verified, created_at, updated_at
 		FROM users WHERE id = $1
-	`
-	user := &entity.User{}
-	err := r.db.QueryRowContext(ctx, query, id).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.FullName,
-		&user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound(errUserNotFound)
-		}
-		return nil, apperrors.Internal("failed to get user", err)
-	}
-	return user, nil
+	`, id)
 }
 
 func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*entity.User, error) {
-	query := `
+	return r.queryUser(ctx, `
 		SELECT id, email, password_hash, full_name, role, email_verified, created_at, updated_at
 		FROM users WHERE email = $1
-	`
-	user := &entity.User{}
-	err := r.db.QueryRowContext(ctx, query, email).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.FullName,
-		&user.Role, &user.EmailVerified, &user.CreatedAt, &user.UpdatedAt,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, apperrors.NotFound(errUserNotFound)
-		}
-		return nil, apperrors.Internal("failed to get user by email", err)
-	}
-	return user, nil
+	`, email)
 }
 
 func (r *UserRepository) Update(ctx context.Context, user *entity.User) error {
@@ -522,20 +514,7 @@ func (r *achievementRepository) List(ctx context.Context, userID string) ([]*ent
 	}
 	defer func() { _ = rows.Close() }()
 
-	var achievements []*entity.Achievement
-	for rows.Next() {
-		achievement := &entity.Achievement{}
-		if err := rows.Scan(
-			&achievement.ID, &achievement.UserID, &achievement.Type, &achievement.Title, &achievement.Description, &achievement.EarnedAt,
-		); err != nil {
-			return nil, apperrors.Internal("failed to scan achievement", err)
-		}
-		achievements = append(achievements, achievement)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperrors.Internal("failed to iterate achievements", err)
-	}
-	return achievements, nil
+	return scanAchievements(rows)
 }
 
 type DeviceRepository interface {
@@ -552,6 +531,12 @@ func NewDeviceRepository(db *sql.DB) port.DeviceRepository {
 	return &deviceRepository{db: db}
 }
 
+func scanDevices(rows *sql.Rows) ([]*entity.Device, error) {
+	return scanSlice(rows, func(d *entity.Device) error {
+		return rows.Scan(&d.ID, &d.UserID, &d.DeviceType, &d.DeviceName, &d.IsConnected, &d.LastSync)
+	})
+}
+
 func (r *deviceRepository) List(ctx context.Context, userID string) ([]*entity.Device, error) {
 	query := `
 		SELECT id, user_id, device_type, device_name, is_connected, last_sync
@@ -563,21 +548,7 @@ func (r *deviceRepository) List(ctx context.Context, userID string) ([]*entity.D
 	}
 	defer func() { _ = rows.Close() }()
 
-	var devices []*entity.Device
-	for rows.Next() {
-		device := &entity.Device{}
-		if err := rows.Scan(
-			&device.ID, &device.UserID, &device.DeviceType, &device.DeviceName,
-			&device.IsConnected, &device.LastSync,
-		); err != nil {
-			return nil, apperrors.Internal("failed to scan device", err)
-		}
-		devices = append(devices, device)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, apperrors.Internal("failed to iterate devices", err)
-	}
-	return devices, nil
+	return scanDevices(rows)
 }
 
 func (r *deviceRepository) Create(ctx context.Context, device *entity.Device) (*entity.Device, error) {
