@@ -5,8 +5,8 @@ create_namespace() {
 	kubectl create namespace fitness-platform-staging --dry-run=client -o yaml | kubectl apply --validate=false -f -
 	kubectl create secret docker-registry ghcr-pull-secret \
 		--docker-server=ghcr.io \
-		--docker-username=$GITHUB_ACTOR \
-		--docker-password=${GHCR_TOKEN} \
+		--docker-username="$GITHUB_ACTOR" \
+		--docker-password="${GHCR_TOKEN}" \
 		-n fitness-platform-staging \
 		--dry-run=client -o yaml | kubectl apply --validate=false -f -
 }

@@ -42,17 +42,17 @@ build_open_wearables() {
 	git clone --depth 1 https://github.com/the-momentum/open-wearables.git /tmp/open-wearables
 	echo "Building Open Wearables backend..."
 	SHA=$(git rev-parse --short HEAD)
-	docker build -t ghcr.io/mamuer/project/open-wearables-backend:$SHA \
+	docker build -t ghcr.io/mamuer/project/open-wearables-backend:"$SHA" \
 		-t ghcr.io/mamuer/project/open-wearables-backend:latest \
 		-f /tmp/open-wearables/backend/Dockerfile /tmp/open-wearables/backend
 	echo "Building Open Wearables frontend..."
-	docker build -t ghcr.io/mamuer/project/open-wearables-frontend:$SHA \
+	docker build -t ghcr.io/mamuer/project/open-wearables-frontend:"$SHA" \
 		-t ghcr.io/mamuer/project/open-wearables-frontend:latest \
 		-f /tmp/open-wearables/frontend/Dockerfile /tmp/open-wearables/frontend
 	echo "Pushing Open Wearables images..."
-	docker push ghcr.io/mamuer/project/open-wearables-backend:$SHA
+	docker push ghcr.io/mamuer/project/open-wearables-backend:"$SHA"
 	docker push ghcr.io/mamuer/project/open-wearables-backend:latest
-	docker push ghcr.io/mamuer/project/open-wearables-frontend:$SHA
+	docker push ghcr.io/mamuer/project/open-wearables-frontend:"$SHA"
 	docker push ghcr.io/mamuer/project/open-wearables-frontend:latest
 	echo "Open Wearables images pushed"
 }

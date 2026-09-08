@@ -23,13 +23,13 @@ EOF
 	RABBITMQ_URL="amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/"
 	kubectl create secret generic app-secrets -n fitness-platform-production \
 		--from-literal=POSTGRES_USER=postgres \
-		--from-literal=POSTGRES_PASSWORD=${POSTGRES_PASSWORD} \
+		--from-literal=POSTGRES_PASSWORD="${POSTGRES_PASSWORD}" \
 		--from-literal=POSTGRES_DB=fitness \
-		--from-literal=JWT_PRIVATE_KEY_PEM=${JWT_PRIVATE_KEY_PEM} \
-		--from-literal=JWT_PUBLIC_KEY_PEM=${JWT_PUBLIC_KEY_PEM} \
-		--from-literal=RABBITMQ_USER=${RABBITMQ_USER} \
-		--from-literal=RABBITMQ_PASS=${RABBITMQ_PASS} \
-		--from-literal=VALKEY_PASSWORD=${VALKEY_PASSWORD} \
+		--from-literal=JWT_PRIVATE_KEY_PEM="${JWT_PRIVATE_KEY_PEM}" \
+		--from-literal=JWT_PUBLIC_KEY_PEM="${JWT_PUBLIC_KEY_PEM}" \
+		--from-literal=RABBITMQ_USER="${RABBITMQ_USER}" \
+		--from-literal=RABBITMQ_PASS="${RABBITMQ_PASS}" \
+		--from-literal=VALKEY_PASSWORD="${VALKEY_PASSWORD}" \
 		--from-literal=RABBITMQ_URL="$RABBITMQ_URL" \
 		--from-literal=SMTP_HOST="$SMTP_HOST" \
 		--from-literal=SMTP_PORT="$SMTP_PORT" \
@@ -37,13 +37,13 @@ EOF
 		--from-literal=SMTP_PASSWORD="$SMTP_PASSWORD" \
 		--from-literal=SMTP_FROM="$SMTP_FROM" \
 		--from-literal=APP_BASE_URL="$APP_BASE_URL" \
-		--from-literal=SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL} \
-		--from-literal=SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD} \
-		--from-literal=OPEN_WEARABLES_WEBHOOK_SECRET=${OPEN_WEARABLES_WEBHOOK_SECRET} \
-		--from-literal=GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID} \
-		--from-literal=GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET} \
+		--from-literal=SEED_ADMIN_EMAIL="${SEED_ADMIN_EMAIL}" \
+		--from-literal=SEED_ADMIN_PASSWORD="${SEED_ADMIN_PASSWORD}" \
+		--from-literal=OPEN_WEARABLES_WEBHOOK_SECRET="${OPEN_WEARABLES_WEBHOOK_SECRET}" \
+		--from-literal=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
+		--from-literal=GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
 		--from-literal=GOOGLE_REDIRECT_URL="$GOOGLE_REDIRECT_URL" \
-		--from-literal=TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY} \
+		--from-literal=TOTP_ENCRYPTION_KEY="${TOTP_ENCRYPTION_KEY}" \
 		--from-file=GRPC_TLS_CERT=/tmp/grpc-certs/server.crt \
 		--from-file=GRPC_TLS_KEY=/tmp/grpc-certs/server.key \
 		--from-file=GRPC_TLS_CA_CERT=/tmp/grpc-certs/ca.crt \
@@ -60,7 +60,7 @@ EOF
 	sleep 10
 	echo "Creating monitoring-secrets..."
 	kubectl create secret generic monitoring-secrets -n fitness-platform-production \
-		--from-literal=grafana-admin-password=${GRAFANA_ADMIN_PASSWORD} \
+		--from-literal=grafana-admin-password="${GRAFANA_ADMIN_PASSWORD}" \
 		--dry-run=client -o yaml | kubectl apply --validate=false -f -
 	echo "✅ monitoring-secrets created"
 }
@@ -261,8 +261,8 @@ create_image_pull_secret() {
 	kubectl create namespace fitness-platform-production --dry-run=client -o yaml | kubectl apply --validate=false -f -
 	kubectl create secret docker-registry ghcr-pull-secret \
 		--docker-server=ghcr.io \
-		--docker-username=$GITHUB_ACTOR \
-		--docker-password=${GHCR_TOKEN} \
+		--docker-username="$GITHUB_ACTOR" \
+		--docker-password="${GHCR_TOKEN}" \
 		-n fitness-platform-production \
 		--dry-run=client -o yaml | kubectl apply --validate=false -f -
 	echo "imagePullSecret created/updated"

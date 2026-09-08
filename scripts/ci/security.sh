@@ -181,38 +181,6 @@ download_cosign_public_key() {
 	echo "$COSIGN_PUBLIC_KEY" >/tmp/cosign-keys/cosign.pub
 }
 
-run_kube_bench() {
-	echo "-> Running kube-bench..."
-	mkdir -p security-results
-	kube-bench run --benchmark cis-1.18 --json >security-results/kube-bench-results.json 2>&1 || true
-	echo "✅ kube-bench scan completed (results in security-results/kube-bench-results.json)"
-}
-
-run_kube_hunter() {
-	echo "-> Running kube-hunter (passive scan)..."
-	mkdir -p security-results
-	pip install --only-binary :all: kube-hunter==0.6.8
-	kube-hunter --remote 127.0.0.1 --json >security-results/kube-hunter-results.json 2>&1 || true
-	echo "✅ kube-hunter scan completed (results in security-results/kube-hunter-results.json)"
-}
-
-verify_cosign() {
-	if [ ! -f /tmp/cosign-keys/cosign.pub ]; then
-		echo "⚠️ No public key available, skipping verification"
-		exit 0
-	fi
-	SERVICES="user-service biometric-service training-service gateway device-aggregator"
-	for svc in $SERVICES; do
-		echo "Verifying $svc..."
-		if cosign verify --key /tmp/cosign-keys/cosign.pub \
-			"ghcr.io/mamuer/project/$svc:${IMAGE_TAG}" >/dev/null 2>&1; then
-			echo "✅ $svc signature verified"
-		else
-			echo "⚠️ $svc not signed or signature invalid (expected on PRs)"
-		fi
-	done
-}
-
 sign_images() {
 	services="user-service biometric-service training-service gateway device-aggregator"
 

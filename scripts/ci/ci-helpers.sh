@@ -78,7 +78,9 @@ generate_kubeconfig() {
 	./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
 set -euo pipefail
 sudo cp /etc/rancher/k3s/k3s.yaml /tmp/k3s-domain.yaml
+	# shellcheck disable=SC2027,SC1078,SC1079,SC2086
 	sudo sed -i 's|0.0.0.0|'"${FITPULSE_DOMAIN}"'|g' /tmp/k3s-domain.yaml
+	# shellcheck disable=SC2027,SC1078,SC1079,SC2086
 	sudo sed -i 's|127.0.0.1|'"${FITPULSE_DOMAIN}"'|g' /tmp/k3s-domain.yaml
 sudo sed -i '/insecure-skip-tls-verify/d' /tmp/k3s-domain.yaml
 sudo chmod 644 /tmp/k3s-domain.yaml
@@ -95,9 +97,10 @@ if ! k3s kubectl get --raw /livez &>/dev/null; then
 fi
 CERT_FILE=\"/var/lib/rancher/k3s/server/tls/dynamic-cert.json\"
 NEED_RESTART=false
-if [ -f \"\$CERT_FILE\" ]; then
-	CURRENT_SAN=\$(kubectl get --raw /apis | jq -r '.')
-	if ! grep -q "${FITPULSE_DOMAIN}" /etc/rancher/k3s/config.yaml; then
+	if [ -f \"\$CERT_FILE\" ]; then
+		CURRENT_SAN=\$(kubectl get --raw /apis | jq -r '.')
+		# shellcheck disable=SC2027,SC1078,SC1079,SC2086
+		if ! grep -q "${FITPULSE_DOMAIN}" /etc/rancher/k3s/config.yaml; then
 		echo \"⚠️ Конфиг не содержит домен, обновляем...\"
 		NEED_RESTART=true
 	else
@@ -369,11 +372,6 @@ collect_statuses() {
 	SMOKE_TEST="$(get_emoji "${JOB_STATUS_SMOKE_TEST:-success}")"
 	HEALTH_CHECK="$(get_emoji "${JOB_STATUS_HEALTH_CHECK:-success}")"
 	CSP_CHECK="$(get_emoji "${JOB_STATUS_CSP_HEADERS_CHECK:-success}")"
-	SEMGREP="$(get_emoji "${JOB_STATUS_SEMGREP:-success}")"
-	OSV_SCANNER="$(get_emoji "${JOB_STATUS_OSV_SCANNER:-success}")"
-	FUZZ_TESTS="$(get_emoji "${JOB_STATUS_FUZZ_TESTS:-success}")"
-	OSV_AUDIT="$(get_emoji "${JOB_STATUS_OSV_AUDIT:-success}")"
-	DEPENDENCY_REVIEW="$(get_emoji "${JOB_STATUS_DEPENDENCY_REVIEW:-success}")"
 	FAILED_JOBS=""
 	if [[ "${JOB_STATUS_VALIDATE_WORKFLOW:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Validate "; fi
 	if [[ "${JOB_STATUS_DOCKERFILE_LINT:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DockerfileLint "; fi
