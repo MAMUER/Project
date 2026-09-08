@@ -75,54 +75,53 @@ download_kubeconfig() {
 }
 
 generate_kubeconfig() {
-	./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
+	./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" -- "$FITPULSE_DOMAIN" /bin/bash -s <<'REMOTE_EOF'
 set -euo pipefail
+DOMAIN="$1"
 sudo cp /etc/rancher/k3s/k3s.yaml /tmp/k3s-domain.yaml
-	# shellcheck disable=SC2027,SC1078,SC1079,SC2086
-	sudo sed -i 's|0.0.0.0|'"${FITPULSE_DOMAIN}"'|g' /tmp/k3s-domain.yaml
-	# shellcheck disable=SC2027,SC1078,SC1079,SC2086
-	sudo sed -i 's|127.0.0.1|'"${FITPULSE_DOMAIN}"'|g' /tmp/k3s-domain.yaml
+sudo sed -i "s|0.0.0.0|${DOMAIN}|g" /tmp/k3s-domain.yaml
+sudo sed -i "s|127.0.0.1|${DOMAIN}|g" /tmp/k3s-domain.yaml
 sudo sed -i '/insecure-skip-tls-verify/d' /tmp/k3s-domain.yaml
 sudo chmod 644 /tmp/k3s-domain.yaml
 cp /tmp/k3s-domain.yaml ~/k3s-config.yaml
-echo \"✅ Kubeconfig saved to ~/k3s-config.yaml\"
-"
+echo "✅ Kubeconfig saved to ~/k3s-config.yaml"
+REMOTE_EOF
 }
 
 ensure_k3s_certs() {
-	./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
+	./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" -- "$FITPULSE_DOMAIN" /bin/bash -s <<'REMOTE_EOF'
 set -euo pipefail
+FITPULSE_DOMAIN="$1"
 if ! k3s kubectl get --raw /livez &>/dev/null; then
-	echo \"API не отвечает\"; exit 1
+	echo "API не отвечает"; exit 1
 fi
-CERT_FILE=\"/var/lib/rancher/k3s/server/tls/dynamic-cert.json\"
+CERT_FILE="/var/lib/rancher/k3s/server/tls/dynamic-cert.json"
 NEED_RESTART=false
-	if [ -f \"\$CERT_FILE\" ]; then
-		CURRENT_SAN=\$(kubectl get --raw /apis | jq -r '.')
-		# shellcheck disable=SC2027,SC1078,SC1079,SC2086
-		if ! grep -q "${FITPULSE_DOMAIN}" /etc/rancher/k3s/config.yaml; then
-		echo \"⚠️ Конфиг не содержит домен, обновляем...\"
+if [ -f "$CERT_FILE" ]; then
+	CURRENT_SAN=$(kubectl get --raw /apis | jq -r '.')
+	if ! grep -q "$FITPULSE_DOMAIN" /etc/rancher/k3s/config.yaml; then
+		echo "⚠️ Конфиг не содержит домен, обновляем..."
 		NEED_RESTART=true
 	else
-		echo \"✅ Домен уже в конфиге.\"
+		echo "✅ Домен уже в конфиге."
 	fi
 else
-	echo \"Сертификат ещё не сгенерирован, перезапуск не требуется.\"
+	echo "Сертификат ещё не сгенерирован, перезапуск не требуется."
 fi
-if [ \"\$NEED_RESTART\" = true ]; then
-	echo \"Перезапуск k3s для применения новых SAN...\"
+if [ "$NEED_RESTART" = true ]; then
+	echo "Перезапуск k3s для применения новых SAN..."
 	sudo systemctl stop k3s
 	sudo rm -f /var/lib/rancher/k3s/server/tls/dynamic-cert.json
 	sudo systemctl start k3s
-	for i in \$(seq 1 60); do
+	for i in $(seq 1 60); do
 		if k3s kubectl cluster-info &>/dev/null; then
-			echo \"k3s снова готов после \${i}s\"
+			echo "k3s снова готов после ${i}s"
 			break
 		fi
 		sleep 2
 	done
 fi
-"
+REMOTE_EOF
 }
 
 wait_for_k3s_api() {
