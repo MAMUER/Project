@@ -31,18 +31,18 @@ EOF
     --from-literal=RABBITMQ_PASS=${RABBITMQ_PASS} \
     --from-literal=VALKEY_PASSWORD=${VALKEY_PASSWORD} \
     --from-literal=RABBITMQ_URL="$RABBITMQ_URL" \
-    --from-literal=SMTP_HOST=${{ vars.SMTP_HOST }} \
-    --from-literal=SMTP_PORT=${{ vars.SMTP_PORT }} \
-    --from-literal=SMTP_USER=${SMTP_USER} \
-    --from-literal=SMTP_PASSWORD=${SMTP_PASSWORD} \
-    --from-literal=SMTP_FROM=${SMTP_FROM} \
-    --from-literal=APP_BASE_URL=${{ vars.APP_BASE_URL }} \
+    --from-literal=SMTP_HOST="$SMTP_HOST" \
+    --from-literal=SMTP_PORT="$SMTP_PORT" \
+    --from-literal=SMTP_USER="$SMTP_USER" \
+    --from-literal=SMTP_PASSWORD="$SMTP_PASSWORD" \
+    --from-literal=SMTP_FROM="$SMTP_FROM" \
+    --from-literal=APP_BASE_URL="$APP_BASE_URL" \
     --from-literal=SEED_ADMIN_EMAIL=${SEED_ADMIN_EMAIL} \
     --from-literal=SEED_ADMIN_PASSWORD=${SEED_ADMIN_PASSWORD} \
     --from-literal=OPEN_WEARABLES_WEBHOOK_SECRET=${OPEN_WEARABLES_WEBHOOK_SECRET} \
     --from-literal=GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID} \
     --from-literal=GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET} \
-    --from-literal=GOOGLE_REDIRECT_URL=${{ vars.GOOGLE_REDIRECT_URL }} \
+    --from-literal=GOOGLE_REDIRECT_URL="$GOOGLE_REDIRECT_URL" \
     --from-literal=TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY} \
     --from-file=GRPC_TLS_CERT=/tmp/grpc-certs/server.crt \
     --from-file=GRPC_TLS_KEY=/tmp/grpc-certs/server.key \

@@ -3,21 +3,21 @@ set -euo pipefail
 
 check_ssl() {
   echo "🔍 Checking SSL certificate validity..."
-  echo | openssl s_client -servername ${{ env.FITPULSE_DOMAIN }} -connect ${{ env.FITPULSE_DOMAIN }}:443 2>/dev/null | openssl x509 -noout -dates -issuer > cert-details.txt
+  echo | openssl s_client -servername "$FITPULSE_DOMAIN" -connect "$FITPULSE_DOMAIN":443 2>/dev/null | openssl x509 -noout -dates -issuer > cert-details.txt
   echo "🔍 Checking Certificate Transparency (SCT) logs..."
   if grep -q "Signed Certificate Timestamp" cert-details.txt; then
     echo "✅ Certificate Transparency SCTs verified"
   else
     echo "⚠️  No SCTs found in certificate (Certificate Transparency may not be configured)"
   fi
-  curl -k -sSf -o /dev/null --max-time 10 "https://${{ env.FITPULSE_DOMAIN }}/health" || exit 1
+  curl -k -sSf -o /dev/null --max-time 10 "https://$FITPULSE_DOMAIN/health" || exit 1
   echo "✅ SSL certificate is valid and trusted"
 }
 
 health_check() {
   echo "🔍 Checking production health via HTTPS..."
   for _ in {1..42}; do
-    RESPONSE=$(curl -skf --max-time 5 "https://${{ env.FITPULSE_DOMAIN }}/health" 2>/dev/null || echo "")
+    RESPONSE=$(curl -skf --max-time 5 "https://$FITPULSE_DOMAIN/health" 2>/dev/null || echo "")
     if [ -n "$RESPONSE" ]; then
       echo "Health response: $RESPONSE"
       break

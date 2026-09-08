@@ -21,7 +21,11 @@ export default function Devices() {
             ⏳ Подключение к Open Wearables...
           </div>
         )}
-        {status === 'error' && <div className='error-message' role='alert'>❌ {error}</div>}
+        {status === 'error' && (
+          <div className='error-message' role='alert'>
+            ❌ {error}
+          </div>
+        )}
       </div>
 
       <button
@@ -46,7 +50,10 @@ export default function Devices() {
             Нет подключённых источников
           </p>
         ) : (
-          <ul className='devices-list' aria-label='Список подключённых источников здоровья'>
+          <ul
+            className='devices-list'
+            aria-label='Список подключённых источников здоровья'
+          >
             {providers.map((p) => (
               <li key={p.source} className='source-card'>
                 <div className='source-info'>

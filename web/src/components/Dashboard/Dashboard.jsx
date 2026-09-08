@@ -1,5 +1,6 @@
 import { Chart } from 'chart.js/auto';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePauseState } from '../../hooks/useReducedMotion.jsx';
 import {
   classifyState,
   getBiometricRecords,
@@ -7,8 +8,6 @@ import {
   getTrainingPlans,
 } from '../../utils/api';
 import { EXERCISE_NAME_MAP } from '../../utils/constants';
-import { usePauseState } from '../../hooks/useReducedMotion.jsx';
-import { PauseOverlay } from '../../hooks/useReducedMotion.jsx';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -25,7 +24,7 @@ export default function Dashboard() {
   const [todayWorkout, setTodayWorkout] = useState('');
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
-  const { effectivePaused, setPaused } = usePauseState();
+  const { effectivePaused } = usePauseState();
 
   const loadDashboard = useCallback(async () => {
     try {
@@ -255,42 +254,73 @@ export default function Dashboard() {
 
   return (
     <div className='view active'>
-      <section className='health-summary' aria-label='Биометрические показатели'>
+      <section
+        className='health-summary'
+        aria-label='Биометрические показатели'
+      >
         <div className='summary-card heart-rate'>
-          <div className='card-icon' aria-hidden='true'>❤️</div>
+          <div className='card-icon' aria-hidden='true'>
+            ❤️
+          </div>
           <div className='card-data'>
             <span className='card-label'>Пульс</span>
-            <span className='card-value' id='hrValue' aria-live='polite' aria-atomic='true'>
+            <span
+              className='card-value'
+              id='hrValue'
+              aria-live='polite'
+              aria-atomic='true'
+            >
               {hrValue}
             </span>
             <span className='card-unit'>уд/мин</span>
           </div>
         </div>
         <div className='summary-card spo2'>
-          <div className='card-icon' aria-hidden='true'>🫁</div>
+          <div className='card-icon' aria-hidden='true'>
+            🫁
+          </div>
           <div className='card-data'>
             <span className='card-label'>SpO₂</span>
-            <span className='card-value' id='spo2Value' aria-live='polite' aria-atomic='true'>
+            <span
+              className='card-value'
+              id='spo2Value'
+              aria-live='polite'
+              aria-atomic='true'
+            >
               {spo2Value}
             </span>
             <span className='card-unit'>%</span>
           </div>
         </div>
         <div className='summary-card sleep'>
-          <div className='card-icon' aria-hidden='true'>🌙</div>
+          <div className='card-icon' aria-hidden='true'>
+            🌙
+          </div>
           <div className='card-data'>
             <span className='card-label'>Сон</span>
-            <span className='card-value' id='sleepValue' aria-live='polite' aria-atomic='true'>
+            <span
+              className='card-value'
+              id='sleepValue'
+              aria-live='polite'
+              aria-atomic='true'
+            >
               {sleepValue}
             </span>
             <span className='card-unit'>часов</span>
           </div>
         </div>
         <div className='summary-card bp'>
-          <div className='card-icon' aria-hidden='true'>🩸</div>
+          <div className='card-icon' aria-hidden='true'>
+            🩸
+          </div>
           <div className='card-data'>
             <span className='card-label'>Давление</span>
-            <span className='card-value' id='bpValue' aria-live='polite' aria-atomic='true'>
+            <span
+              className='card-value'
+              id='bpValue'
+              aria-live='polite'
+              aria-atomic='true'
+            >
               {bpValue}
             </span>
             <span className='card-unit'>мм рт.ст.</span>
@@ -318,7 +348,9 @@ export default function Dashboard() {
           <div className='ai-header'>
             <span className='ai-badge'>AI Анализ</span>
           </div>
-          <h3 id='aiRecommendation' aria-live='polite'>{aiRecommendation}</h3>
+          <h3 id='aiRecommendation' aria-live='polite'>
+            {aiRecommendation}
+          </h3>
           <p id='aiDescription'>{aiDescription}</p>
         </div>
       </section>

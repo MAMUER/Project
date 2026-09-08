@@ -33,7 +33,9 @@ export default function Profile() {
               aria-invalid={!!errors.nickname}
               aria-describedby={errors.nickname ? 'nickname-error' : undefined}
             />
-            <div className='field-error' id='nickname-error' role='alert'>{errors.nickname || ''}</div>
+            <div className='field-error' id='nickname-error' role='alert'>
+              {errors.nickname || ''}
+            </div>
           </div>
           <div className='form-row'>
             <div className='form-group'>
@@ -53,7 +55,9 @@ export default function Profile() {
                 aria-invalid={!!errors.age}
                 aria-describedby={errors.age ? 'age-error' : undefined}
               />
-              <div className='field-error' id='age-error' role='alert'>{errors.age || ''}</div>
+              <div className='field-error' id='age-error' role='alert'>
+                {errors.age || ''}
+              </div>
             </div>
             <div className='form-group'>
               <label htmlFor='gender'>Пол</label>
@@ -68,7 +72,9 @@ export default function Profile() {
                 <option value='male'>Мужской</option>
                 <option value='female'>Женский</option>
               </select>
-              <div className='field-error' id='gender-error' role='alert'>{errors.gender || ''}</div>
+              <div className='field-error' id='gender-error' role='alert'>
+                {errors.gender || ''}
+              </div>
             </div>
           </div>
         </div>
@@ -93,7 +99,9 @@ export default function Profile() {
                 aria-invalid={!!errors.height}
                 aria-describedby={errors.height ? 'height-error' : undefined}
               />
-              <div className='field-error' id='height-error' role='alert'>{errors.height || ''}</div>
+              <div className='field-error' id='height-error' role='alert'>
+                {errors.height || ''}
+              </div>
             </div>
             <div className='form-group'>
               <label htmlFor='weight'>Вес, кг</label>
@@ -113,7 +121,9 @@ export default function Profile() {
                 aria-invalid={!!errors.weight}
                 aria-describedby={errors.weight ? 'weight-error' : undefined}
               />
-              <div className='field-error' id='weight-error' role='alert'>{errors.weight || ''}</div>
+              <div className='field-error' id='weight-error' role='alert'>
+                {errors.weight || ''}
+              </div>
             </div>
           </div>
           {bmi && (

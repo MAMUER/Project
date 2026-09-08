@@ -3,14 +3,15 @@ set -euo pipefail
 
 build_go_services() {
   services="user-service biometric-service training-service gateway device-aggregator"
+  SHA=$(git rev-parse --short HEAD)
   for svc in $services; do
     echo "Building $svc..."
     docker buildx build \
       --build-arg GOPROXY=https://proxy.golang.org,direct \
       --cache-from=type=gha \
       --cache-to=type=gha,mode=max \
-      -t "${{ env.REGISTRY }}/mamuer/project/$svc:${{ steps.sha.outputs.short_sha }}" \
-      -t "${{ env.REGISTRY }}/mamuer/project/$svc:latest" \
+      -t "$REGISTRY/mamuer/project/$svc:$SHA" \
+      -t "$REGISTRY/mamuer/project/$svc:latest" \
       -f "cmd/$svc/Dockerfile" . \
       --push
   done
@@ -18,11 +19,12 @@ build_go_services() {
 
 build_ml_images() {
   if [ -f "models/scaler.pkl" ] && { [ -f "models/classifier.keras" ] || ls models/classifier_*.keras >/dev/null 2>&1; }; then
-    docker build -t "${{ env.REGISTRY }}/mamuer/project/classifier:${{ steps.sha.outputs.short_sha }}" \
-      -t "${{ env.REGISTRY }}/mamuer/project/classifier:latest" \
+    SHA=$(git rev-parse --short HEAD)
+    docker build -t "$REGISTRY/mamuer/project/classifier:$SHA" \
+      -t "$REGISTRY/mamuer/project/classifier:latest" \
       -f cmd/classifier/Dockerfile .
-    docker push "${{ env.REGISTRY }}/mamuer/project/classifier:${{ steps.sha.outputs.short_sha }}"
-     docker push "${{ env.REGISTRY }}/mamuer/project/classifier:latest"
+    docker push "$REGISTRY/mamuer/project/classifier:$SHA"
+     docker push "$REGISTRY/mamuer/project/classifier:latest"
    fi
 }
 
@@ -30,7 +32,7 @@ build_crs_updater() {
   docker buildx build \
     --cache-from=type=gha \
     --cache-to=type=gha,mode=max \
-    -t "${{ env.REGISTRY }}/mamuer/project/crs-updater:v1" \
+    -t "$REGISTRY/mamuer/project/crs-updater:v1" \
     -f "configs/k8s/base/jobs/Dockerfile" configs/k8s/base/jobs \
     --push
 }
@@ -39,17 +41,18 @@ build_open_wearables() {
   echo "Cloning Open Wearables repo..."
   git clone --depth 1 https://github.com/the-momentum/open-wearables.git /tmp/open-wearables
   echo "Building Open Wearables backend..."
-  docker build -t ghcr.io/mamuer/project/open-wearables-backend:${{ steps.sha.outputs.short_sha }} \
+  SHA=$(git rev-parse --short HEAD)
+  docker build -t ghcr.io/mamuer/project/open-wearables-backend:$SHA \
     -t ghcr.io/mamuer/project/open-wearables-backend:latest \
     -f /tmp/open-wearables/backend/Dockerfile /tmp/open-wearables/backend
   echo "Building Open Wearables frontend..."
-  docker build -t ghcr.io/mamuer/project/open-wearables-frontend:${{ steps.sha.outputs.short_sha }} \
+  docker build -t ghcr.io/mamuer/project/open-wearables-frontend:$SHA \
     -t ghcr.io/mamuer/project/open-wearables-frontend:latest \
     -f /tmp/open-wearables/frontend/Dockerfile /tmp/open-wearables/frontend
   echo "Pushing Open Wearables images..."
-  docker push ghcr.io/mamuer/project/open-wearables-backend:${{ steps.sha.outputs.short_sha }}
+  docker push ghcr.io/mamuer/project/open-wearables-backend:$SHA
   docker push ghcr.io/mamuer/project/open-wearables-backend:latest
-  docker push ghcr.io/mamuer/project/open-wearables-frontend:${{ steps.sha.outputs.short_sha }}
+  docker push ghcr.io/mamuer/project/open-wearables-frontend:$SHA
   docker push ghcr.io/mamuer/project/open-wearables-frontend:latest
   echo "Open Wearables images pushed"
 }

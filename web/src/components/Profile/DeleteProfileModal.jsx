@@ -21,22 +21,36 @@ export default function DeleteProfileModal({ onClose }) {
       logout();
       window.location.href = '/';
     } catch (err) {
-      setError(err.message || 'Не удалось удалить аккаунт. Проверьте пароль и попробуйте снова.');
+      setError(
+        err.message ||
+          'Не удалось удалить аккаунт. Проверьте пароль и попробуйте снова.'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal onClose={onClose} ariaLabel='Удаление аккаунта' ariaDescribedby='delete-modal-desc'>
+    <Modal
+      onClose={onClose}
+      ariaLabel='Удаление аккаунта'
+      ariaDescribedby='delete-modal-desc'
+    >
       <h3 style={{ color: 'var(--accent)' }}>Удаление аккаунта</h3>
       <p className='delete-warning' id='delete-modal-desc'>
-        Это действие необратимо. Все ваши данные, тренировки и достижения
-        будут удалены.
+        Это действие необратимо. Все ваши данные, тренировки и достижения будут
+        удалены.
       </p>
-      <form onSubmit={(e) => { e.preventDefault(); handleDelete(); }}>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          handleDelete();
+        }}
+      >
         <div className='form-group'>
-          <label htmlFor='deletePassword'>Введите пароль для подтверждения</label>
+          <label htmlFor='deletePassword'>
+            Введите пароль для подтверждения
+          </label>
           <input
             id='deletePassword'
             type='password'
@@ -46,17 +60,15 @@ export default function DeleteProfileModal({ onClose }) {
             aria-invalid={!!error}
             aria-describedby={error ? 'delete-password-error' : undefined}
           />
-          <div className='field-error' id='delete-password-error' role='alert'>{error}</div>
+          <div className='field-error' id='delete-password-error' role='alert'>
+            {error}
+          </div>
         </div>
         <div className='modal-actions'>
           <button type='button' className='btn-secondary' onClick={onClose}>
             Отмена
           </button>
-          <button
-            type='submit'
-            className='btn-danger'
-            disabled={submitting}
-          >
+          <button type='submit' className='btn-danger' disabled={submitting}>
             {submitting ? 'Удаление...' : 'Удалить аккаунт'}
           </button>
         </div>

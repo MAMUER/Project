@@ -75,7 +75,9 @@ export default function Admin() {
     return (
       <div className='view active'>
         <div className='empty-state'>
-          <div className='empty-icon' aria-hidden='true'>🔒</div>
+          <div className='empty-icon' aria-hidden='true'>
+            🔒
+          </div>
           <h3>Доступ запрещён</h3>
         </div>
       </div>
@@ -119,7 +121,9 @@ export default function Admin() {
               aria-invalid={false}
               aria-describedby='max-uses-hint'
             />
-            <div id='max-uses-hint' className='sr-only'>Минимум 1 использований</div>
+            <div id='max-uses-hint' className='sr-only'>
+              Минимум 1 использований
+            </div>
           </div>
           <button type='submit' className='btn-primary'>
             Создать

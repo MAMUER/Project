@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuthForm } from './useAuthForm';
+import LoginForm from './LoginForm';
+import RegisterForm from './RegisterForm';
+import TwoFAForm from './TwoFAForm';
+import VerifyEmail from './VerifyEmail';
 import './Auth.css';
 
 export default function AuthScreen({ searchParams: searchParamsProp }) {
@@ -43,12 +47,14 @@ export default function AuthScreen({ searchParams: searchParamsProp }) {
     <div className='auth-screen'>
       <div className='auth-container'>
         <div className='auth-logo'>
-          <div className='logo-icon' aria-hidden='true'>💓</div>
+          <div className='logo-icon' aria-hidden='true'>
+            💓
+          </div>
           <h1>FitPulse</h1>
           <p>Ваш персональный AI-тренер</p>
         </div>
 
-        <div className='auth-landing' aria-label='О платформе FitPulse'>
+        <div className='auth-landing'>
           <p style={{ marginBottom: 12 }}>
             FitPulse — это открытая платформа для фитнес- и health-трекинга. Мы
             помогаем отслеживать пульс, SpO2, шаги, сон и тренировки,
@@ -63,7 +69,6 @@ export default function AuthScreen({ searchParams: searchParamsProp }) {
               textAlign: 'left',
               marginTop: 18,
             }}
-            aria-label='Возможности платформы'
           >
             {[
               '📊 Биометрия и активность',
@@ -98,260 +103,51 @@ export default function AuthScreen({ searchParams: searchParamsProp }) {
         </div>
 
         {mode === 'login' && (
-          <form className='auth-form' onSubmit={handleLoginSubmit} noValidate aria-label='Форма входа'>
-            <div className='field'>
-              <label htmlFor='login-email'>Email</label>
-              <input
-                id='login-email'
-                type='email'
-                placeholder='Email'
-                value={formData.email}
-                onChange={(e) => setField('email', e.target.value)}
-                autoComplete='email'
-                required
-                maxLength={254}
-                inputMode='email'
-                className={getFieldClass('email')}
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'login-email-error' : undefined}
-              />
-              <div className='field-error' id='login-email-error' role='alert'>{errors.email || ''}</div>
-            </div>
-            <div className='field'>
-              <label htmlFor='login-password'>Пароль</label>
-              <input
-                id='login-password'
-                type='password'
-                placeholder='Пароль'
-                value={formData.password}
-                onChange={(e) => setField('password', e.target.value)}
-                autoComplete='current-password'
-                required
-                maxLength={128}
-                className={errors.password ? 'invalid' : ''}
-                aria-invalid={!!errors.password}
-                aria-describedby={errors.password ? 'login-password-error' : undefined}
-              />
-              <div className='field-error' id='login-password-error' role='alert'>{errors.password || ''}</div>
-            </div>
-            <div className='auth-error hidden' role='alert' aria-live='assertive'>{generalError}</div>
-            <button type='submit' className='btn-primary' disabled={submitting}>
-              {submitting ? 'Вход...' : 'Войти'}
-            </button>
-            <p className='auth-switch'>
-              Нет аккаунта?{' '}
-              <button
-                type='button'
-                className='link-button'
-                onClick={() => setMode('register')}
-              >
-                Создать
-              </button>
-            </p>
-          </form>
+          <LoginForm
+            formData={formData}
+            errors={errors}
+            generalError={generalError}
+            submitting={submitting}
+            getFieldClass={getFieldClass}
+            setField={setField}
+            onSubmit={handleLoginSubmit}
+            onSwitchMode={() => setMode('register')}
+          />
         )}
 
         {mode === 'register' && (
-          <form className='auth-form' onSubmit={handleRegister} noValidate aria-label='Форма регистрации'>
-            <div className='field'>
-              <label htmlFor='register-name'>Имя</label>
-              <input
-                id='register-name'
-                type='text'
-                placeholder='Имя'
-                value={formData.name}
-                onChange={(e) => setField('name', e.target.value)}
-                autoComplete='name'
-                required
-                maxLength={100}
-                minLength={2}
-                className={getFieldClass('name')}
-                aria-invalid={!!errors.name}
-                aria-describedby={errors.name ? 'register-name-error' : undefined}
-              />
-              <div className='field-error' id='register-name-error' role='alert'>{errors.name || ''}</div>
-            </div>
-            <div className='field'>
-              <label htmlFor='register-email'>Email</label>
-              <input
-                id='register-email'
-                type='email'
-                placeholder='Email'
-                value={formData.email}
-                onChange={(e) => setField('email', e.target.value)}
-                autoComplete='email'
-                required
-                maxLength={254}
-                inputMode='email'
-                className={getFieldClass('email')}
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'register-email-error' : undefined}
-              />
-              <div className='field-error' id='register-email-error' role='alert'>{errors.email || ''}</div>
-            </div>
-            <div className='field'>
-              <label htmlFor='register-password'>Пароль (мин. 8 символов)</label>
-              <input
-                id='register-password'
-                type='password'
-                placeholder='Пароль (мин. 8 символов)'
-                value={formData.password}
-                onChange={(e) => {
-                  setField('password', e.target.value);
-                  updatePasswordChecks(e.target.value);
-                }}
-                autoComplete='new-password'
-                required
-                minLength={8}
-                maxLength={128}
-                className={errors.password ? 'invalid' : ''}
-                aria-invalid={!!errors.password}
-                aria-describedby={errors.password ? 'register-password-error' : 'password-hints'}
-              />
-              <div className='field-error' id='register-password-error' role='alert'>{errors.password || ''}</div>
-              <div
-                className={`password-hint ${formData.password ? '' : 'hidden'}`}
-                id='password-hints'
-              >
-                <span
-                  className={`hint-item ${passwordChecks.length ? 'pass' : ''}`}
-                >
-                  {passwordChecks.length ? '✓' : '✗'} 8+ символов
-                </span>
-                <span
-                  className={`hint-item ${passwordChecks.upper ? 'pass' : ''}`}
-                >
-                  {passwordChecks.upper ? '✓' : '✗'} Заглавная буква
-                </span>
-                <span
-                  className={`hint-item ${passwordChecks.lower ? 'pass' : ''}`}
-                >
-                  {passwordChecks.lower ? '✓' : '✗'} Строчная буква
-                </span>
-                <span
-                  className={`hint-item ${passwordChecks.digit ? 'pass' : ''}`}
-                >
-                  {passwordChecks.digit ? '✓' : '✗'} Цифра
-                </span>
-              </div>
-            </div>
-            <div className='auth-error hidden'>{generalError}</div>
-            <button
-              type='submit'
-              className='btn-primary'
-              disabled={
-                submitting || Object.values(passwordChecks).some((v) => !v)
-              }
-            >
-              {/* istanbul ignore next */}
-              {submitting ? 'Создание...' : 'Создать аккаунт'}
-            </button>
-            <p className='auth-switch'>
-              Уже есть?{' '}
-              <button
-                type='button'
-                className='link-button'
-                onClick={() => setMode('login')}
-              >
-                Войти
-              </button>
-            </p>
-          </form>
+          <RegisterForm
+            formData={formData}
+            errors={errors}
+            generalError={generalError}
+            passwordChecks={passwordChecks}
+            submitting={submitting}
+            getFieldClass={getFieldClass}
+            setField={setField}
+            onSubmit={handleRegister}
+            updatePasswordChecks={updatePasswordChecks}
+            onSwitchMode={() => setMode('login')}
+          />
         )}
 
         {mode === 'login2fa' && (
-          <form
-            className='auth-form'
+          <TwoFAForm
+            formData={formData}
+            generalError={generalError}
+            submitting={submitting}
+            setField={setField}
             onSubmit={handleLogin2FASubmit}
-            noValidate
-            aria-label='Двухфакторная аутентификация'
-          >
-            <h2>Двухфакторная аутентификация</h2>
-            <p className='verify-text'>
-              Введите код из приложения-аутентификатора.
-            </p>
-            <div className='field'>
-              <label htmlFor='login-totp-code'>6-значный код</label>
-              <input
-                id='login-totp-code'
-                type='text'
-                placeholder='6-значный код'
-                value={formData.totpCode}
-                onChange={(e) => setField('totpCode', e.target.value)}
-                maxLength={6}
-                inputMode='numeric'
-                autoComplete='one-time-code'
-                aria-invalid={!!generalError}
-                aria-describedby={generalError ? 'login2fa-error' : undefined}
-              />
-              <div className='field-error' id='login2fa-error' role='alert'>{generalError || ''}</div>
-            </div>
-            <div className='field'>
-              <label htmlFor='login-backup-code'>Резервный код xxxx-xxxx</label>
-              <input
-                id='login-backup-code'
-                type='text'
-                placeholder='Резервный код xxxx-xxxx'
-                value={formData.backupCode}
-                onChange={(e) => setField('backupCode', e.target.value)}
-                maxLength={9}
-                aria-invalid={false}
-              />
-              <div className='field-error' role='alert'></div>
-            </div>
-            <div className='auth-error' role='alert' aria-live='assertive'>{generalError}</div>
-            <button type='submit' className='btn-primary' disabled={submitting}>
-              {submitting ? 'Вход...' : 'Войти'}
-            </button>
-            <button
-              type='button'
-              className='btn-secondary'
-              onClick={() => setField('backupCode', formData.totpCode)}
-            >
-              Использовать резервный код
-            </button>
-            <p className='auth-switch'>
-              <button
-                type='button'
-                className='link-button'
-                onClick={() => {
-                  setMode('login');
-                  setTwoFATempToken(null);
-                }}
-              >
-                ← Вернуться ко входу
-              </button>
-            </p>
-          </form>
+            onBack={() => { setMode('login'); setTwoFATempToken(null); }}
+          />
         )}
 
-        {/* istanbul ignore next */}
         {mode === 'verify' && (
-          <div className='auth-form verify-form'>
-            <div className='verify-icon' aria-hidden='true'>📧</div>
-            <h2>Проверьте почту</h2>
-            <p className='verify-text'>
-              Мы отправили письмо на{' '}
-              <strong>{formData.email || 'ваш email'}</strong>
-            </p>
-            <p className='verify-text'>
-              Перейдите по ссылке из письма, чтобы подтвердить email и войти.
-            </p>
-            {/* istanbul ignore next */}
-            {successMessage && (
-              <div className='auth-success'>{successMessage}</div>
-            )}
-            {generalError && <div className='auth-error'>{generalError}</div>}
-            <p className='auth-switch'>
-              <button
-                type='button'
-                className='link-button'
-                onClick={() => setMode('login')}
-              >
-                ← Вернуться ко входу
-              </button>
-            </p>
-          </div>
+          <VerifyEmail
+            email={formData.email}
+            successMessage={successMessage}
+            generalError={generalError}
+            onBack={() => setMode('login')}
+          />
         )}
 
         <div

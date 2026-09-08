@@ -1,6 +1,11 @@
 import { useEffect, useRef } from 'react';
 
-export default function Modal({ onClose, children, ariaLabel, ariaDescribedby }) {
+export default function Modal({
+  onClose,
+  children,
+  ariaLabel,
+  ariaDescribedby,
+}) {
   const overlayRef = useRef(null);
   const contentRef = useRef(null);
   const previousFocusRef = useRef(null);

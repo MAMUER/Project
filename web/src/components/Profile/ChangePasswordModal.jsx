@@ -22,7 +22,9 @@ export default function ChangePasswordModal({ onClose }) {
       return;
     }
     if (newPass !== confirm) {
-      setError('Пароли не совпадают. Проверьте ввод нового пароля и подтверждения.');
+      setError(
+        'Пароли не совпадают. Проверьте ввод нового пароля и подтверждения.'
+      );
       return;
     }
     setSubmitting(true);
@@ -30,14 +32,21 @@ export default function ChangePasswordModal({ onClose }) {
       await changePassword(current, newPass);
       onClose();
     } catch (err) {
-      setError(err.message || 'Не удалось сменить пароль. Проверьте текущий пароль и попробуйте снова.');
+      setError(
+        err.message ||
+          'Не удалось сменить пароль. Проверьте текущий пароль и попробуйте снова.'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal onClose={onClose} ariaLabel='Сменить пароль' ariaDescribedby='password-modal-desc'>
+    <Modal
+      onClose={onClose}
+      ariaLabel='Сменить пароль'
+      ariaDescribedby='password-modal-desc'
+    >
       <h3>Сменить пароль</h3>
       <p id='password-modal-desc' className='sr-only'>
         Форма смены пароля. Новый пароль должен содержать минимум 8 символов.

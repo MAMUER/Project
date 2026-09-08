@@ -23,7 +23,9 @@ export default function ChangeEmailModal({ onClose }) {
     e.preventDefault();
     setError('');
     if (!newEmail || !password) {
-      setError('Заполните все поля. Email и текущий пароль обязательны для смены почты.');
+      setError(
+        'Заполните все поля. Email и текущий пароль обязательны для смены почты.'
+      );
       return;
     }
     if (!isValidEmail(newEmail)) {
@@ -35,17 +37,25 @@ export default function ChangeEmailModal({ onClose }) {
       await changeEmail(newEmail, password);
       onClose();
     } catch (err) {
-      setError(err.message || 'Не удалось сменить email. Проверьте текущий пароль и попробуйте снова.');
+      setError(
+        err.message ||
+          'Не удалось сменить email. Проверьте текущий пароль и попробуйте снова.'
+      );
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <Modal onClose={onClose} ariaLabel='Сменить почту' ariaDescribedby='email-modal-desc'>
+    <Modal
+      onClose={onClose}
+      ariaLabel='Сменить почту'
+      ariaDescribedby='email-modal-desc'
+    >
       <h3>Сменить почту</h3>
       <p id='email-modal-desc' className='sr-only'>
-        Форма смены email. После успешной смены новый адрес будет подтверждён автоматически.
+        Форма смены email. После успешной смены новый адрес будет подтверждён
+        автоматически.
       </p>
       <form onSubmit={handleSubmit}>
         <div className='form-group'>
@@ -59,7 +69,9 @@ export default function ChangeEmailModal({ onClose }) {
             aria-invalid={!!error}
             aria-describedby={error ? 'email-error' : undefined}
           />
-          <div className='field-error' id='email-error' role='alert'>{error}</div>
+          <div className='field-error' id='email-error' role='alert'>
+            {error}
+          </div>
         </div>
         <div className='form-group'>
           <label htmlFor='currentPassword'>Текущий пароль</label>

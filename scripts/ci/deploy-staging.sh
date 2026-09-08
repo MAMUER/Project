@@ -43,7 +43,7 @@ verify_health() {
 }
 
 run_uat_tests() {
-  python scripts/api-test.py --base-url "${{ env.BASE_URL }}" || echo "⚠️ API tests failed"
+  python scripts/api-test.py --base-url "$BASE_URL" || echo "⚠️ API tests failed"
 }
 
 main() {

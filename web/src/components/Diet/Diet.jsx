@@ -511,7 +511,9 @@ export default function Diet({ initialTemplate } = {}) {
         <div id='dietMealsList'>
           {meals.length === 0 ? (
             <div className='empty-state'>
-              <div className='empty-icon' aria-hidden='true'>🍽️</div>
+              <div className='empty-icon' aria-hidden='true'>
+                🍽️
+              </div>
               <h3>Нет подходящих блюд</h3>
               <p>Измените настройки аллергий и предпочтений</p>
             </div>

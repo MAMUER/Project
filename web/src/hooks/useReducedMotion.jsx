@@ -37,7 +37,11 @@ export function PauseOverlay({ onToggle, paused }) {
       type='button'
       onClick={onToggle}
       aria-pressed={paused}
-      aria-label={paused ? 'Возобновить автоматическое обновление' : 'Остановить автоматическое обновление'}
+      aria-label={
+        paused
+          ? 'Возобновить автоматическое обновление'
+          : 'Остановить автоматическое обновление'
+      }
       style={{
         position: 'absolute',
         top: 8,

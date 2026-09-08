@@ -334,7 +334,9 @@ describe('DeleteProfileModal', () => {
 
     await userEvent.click(screen.getByText('Удалить аккаунт'));
 
-    expect(screen.getByText(/Введите пароль для подтверждения удаления аккаунта/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Введите пароль для подтверждения удаления аккаунта/)
+    ).toBeInTheDocument();
   });
 
   it('calls onClose when cancel is clicked', async () => {

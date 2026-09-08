@@ -11,11 +11,11 @@ run_fuzz_tests() {
 }
 
 run_uat_staging() {
-  python scripts/api-test.py --base-url "${{ env.BASE_URL }}" || echo "⚠️ API tests failed"
+  python scripts/api-test.py --base-url "$BASE_URL" || echo "⚠️ API tests failed"
 }
 
 run_uat_production() {
-  python scripts/api-test.py --base-url "${{ steps.target.outputs.target }}"
+  python scripts/api-test.py --base-url "$TARGET"
 }
 
 main() {
