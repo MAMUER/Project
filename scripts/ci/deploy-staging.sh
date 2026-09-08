@@ -18,7 +18,7 @@ update_image_tags() {
 	for svc in user-service biometric-service training-service gateway classifier; do
 		kustomize edit set image "ghcr.io/mamuer/project/$svc=ghcr.io/mamuer/project/$svc:$SHA" || true
 	done
-	kustomize build . > /tmp/staging-manifests.yaml
+	kustomize build . >/tmp/staging-manifests.yaml
 	kubectl apply --validate=false -f /tmp/staging-manifests.yaml -n fitness-platform-staging
 }
 
@@ -49,22 +49,22 @@ run_uat_tests() {
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			create_namespace
-			update_image_tags
-			wait_for_rollout
-			verify_health
-			run_uat_tests
-			;;
-		create_namespace) create_namespace ;;
-		update_image_tags) update_image_tags ;;
-		wait_for_rollout) wait_for_rollout ;;
-		verify_health) verify_health ;;
-		run_uat_tests) run_uat_tests ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		create_namespace
+		update_image_tags
+		wait_for_rollout
+		verify_health
+		run_uat_tests
+		;;
+	create_namespace) create_namespace ;;
+	update_image_tags) update_image_tags ;;
+	wait_for_rollout) wait_for_rollout ;;
+	verify_health) verify_health ;;
+	run_uat_tests) run_uat_tests ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 

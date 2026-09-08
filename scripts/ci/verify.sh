@@ -3,7 +3,7 @@ set -euo pipefail
 
 check_ssl() {
 	echo "🔍 Checking SSL certificate validity..."
-	echo | openssl s_client -servername "$FITPULSE_DOMAIN" -connect "$FITPULSE_DOMAIN":443 2>/dev/null | openssl x509 -noout -dates -issuer > cert-details.txt
+	echo | openssl s_client -servername "$FITPULSE_DOMAIN" -connect "$FITPULSE_DOMAIN":443 2>/dev/null | openssl x509 -noout -dates -issuer >cert-details.txt
 	echo "🔍 Checking Certificate Transparency (SCT) logs..."
 	if grep -q "Signed Certificate Timestamp" cert-details.txt; then
 		echo "✅ Certificate Transparency SCTs verified"
@@ -31,8 +31,15 @@ health_check() {
 		kubectl --kubeconfig="$HOME/.kube/config" get svc -n fitness-platform-production || true
 		exit 1
 	fi
-	echo "$RESPONSE" | grep -q '"status":"ok"' || { echo "❌ Status not ok"; echo "$RESPONSE"; exit 1; }
-	echo "$RESPONSE" | grep -q '"user":"up"' || { echo "❌ User service not healthy"; exit 1; }
+	echo "$RESPONSE" | grep -q '"status":"ok"' || {
+		echo "❌ Status not ok"
+		echo "$RESPONSE"
+		exit 1
+	}
+	echo "$RESPONSE" | grep -q '"user":"up"' || {
+		echo "❌ User service not healthy"
+		exit 1
+	}
 	echo "✅ Production is healthy"
 }
 
@@ -124,24 +131,24 @@ wait_for_service() {
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			check_ssl
-			health_check
-			check_csp
-			wait_for_postgres
-			wait_for_pvc
-			wait_for_service
-			;;
-		check_ssl) check_ssl ;;
-		health_check) health_check ;;
-		check_csp) check_csp ;;
-		wait_for_postgres) wait_for_postgres ;;
-		wait_for_pvc) wait_for_pvc ;;
-		wait_for_service) wait_for_service ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		check_ssl
+		health_check
+		check_csp
+		wait_for_postgres
+		wait_for_pvc
+		wait_for_service
+		;;
+	check_ssl) check_ssl ;;
+	health_check) health_check ;;
+	check_csp) check_csp ;;
+	wait_for_postgres) wait_for_postgres ;;
+	wait_for_pvc) wait_for_pvc ;;
+	wait_for_service) wait_for_service ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 

@@ -62,10 +62,10 @@ install_ingress_nginx() {
 		--for=condition=ready pod \
 		--selector=app.kubernetes.io/name=ingress-nginx \
 		--timeout=180s || {
-			echo "❌ ingress-nginx not ready"
-			kubectl -n ingress-nginx get pods,deploy,svc
-			exit 1
-		}
+		echo "❌ ingress-nginx not ready"
+		kubectl -n ingress-nginx get pods,deploy,svc
+		exit 1
+	}
 
 	echo "✅ ingress-nginx is ready"
 	kubectl -n ingress-nginx get pods,deploy,svc
@@ -82,22 +82,22 @@ cleanup_traefik() {
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			setup_local_path_provisioner
-			fix_local_path_rbac
-			install_cert_manager
-			install_ingress_nginx
-			cleanup_traefik
-			;;
-		setup_local_path_provisioner) setup_local_path_provisioner ;;
-		fix_local_path_rbac) fix_local_path_rbac ;;
-		install_cert_manager) install_cert_manager ;;
-		install_ingress_nginx) install_ingress_nginx ;;
-		cleanup_traefik) cleanup_traefik ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		setup_local_path_provisioner
+		fix_local_path_rbac
+		install_cert_manager
+		install_ingress_nginx
+		cleanup_traefik
+		;;
+	setup_local_path_provisioner) setup_local_path_provisioner ;;
+	fix_local_path_rbac) fix_local_path_rbac ;;
+	install_cert_manager) install_cert_manager ;;
+	install_ingress_nginx) install_ingress_nginx ;;
+	cleanup_traefik) cleanup_traefik ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 

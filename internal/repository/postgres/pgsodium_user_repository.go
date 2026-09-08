@@ -872,7 +872,7 @@ func (r *PgsodiumUserRepository) deleteListItems(ctx context.Context, userID, ta
 }
 
 func (r *PgsodiumUserRepository) insertListItem(ctx context.Context, userID, tableName, columnName, value string) error {
-	query := fmt.Sprintf("INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING", tableName, columnName) //nolint:gosec // tableName and columnName are hardcoded allow-listed constants, not user input
+	query := fmt.Sprintf("INSERT INTO %s (user_id, %s) VALUES ($1, $2) ON CONFLICT DO NOTHING", tableName, columnName) // nolint:gosec // tableName and columnName are hardcoded allow-listed constants, not user input // NOSONAR go:S2077 // nosem
 	_, err := r.db.ExecContext(ctx, query, userID, value)                                                              // NOSONAR go:S2077
 	if err != nil {
 		return apperrors.Internal("failed to insert list item", err)

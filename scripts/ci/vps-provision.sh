@@ -239,44 +239,44 @@ docker images | head -10
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			configure_swap
-			check_disk_space
-			cleanup_old_k3s
-			configure_cpu_governor
-			configure_docker_logs
-			configure_disk_encryption
-			fix_dns
-			install_amneziawg
-			limit_k3s_memory
-			prepare_k3s_config
-			restart_k3s_if_needed
-			start_k3s
-			download_k3s
-			install_k3s
-			upload_k3s_files
-			pre_pull_system_images
-			;;
-		configure_swap) configure_swap ;;
-		check_disk_space) check_disk_space ;;
-		cleanup_old_k3s) cleanup_old_k3s ;;
-		configure_cpu_governor) configure_cpu_governor ;;
-		configure_docker_logs) configure_docker_logs ;;
-		configure_disk_encryption) configure_disk_encryption ;;
-		fix_dns) fix_dns ;;
-		install_amneziawg) install_amneziawg ;;
-		limit_k3s_memory) limit_k3s_memory ;;
-		prepare_k3s_config) prepare_k3s_config ;;
-		restart_k3s_if_needed) restart_k3s_if_needed ;;
-		start_k3s) start_k3s ;;
-		download_k3s) download_k3s ;;
-		install_k3s) install_k3s ;;
-		upload_k3s_files) upload_k3s_files ;;
-		pre_pull_system_images) pre_pull_system_images ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		configure_swap
+		check_disk_space
+		cleanup_old_k3s
+		configure_cpu_governor
+		configure_docker_logs
+		configure_disk_encryption
+		fix_dns
+		install_amneziawg
+		limit_k3s_memory
+		prepare_k3s_config
+		restart_k3s_if_needed
+		start_k3s
+		download_k3s
+		install_k3s
+		upload_k3s_files
+		pre_pull_system_images
+		;;
+	configure_swap) configure_swap ;;
+	check_disk_space) check_disk_space ;;
+	cleanup_old_k3s) cleanup_old_k3s ;;
+	configure_cpu_governor) configure_cpu_governor ;;
+	configure_docker_logs) configure_docker_logs ;;
+	configure_disk_encryption) configure_disk_encryption ;;
+	fix_dns) fix_dns ;;
+	install_amneziawg) install_amneziawg ;;
+	limit_k3s_memory) limit_k3s_memory ;;
+	prepare_k3s_config) prepare_k3s_config ;;
+	restart_k3s_if_needed) restart_k3s_if_needed ;;
+	start_k3s) start_k3s ;;
+	download_k3s) download_k3s ;;
+	install_k3s) install_k3s ;;
+	upload_k3s_files) upload_k3s_files ;;
+	pre_pull_system_images) pre_pull_system_images ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 

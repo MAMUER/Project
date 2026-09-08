@@ -3,7 +3,10 @@ set -euo pipefail
 
 validate_workflow() {
 	curl --proto "=https" --tlsv1.2 -sSfL https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz -o /tmp/actionlint.tar.gz
-	echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/actionlint.tar.gz" | sha256sum --check --status || { echo "Hash verification failed"; exit 1; }
+	echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/actionlint.tar.gz" | sha256sum --check --status || {
+		echo "Hash verification failed"
+		exit 1
+	}
 	tar -xzf /tmp/actionlint.tar.gz -C /tmp actionlint
 	chmod +x /tmp/actionlint
 	/tmp/actionlint -color
@@ -23,7 +26,7 @@ install_dependencies() {
 
 install_golangci_lint() {
 	for i in 1 2 3; do
-		if go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@8f3b0c7ed018e57905fbd873c697e0b1ede605a5; then  # NOSONAR
+		if go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@8f3b0c7ed018e57905fbd873c697e0b1ede605a5; then # NOSONAR
 			break
 		fi
 		echo "golangci-lint install attempt $i failed; retrying..."
@@ -45,7 +48,7 @@ run_coverage() {
 	if [ -f coverage/lcov.info ]; then
 		echo "--- original lcov head ---"
 		head -20 coverage/lcov.info || true
-		sed -e 's|\\|/|g' -e 's|^SF:src/|SF:web/src/|' -e 's|^SF:/|SF:|' coverage/lcov.info > ../coverage/lcov.info
+		sed -e 's|\\|/|g' -e 's|^SF:src/|SF:web/src/|' -e 's|^SF:/|SF:|' coverage/lcov.info >../coverage/lcov.info
 		echo "--- transformed lcov head ---"
 		head -20 ../coverage/lcov.info || true
 	else
@@ -145,17 +148,17 @@ check_connectivity() {
 	echo "Testing connectivity to ${VPS_HOST}:6443..."
 	if timeout 10 bash -c "</dev/tcp/${VPS_HOST}/6443" 2>/dev/null; then
 		echo "Cluster reachable"
-		echo "reachable=true" >> "$GITHUB_OUTPUT"
+		echo "reachable=true" >>"$GITHUB_OUTPUT"
 	else
 		echo "Cluster NOT reachable (timeout 10s)"
-		echo "reachable=false" >> "$GITHUB_OUTPUT"
+		echo "reachable=false" >>"$GITHUB_OUTPUT"
 		exit 1
 	fi
 }
 
 add_vps_to_known_hosts() {
 	mkdir -p ~/.ssh
-	ssh-keyscan -H "${VPS_HOST}" >> ~/.ssh/known_hosts 2>/dev/null || true
+	ssh-keyscan -H "${VPS_HOST}" >>~/.ssh/known_hosts 2>/dev/null || true
 }
 
 resolve_vps_hostname() {
@@ -172,7 +175,7 @@ resolve_vps_hostname() {
 
 prepare_target_url() {
 	URL="https://${FITPULSE_DOMAIN}"
-	echo "target=$URL" >> "$GITHUB_OUTPUT"
+	echo "target=$URL" >>"$GITHUB_OUTPUT"
 }
 
 run_immediate_health_check() {
@@ -191,7 +194,7 @@ run_immediate_health_check() {
 
 setup_postgres_backups() {
 	if [ -n "${BACKUP_KEY}" ]; then
-		echo -n "${BACKUP_KEY}" > /tmp/backup.key
+		echo -n "${BACKUP_KEY}" >/tmp/backup.key
 		chmod 600 /tmp/backup.key
 		./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "sudo mkdir -p /etc/fitpulse"
 		./scripts/ssh-retry.sh scp /tmp/backup.key "${VPS_USER}@${VPS_HOST}:/tmp/backup.key"
@@ -290,10 +293,10 @@ echo '✅ DuckDNS auto-updater configured (every 5 minutes)'
 
 setup_ml_dirs() {
 	./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
-echo "-> Creating directories for ML storage..."
+echo '-> Creating directories for ML storage...'
 sudo mkdir -p /opt/fitpulse/mlflow-data
 sudo chown -R ${VPS_USER}:${VPS_USER} /opt/fitpulse
-echo "✅ Directories created: /opt/fitpulse/mlflow-data"
+echo '✅ Directories created: /opt/fitpulse/mlflow-data'
 "
 }
 
@@ -337,11 +340,11 @@ check_commits() {
 generate_provenance() {
 	set -euo pipefail
 	files=(bin/*)
-	echo "hashes=$(sha256sum "${files[@]}" | base64 -w0)" >> "${GITHUB_OUTPUT}"
+	echo "hashes=$(sha256sum "${files[@]}" | base64 -w0)" >>"${GITHUB_OUTPUT}"
 }
 
 collect_statuses() {
-	get_emoji() { case "$1" in success) echo "✅";; failure) echo "❌";; skipped) echo "⏭️";; *) echo "❓";; esac; }
+	get_emoji() { case "$1" in success) echo "✅" ;; failure) echo "❌" ;; skipped) echo "⏭️" ;; *) echo "❓" ;; esac }
 	VALIDATE="$(get_emoji "${JOB_STATUS_VALIDATE_WORKFLOW:-success}")"
 	DOCKERFILE_LINT="$(get_emoji "${JOB_STATUS_DOCKERFILE_LINT:-success}")"
 	SUPER_LINTER="$(get_emoji "${JOB_STATUS_SUPER_LINTER:-success}")"
@@ -402,9 +405,11 @@ collect_statuses() {
 	if [[ "${JOB_STATUS_HEALTH_CHECK:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}HealthCheck "; fi
 	if [[ "${JOB_STATUS_CSP_HEADERS_CHECK:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CSPCheck "; fi
 	if [[ -n "$FAILED_JOBS" ]]; then
-		OVERALL="ОШИБКА"; STATUS="failure"
+		OVERALL="ОШИБКА"
+		STATUS="failure"
 	else
-		OVERALL="УСПЕШНО"; STATUS="success"
+		OVERALL="УСПЕШНО"
+		STATUS="success"
 	fi
 	{
 		echo "overall=$OVERALL"
@@ -433,7 +438,7 @@ collect_statuses() {
 		echo "smoke_test=$SMOKE_TEST"
 		echo "health_check=$HEALTH_CHECK"
 		echo "csp_check=$CSP_CHECK"
-	} >> "$GITHUB_OUTPUT"
+	} >>"$GITHUB_OUTPUT"
 }
 
 send_telegram() {
@@ -445,60 +450,60 @@ send_telegram() {
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			validate_workflow
-			run_hadolint
-			install_dependencies
-			install_golangci_lint
-			install_python_deps
-			run_coverage
-			configure_kubectl
-			download_kubeconfig
-			generate_kubeconfig
-			ensure_k3s_certs
-			wait_for_k3s_api
-			check_connectivity
-			deploy_health_script
-			setup_health_cron
-			setup_duckdns
-			setup_ml_dirs
-			deploy_mlflow
-			check_commits
-			generate_provenance
-			collect_statuses
-			send_telegram
-			;;
-		validate_workflow) validate_workflow ;;
-		run_hadolint) run_hadolint ;;
-		install_dependencies) install_dependencies ;;
-		install_golangci_lint) install_golangci_lint ;;
-		install_python_deps) install_python_deps ;;
-		run_coverage) run_coverage ;;
-		configure_kubectl) configure_kubectl ;;
-		download_kubeconfig) download_kubeconfig ;;
-		generate_kubeconfig) generate_kubeconfig ;;
-		ensure_k3s_certs) ensure_k3s_certs ;;
-		wait_for_k3s_api) wait_for_k3s_api ;;
-		check_connectivity) check_connectivity ;;
-		add_vps_to_known_hosts) add_vps_to_known_hosts ;;
-		resolve_vps_hostname) resolve_vps_hostname ;;
-		prepare_target_url) prepare_target_url ;;
-		run_immediate_health_check) run_immediate_health_check ;;
-		setup_postgres_backups) setup_postgres_backups ;;
-		show_codeql_diagnostics) show_codeql_diagnostics ;;
-		deploy_health_script) deploy_health_script ;;
-		setup_health_cron) setup_health_cron ;;
-		setup_duckdns) setup_duckdns ;;
-		setup_ml_dirs) setup_ml_dirs ;;
-		deploy_mlflow) deploy_mlflow ;;
-		check_commits) check_commits ;;
-		generate_provenance) generate_provenance ;;
-		collect_statuses) collect_statuses ;;
-		send_telegram) send_telegram ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		validate_workflow
+		run_hadolint
+		install_dependencies
+		install_golangci_lint
+		install_python_deps
+		run_coverage
+		configure_kubectl
+		download_kubeconfig
+		generate_kubeconfig
+		ensure_k3s_certs
+		wait_for_k3s_api
+		check_connectivity
+		deploy_health_script
+		setup_health_cron
+		setup_duckdns
+		setup_ml_dirs
+		deploy_mlflow
+		check_commits
+		generate_provenance
+		collect_statuses
+		send_telegram
+		;;
+	validate_workflow) validate_workflow ;;
+	run_hadolint) run_hadolint ;;
+	install_dependencies) install_dependencies ;;
+	install_golangci_lint) install_golangci_lint ;;
+	install_python_deps) install_python_deps ;;
+	run_coverage) run_coverage ;;
+	configure_kubectl) configure_kubectl ;;
+	download_kubeconfig) download_kubeconfig ;;
+	generate_kubeconfig) generate_kubeconfig ;;
+	ensure_k3s_certs) ensure_k3s_certs ;;
+	wait_for_k3s_api) wait_for_k3s_api ;;
+	check_connectivity) check_connectivity ;;
+	add_vps_to_known_hosts) add_vps_to_known_hosts ;;
+	resolve_vps_hostname) resolve_vps_hostname ;;
+	prepare_target_url) prepare_target_url ;;
+	run_immediate_health_check) run_immediate_health_check ;;
+	setup_postgres_backups) setup_postgres_backups ;;
+	show_codeql_diagnostics) show_codeql_diagnostics ;;
+	deploy_health_script) deploy_health_script ;;
+	setup_health_cron) setup_health_cron ;;
+	setup_duckdns) setup_duckdns ;;
+	setup_ml_dirs) setup_ml_dirs ;;
+	deploy_mlflow) deploy_mlflow ;;
+	check_commits) check_commits ;;
+	generate_provenance) generate_provenance ;;
+	collect_statuses) collect_statuses ;;
+	send_telegram) send_telegram ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 

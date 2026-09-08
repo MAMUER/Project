@@ -21,20 +21,20 @@ run_uat_production() {
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			run_smoke_tests
-			run_fuzz_tests
-			run_uat_staging
-			run_uat_production
-			;;
-		run_smoke_tests) run_smoke_tests ;;
-		run_fuzz_tests) run_fuzz_tests ;;
-		run_uat_staging) run_uat_staging ;;
-		run_uat_production) run_uat_production ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		run_smoke_tests
+		run_fuzz_tests
+		run_uat_staging
+		run_uat_production
+		;;
+	run_smoke_tests) run_smoke_tests ;;
+	run_fuzz_tests) run_fuzz_tests ;;
+	run_uat_staging) run_uat_staging ;;
+	run_uat_production) run_uat_production ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 

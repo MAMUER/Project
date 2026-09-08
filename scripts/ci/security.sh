@@ -3,21 +3,21 @@ set -euo pipefail
 
 install_tools() {
 	for i in 1 2 3; do
-		if go install github.com/securego/gosec/v2/cmd/gosec@9e75c0576c9878035d4221392108d458abe10fc3; then  # NOSONAR
+		if go install github.com/securego/gosec/v2/cmd/gosec@9e75c0576c9878035d4221392108d458abe10fc3; then # NOSONAR
 			break
 		fi
 		echo "gosec install attempt $i failed; retrying..."
 		sleep 5
 	done
 	for i in 1 2 3; do
-		if go install golang.org/x/vuln/cmd/govulncheck@19b0bb6a272792b9afa8a6983c3e9b9a1816947f; then  # NOSONAR
+		if go install golang.org/x/vuln/cmd/govulncheck@19b0bb6a272792b9afa8a6983c3e9b9a1816947f; then # NOSONAR
 			break
 		fi
 		echo "govulncheck install attempt $i failed; retrying..."
 		sleep 5
 	done
 	for i in 1 2 3; do
-		if go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@8f3b0c7ed018e57905fbd873c697e0b1ede605a5; then  # NOSONAR
+		if go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@8f3b0c7ed018e57905fbd873c697e0b1ede605a5; then # NOSONAR
 			break
 		fi
 		echo "golangci-lint install attempt $i failed; retrying..."
@@ -46,13 +46,13 @@ run_gosec() {
 	mkdir -p sarif-results
 	gosec -exclude=G101,G201,G505 -exclude-generated -fmt=sarif -out=sarif-results/gosec.sarif ./... 2>&1 || true
 	if [ ! -s sarif-results/gosec.sarif ]; then
-		echo "{\"\$schema\":\"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json\",\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"gosec\"}},\"results\":[]}]}" > sarif-results/gosec.sarif
+		echo "{\"\$schema\":\"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json\",\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"gosec\"}},\"results\":[]}]}" >sarif-results/gosec.sarif
 	fi
 }
 
 run_govulncheck() {
 	mkdir -p sarif-results
-	govulncheck ./... > sarif-results/govulncheck.txt 2>&1 || true
+	govulncheck ./... >sarif-results/govulncheck.txt 2>&1 || true
 }
 
 run_trivy() {
@@ -70,7 +70,7 @@ run_gitleaks() {
 
 run_trufflehog() {
 	mkdir -p sarif-results
-	trufflehog filesystem . --json --only-verified > sarif-results/trufflehog.jsonl 2>&1 || true
+	trufflehog filesystem . --json --only-verified >sarif-results/trufflehog.jsonl 2>&1 || true
 	if [ -s sarif-results/trufflehog.jsonl ]; then
 		echo "TruffleHog raw findings:"
 		jq -r '"\(.DetectorName // "unknown") at \(.File // "unknown"):\(.Line // 0) | \(.Description // .Raw // "")"' sarif-results/trufflehog.jsonl 2>/dev/null | head -20 || true
@@ -94,15 +94,15 @@ run_kubescape() {
 	kubescape scan configs/k8s/base/ \
 		--format sarif \
 		--verbose \
-		> "$tmpfile" 2>&1 \
-		|| true
+		>"$tmpfile" 2>&1 ||
+		true
 	if jq -e '.runs' "$tmpfile" >/dev/null 2>&1; then
 		mv "$tmpfile" sarif-results/kubescape-results.sarif
 	else
 		rm -f "$tmpfile"
-		jq -n '{ "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json", "version": "2.1.0", "runs": [ { "tool": { "driver": { "name": "kubescape" } }, "results": [] } ] }' > sarif-results/kubescape-results.sarif
+		jq -n '{ "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json", "version": "2.1.0", "runs": [ { "tool": { "driver": { "name": "kubescape" } }, "results": [] } ] }' >sarif-results/kubescape-results.sarif
 	fi
-	if command -v jq &> /dev/null; then
+	if command -v jq &>/dev/null; then
 		jq '.runs |= map(
 			.results |= map(
 				select(
@@ -116,7 +116,7 @@ run_kubescape() {
 					) | not)
 				)
 			)
-		)' sarif-results/kubescape-results.sarif > sarif-results/kubescape-results-fixed.sarif
+		)' sarif-results/kubescape-results.sarif >sarif-results/kubescape-results-fixed.sarif
 		mv sarif-results/kubescape-results-fixed.sarif sarif-results/kubescape-results.sarif
 	fi
 }
@@ -143,7 +143,7 @@ run_checkov() {
 run_kube_bench() {
 	echo "-> Running kube-bench..."
 	mkdir -p security-results
-	kube-bench run --benchmark cis-1.18 --json > security-results/kube-bench-results.json 2>&1 || true
+	kube-bench run --benchmark cis-1.18 --json >security-results/kube-bench-results.json 2>&1 || true
 	echo "✅ kube-bench scan completed (results in security-results/kube-bench-results.json)"
 }
 
@@ -151,7 +151,7 @@ run_kube_hunter() {
 	echo "-> Running kube-hunter (passive scan)..."
 	mkdir -p security-results
 	pip install --only-binary :all: kube-hunter==0.6.8
-	kube-hunter --remote 127.0.0.1 --json > security-results/kube-hunter-results.json 2>&1 || true
+	kube-hunter --remote 127.0.0.1 --json >security-results/kube-hunter-results.json 2>&1 || true
 	echo "✅ kube-hunter scan completed (results in security-results/kube-hunter-results.json)"
 }
 
@@ -178,13 +178,13 @@ download_cosign_public_key() {
 		exit 0
 	fi
 	mkdir -p /tmp/cosign-keys
-	echo "$COSIGN_PUBLIC_KEY" > /tmp/cosign-keys/cosign.pub
+	echo "$COSIGN_PUBLIC_KEY" >/tmp/cosign-keys/cosign.pub
 }
 
 run_kube_bench() {
 	echo "-> Running kube-bench..."
 	mkdir -p security-results
-	kube-bench run --benchmark cis-1.18 --json > security-results/kube-bench-results.json 2>&1 || true
+	kube-bench run --benchmark cis-1.18 --json >security-results/kube-bench-results.json 2>&1 || true
 	echo "✅ kube-bench scan completed (results in security-results/kube-bench-results.json)"
 }
 
@@ -192,7 +192,7 @@ run_kube_hunter() {
 	echo "-> Running kube-hunter (passive scan)..."
 	mkdir -p security-results
 	pip install --only-binary :all: kube-hunter==0.6.8
-	kube-hunter --remote 127.0.0.1 --json > security-results/kube-hunter-results.json 2>&1 || true
+	kube-hunter --remote 127.0.0.1 --json >security-results/kube-hunter-results.json 2>&1 || true
 	echo "✅ kube-hunter scan completed (results in security-results/kube-hunter-results.json)"
 }
 
@@ -222,11 +222,11 @@ sign_images() {
 	fi
 
 	if echo "$COSIGN_PRIVATE_KEY" | grep -q -- '-----BEGIN .*PRIVATE KEY-----'; then
-		echo "$COSIGN_PRIVATE_KEY" > /tmp/cosign.key
+		echo "$COSIGN_PRIVATE_KEY" >/tmp/cosign.key
 	elif echo "$COSIGN_PRIVATE_KEY" | grep -q '\\n'; then
-		printf '%b' "$COSIGN_PRIVATE_KEY" > /tmp/cosign.key
+		printf '%b' "$COSIGN_PRIVATE_KEY" >/tmp/cosign.key
 	else
-		echo "$COSIGN_PRIVATE_KEY" | base64 -d > /tmp/cosign.key
+		echo "$COSIGN_PRIVATE_KEY" | base64 -d >/tmp/cosign.key
 	fi
 
 	if ! grep -q -- '-----BEGIN .*PRIVATE KEY-----' /tmp/cosign.key; then
@@ -319,7 +319,7 @@ security_gate() {
 		echo "   Fix the issues above before merging."
 		exit 1
 	else
-	echo "✅ Security Gate PASSED — no critical issues found"
+		echo "✅ Security Gate PASSED — no critical issues found"
 	fi
 }
 
@@ -341,45 +341,45 @@ run_osv_scanner() {
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			install_tools
-			run_gosec
-			run_govulncheck
-			run_trivy
-			run_gitleaks
-			run_trufflehog
-			generate_sbom
-			run_kubescape
-			run_semgrep
-			run_checkov
-			run_kube_bench
-			run_kube_hunter
-			verify_cosign
-			sign_images
-			security_gate
-			;;
-		install_tools) install_tools ;;
-		run_gosec) run_gosec ;;
-		run_govulncheck) run_govulncheck ;;
-		run_trivy) run_trivy ;;
-		run_gitleaks) run_gitleaks ;;
-		run_trufflehog) run_trufflehog ;;
-		generate_sbom) generate_sbom ;;
-		run_kubescape) run_kubescape ;;
-		run_semgrep) run_semgrep ;;
-		run_checkov) run_checkov ;;
-		run_kube_bench) run_kube_bench ;;
-		run_kube_hunter) run_kube_hunter ;;
-		verify_cosign) verify_cosign ;;
-		download_cosign_public_key) download_cosign_public_key ;;
-		run_osv_scanner) run_osv_scanner ;;
-		run_osv_python_requirements) run_osv_python_requirements ;;
-		sign_images) sign_images ;;
-		security_gate) security_gate ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		install_tools
+		run_gosec
+		run_govulncheck
+		run_trivy
+		run_gitleaks
+		run_trufflehog
+		generate_sbom
+		run_kubescape
+		run_semgrep
+		run_checkov
+		run_kube_bench
+		run_kube_hunter
+		verify_cosign
+		sign_images
+		security_gate
+		;;
+	install_tools) install_tools ;;
+	run_gosec) run_gosec ;;
+	run_govulncheck) run_govulncheck ;;
+	run_trivy) run_trivy ;;
+	run_gitleaks) run_gitleaks ;;
+	run_trufflehog) run_trufflehog ;;
+	generate_sbom) generate_sbom ;;
+	run_kubescape) run_kubescape ;;
+	run_semgrep) run_semgrep ;;
+	run_checkov) run_checkov ;;
+	run_kube_bench) run_kube_bench ;;
+	run_kube_hunter) run_kube_hunter ;;
+	verify_cosign) verify_cosign ;;
+	download_cosign_public_key) download_cosign_public_key ;;
+	run_osv_scanner) run_osv_scanner ;;
+	run_osv_python_requirements) run_osv_python_requirements ;;
+	sign_images) sign_images ;;
+	security_gate) security_gate ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 

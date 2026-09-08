@@ -82,7 +82,10 @@ build_go_binaries() {
 		pids+=($!)
 	done
 	for pid in "${pids[@]}"; do
-		wait "$pid" || { echo "❌ Build failed for PID $pid"; exit 1; }
+		wait "$pid" || {
+			echo "❌ Build failed for PID $pid"
+			exit 1
+		}
 	done
 	echo "✅ All binaries built successfully"
 	ls -lh bin/
@@ -91,23 +94,23 @@ build_go_binaries() {
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			build_go_services
-			build_ml_images
-			build_crs_updater
-			build_open_wearables
-			build_artifacts
-			;;
-		build_go_services) build_go_services ;;
-		build_ml_images) build_ml_images ;;
-		build_crs_updater) build_crs_updater ;;
-		build_open_wearables) build_open_wearables ;;
-		build_artifacts) build_artifacts ;;
-		build_go_binaries) build_go_binaries ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		build_go_services
+		build_ml_images
+		build_crs_updater
+		build_open_wearables
+		build_artifacts
+		;;
+	build_go_services) build_go_services ;;
+	build_ml_images) build_ml_images ;;
+	build_crs_updater) build_crs_updater ;;
+	build_open_wearables) build_open_wearables ;;
+	build_artifacts) build_artifacts ;;
+	build_go_binaries) build_go_binaries ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 

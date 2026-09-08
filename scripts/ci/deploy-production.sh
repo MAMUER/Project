@@ -9,7 +9,7 @@ create_secrets() {
 	openssl req -x509 -new -nodes -key ca.key -sha256 -days 3650 -out ca.crt -subj "/CN=fitpulse-ca"
 	openssl genrsa -out server.key 2048
 	openssl req -new -key server.key -out server.csr -subj "/CN=*.fitness-platform-production.svc.cluster.local"
-	cat > server-ext.cnf <<'EOF'
+	cat >server-ext.cnf <<'EOF'
 [v3_ext]
 subjectAltName = DNS:*.fitness-platform-production.svc.cluster.local,DNS:fitness-platform-production.svc.cluster.local
 EOF
@@ -163,14 +163,18 @@ apply_manifests() {
 		sleep 5
 	done
 	echo "Waiting for k8s API nodes..."
-	kubectl wait --for=condition=Ready --timeout=5m nodes --all || { kubectl cluster-info; kubectl get nodes -o wide; exit 1; }
+	kubectl wait --for=condition=Ready --timeout=5m nodes --all || {
+		kubectl cluster-info
+		kubectl get nodes -o wide
+		exit 1
+	}
 	echo "Deleting immutable Jobs to allow updates..."
 	kubectl delete job migrate-db seed-admin -n fitness-platform-production --ignore-not-found=true || true
 	echo "Deleting existing PVCs and PVs to force recreation with fixed provisioner..."
 	kubectl delete pvc -n fitness-platform-production --all --ignore-not-found=true || true
 	kubectl get pv -o json | jq -r '.items[] | select(.spec.claimRef.namespace == "fitness-platform-production") | .metadata.name' | xargs -r kubectl delete pv || true
 	cd configs/k8s/overlays/production
-	kustomize build . > /tmp/manifests.yaml
+	kustomize build . >/tmp/manifests.yaml
 	kubectl delete pod rabbitmq-0 -n fitness-platform-production --ignore-not-found=true || true
 	kubectl delete pod -l app=user-service -n fitness-platform-production --ignore-not-found=true || true
 	kubectl delete pod -l app=training-service -n fitness-platform-production --ignore-not-found=true || true
@@ -483,40 +487,40 @@ deploy_open_wearables() {
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			create_secrets
-			ensure_service_account
-			update_image_tags
-			cleanup_disk
-			pre_pull_images
-			apply_manifests
-			wait_for_rabbitmq
-			verify_postgres
-			run_migrations
-			run_seed_admin
-			check_logs
-			verify_deployment
-			deploy_open_wearables
-			;;
-		create_secrets) create_secrets ;;
-		ensure_service_account) ensure_service_account ;;
-		update_image_tags) update_image_tags ;;
-		cleanup_disk) cleanup_disk ;;
-		pre_pull_images) pre_pull_images ;;
-		apply_manifests) apply_manifests ;;
-		wait_for_rabbitmq) wait_for_rabbitmq ;;
-		verify_postgres) verify_postgres ;;
-		create_image_pull_secret) create_image_pull_secret ;;
-		debug_pod_status) debug_pod_status ;;
-		run_migrations) run_migrations ;;
-		run_seed_admin) run_seed_admin ;;
-		check_logs) check_logs ;;
-		verify_deployment) verify_deployment ;;
-		deploy_open_wearables) deploy_open_wearables ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		create_secrets
+		ensure_service_account
+		update_image_tags
+		cleanup_disk
+		pre_pull_images
+		apply_manifests
+		wait_for_rabbitmq
+		verify_postgres
+		run_migrations
+		run_seed_admin
+		check_logs
+		verify_deployment
+		deploy_open_wearables
+		;;
+	create_secrets) create_secrets ;;
+	ensure_service_account) ensure_service_account ;;
+	update_image_tags) update_image_tags ;;
+	cleanup_disk) cleanup_disk ;;
+	pre_pull_images) pre_pull_images ;;
+	apply_manifests) apply_manifests ;;
+	wait_for_rabbitmq) wait_for_rabbitmq ;;
+	verify_postgres) verify_postgres ;;
+	create_image_pull_secret) create_image_pull_secret ;;
+	debug_pod_status) debug_pod_status ;;
+	run_migrations) run_migrations ;;
+	run_seed_admin) run_seed_admin ;;
+	check_logs) check_logs ;;
+	verify_deployment) verify_deployment ;;
+	deploy_open_wearables) deploy_open_wearables ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 

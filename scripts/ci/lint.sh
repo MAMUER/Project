@@ -9,7 +9,7 @@ lint_frontend() {
 
 lint_go() {
 	for i in 1 2 3; do
-		if go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@8f3b0c7ed018e57905fbd873c697e0b1ede605a5; then  # NOSONAR
+		if go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@8f3b0c7ed018e57905fbd873c697e0b1ede605a5; then # NOSONAR
 			break
 		fi
 		echo "golangci-lint install attempt $i failed; retrying..."
@@ -29,18 +29,18 @@ super_linter() {
 main() {
 	local cmd="${1:-all}"
 	case "$cmd" in
-		all)
-			lint_frontend
-			lint_go
-			super_linter
-			;;
-		lint_frontend) lint_frontend ;;
-		lint_go) lint_go ;;
-		super_linter) super_linter ;;
-		*)
-			echo "Unknown function: $cmd"
-			exit 1
-			;;
+	all)
+		lint_frontend
+		lint_go
+		super_linter
+		;;
+	lint_frontend) lint_frontend ;;
+	lint_go) lint_go ;;
+	super_linter) super_linter ;;
+	*)
+		echo "Unknown function: $cmd"
+		exit 1
+		;;
 	esac
 }
 
