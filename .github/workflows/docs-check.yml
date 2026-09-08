@@ -264,7 +264,7 @@ jobs:
             
             if grep -nE 'uses:\s+.+@(v\d|latest|master|main|develop)\b' "$wf" > /tmp/mutable_refs.txt 2>/dev/null; then
               echo "❌ FAIL: Found mutable tag references in $wf:"
-              cat /tmp/mutable_refs.txt | sed 's/^/    /'
+              sed 's/^/    /' /tmp/mutable_refs.txt
               FAIL=1
             fi
             

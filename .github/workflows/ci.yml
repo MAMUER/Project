@@ -288,6 +288,8 @@ jobs:
         if: github.event_name == 'issues' && github.event.action == 'opened'
         env:
           ISSUE_TITLE: "${{ github.event.issue.title }}"
+          ISSUE_NUMBER: "${{ github.event.issue.number }}"
+          ISSUE_HTML_URL: "${{ github.event.issue.html_url }}"
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: bash scripts/ci/ci-helpers.sh send_telegram
@@ -309,7 +311,7 @@ jobs:
           cache: "npm"
           cache-dependency-path: web/package-lock.json
       - name: Install dependencies
-        run: bash scripts/ci/ci-helpers.sh install_dependencies
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/ci-helpers.sh" install_dependencies
         working-directory: web
       - name: Lint frontend
         run: npm run lint
@@ -617,7 +619,7 @@ jobs:
       - name: Install system dependencies for canvas
         run: sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libpixman-1-dev
       - name: Install frontend dependencies for Trivy
-        run: bash scripts/ci/ci-helpers.sh install_dependencies
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/ci-helpers.sh" install_dependencies
         working-directory: web
 
       - name: Install Python dependencies for Trivy
@@ -707,11 +709,11 @@ jobs:
       - name: Install system dependencies for canvas
         run: sudo apt-get install -y build-essential libcairo2-dev libpango1.0-dev libjpeg-dev libgif-dev librsvg2-dev libpixman-1-dev
       - name: Install frontend dependencies
-        run: bash scripts/ci/ci-helpers.sh install_dependencies
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/ci-helpers.sh" install_dependencies
         working-directory: web
       - name: Run tests and collect coverage
         continue-on-error: true
-        run: bash scripts/ci/ci-helpers.sh run_coverage
+        run: bash "$GITHUB_WORKSPACE/scripts/ci/ci-helpers.sh" run_coverage
       - name: SonarCloud Scan
         uses: sonarsource/sonarqube-scan-action@22918119ff8e1ca75a623e15c8296b6ea4fbe28f
         env:
@@ -1545,6 +1547,36 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # originally: v7
       - name: Collect job statuses
         id: statuses
+        env:
+          JOB_STATUS_VALIDATE_WORKFLOW: ${{ needs.validate-workflow.result }}
+          JOB_STATUS_DOCKERFILE_LINT: ${{ needs.dockerfile-lint.result }}
+          JOB_STATUS_SUPER_LINTER: ${{ needs.super-linter.result }}
+          JOB_STATUS_FRONTEND: ${{ needs.frontend.result }}
+          JOB_STATUS_CHECK: ${{ needs.check.result }}
+          JOB_STATUS_BINARY_BUILD: ${{ needs.binary_build.result }}
+          JOB_STATUS_DOCKER: ${{ needs.docker.result }}
+          JOB_STATUS_CODEQL: ${{ needs.codeql.result }}
+          JOB_STATUS_KUBESCAPE: ${{ needs.kubescape.result }}
+          JOB_STATUS_SECURITY_SCAN: ${{ needs.security-scan.result }}
+          JOB_STATUS_SONARCLOUD: ${{ needs.sonarcloud.result }}
+          JOB_STATUS_CONVENTIONAL_COMMITS: ${{ needs.conventional-commits.result }}
+          JOB_STATUS_KUBE_BENCH: ${{ needs.kube-bench.result }}
+          JOB_STATUS_KUBE_HUNTER: ${{ needs.kube-hunter.result }}
+          JOB_STATUS_CHECKOV: ${{ needs.checkov.result }}
+          JOB_STATUS_COSIGN_VERIFY: ${{ needs.cosign-verify.result }}
+          JOB_STATUS_PROVISION_K8S_VPS: ${{ needs.provision-k8s-vps.result }}
+          JOB_STATUS_DEPLOY_STAGING: ${{ needs['deploy-staging'].result }}
+          JOB_STATUS_TEST_STAGING: ${{ needs['test-staging'].result }}
+          JOB_STATUS_DEPLOY_PRODUCTION: ${{ needs['deploy-production'].result }}
+          JOB_STATUS_TEST_PRODUCTION: ${{ needs['test-production'].result }}
+          JOB_STATUS_SMOKE_TEST: ${{ needs['smoke-test'].result }}
+          JOB_STATUS_HEALTH_CHECK: ${{ needs.health-check.result }}
+          JOB_STATUS_CSP_HEADERS_CHECK: ${{ needs.csp-headers-check.result }}
+          JOB_STATUS_SEMGREP: ${{ needs.semgrep.result }}
+          JOB_STATUS_OSV_SCANNER: ${{ needs.osv-scanner.result }}
+          JOB_STATUS_FUZZ_TESTS: ${{ needs.fuzz-tests.result }}
+          JOB_STATUS_OSV_AUDIT: ${{ needs.osv-audit.result }}
+          JOB_STATUS_DEPENDENCY_REVIEW: ${{ needs['dependency-review'].result }}
         run: bash scripts/ci/ci-helpers.sh collect_statuses
       - name: Send to Telegram
         uses: appleboy/telegram-action@214f06cfa3d3a588c1472116889437e7c6fd29b1 # originally: v1.1.1

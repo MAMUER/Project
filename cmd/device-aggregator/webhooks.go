@@ -48,7 +48,7 @@ func handleAggregatorWebhook(w http.ResponseWriter, r *http.Request, extractFiel
 
 	log.Info("Webhook received",
 		zap.String("source", sanitize.LogString(source)),
-		zap.Any("fields", fields),
+		zap.Any("fields", sanitize.MapStringString(fields)),
 	)
 
 	w.Header().Set("Content-Type", "application/json")

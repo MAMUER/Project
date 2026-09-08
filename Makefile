@@ -15,7 +15,7 @@ tidy:
 pip-compile:
 	@echo "Compiling Python requirements..."
 	@python -m pip install --quiet --upgrade pip-tools
-	@cd cmd/ml_generator && python -m piptools compile --output-file=requirements.lock.txt requirements.txt
+	@cd cmd/ml_generator && python -m piptools compile --strip-extras --output-file=requirements.lock.txt requirements.txt
 	@echo "Pip-compile complete."
 
 fmt:

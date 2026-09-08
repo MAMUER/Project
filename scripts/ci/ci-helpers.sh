@@ -75,8 +75,8 @@ generate_kubeconfig() {
   ./scripts/ssh-retry.sh ssh "${VPS_USER}@${VPS_HOST}" "
 set -euo pipefail
 sudo cp /etc/rancher/k3s/k3s.yaml /tmp/k3s-domain.yaml
-sudo sed -i 's|0.0.0.0|${{ env.FITPULSE_DOMAIN }}|g' /tmp/k3s-domain.yaml
-sudo sed -i 's|127.0.0.1|${{ env.FITPULSE_DOMAIN }}|g' /tmp/k3s-domain.yaml
+  sudo sed -i 's|0.0.0.0|'"${FITPULSE_DOMAIN}"'|g' /tmp/k3s-domain.yaml
+  sudo sed -i 's|127.0.0.1|'"${FITPULSE_DOMAIN}"'|g' /tmp/k3s-domain.yaml
 sudo sed -i '/insecure-skip-tls-verify/d' /tmp/k3s-domain.yaml
 sudo chmod 644 /tmp/k3s-domain.yaml
 cp /tmp/k3s-domain.yaml ~/k3s-config.yaml
@@ -94,7 +94,7 @@ CERT_FILE=\"/var/lib/rancher/k3s/server/tls/dynamic-cert.json\"
 NEED_RESTART=false
 if [ -f \"\$CERT_FILE\" ]; then
   CURRENT_SAN=\$(kubectl get --raw /apis | jq -r '.')
-  if ! grep -q '${{ env.FITPULSE_DOMAIN }}' /etc/rancher/k3s/config.yaml; then
+  if ! grep -q "${FITPULSE_DOMAIN}" /etc/rancher/k3s/config.yaml; then
     echo \"⚠️ Конфиг не содержит домен, обновляем...\"
     NEED_RESTART=true
   else
@@ -167,11 +167,11 @@ resolve_vps_hostname() {
     VPS_IP="${VPS_HOST}"
   fi
   echo "Resolved VPS_IP: $VPS_IP"
-  echo "$VPS_IP ${{ env.FITPULSE_DOMAIN }}" | sudo tee -a /etc/hosts
+  echo "$VPS_IP ${FITPULSE_DOMAIN}" | sudo tee -a /etc/hosts
 }
 
 prepare_target_url() {
-  URL="https://${{ env.FITPULSE_DOMAIN }}"
+  URL="https://${FITPULSE_DOMAIN}"
   echo "target=$URL" >> "$GITHUB_OUTPUT"
 }
 
@@ -342,60 +342,65 @@ generate_provenance() {
 
 collect_statuses() {
   get_emoji() { case "$1" in success) echo "✅";; failure) echo "❌";; skipped) echo "⏭️";; *) echo "❓";; esac; }
-  VALIDATE="$(get_emoji '${{ needs.validate-workflow.result }}')"
-  DOCKERFILE_LINT="$(get_emoji '${{ needs.dockerfile-lint.result }}')"
-  SUPER_LINTER="$(get_emoji '${{ needs.super-linter.result }}')"
-  FRONTEND="$(get_emoji '${{ needs.frontend.result }}')"
-  CHECK="$(get_emoji '${{ needs.check.result }}')"
-  BUILD="$(get_emoji '${{ needs.binary_build.result }}')"
-  DOCKER="$(get_emoji '${{ needs.docker.result }}')"
-  CODEQL="$(get_emoji '${{ needs.codeql.result }}')"
-  KUBESCAPE="$(get_emoji '${{ needs.kubescape.result }}')"
-  SECURITY_SCAN="$(get_emoji '${{ needs.security-scan.result }}')"
-  SONARCLOUD="$(get_emoji '${{ needs.sonarcloud.result }}')"
-  CONVENTIONAL="$(get_emoji '${{ needs.conventional-commits.result }}')"
-  KUBE_BENCH="$(get_emoji '${{ needs.kube-bench.result }}')"
-  KUBE_HUNTER="$(get_emoji '${{ needs.kube-hunter.result }}')"
-  CHECKOV="$(get_emoji '${{ needs.checkov.result }}')"
-  COSIGN_VERIFY="$(get_emoji '${{ needs.cosign-verify.result }}')"
-  PROVISION_K8S="$(get_emoji '${{ needs.provision-k8s-vps.result }}')"
-  DEPLOY_STAGING="$(get_emoji '${{ needs['deploy-staging'].result }}')"
-  TEST_STAGING="$(get_emoji '${{ needs['test-staging'].result }}')"
-  DEPLOY_PROD="$(get_emoji '${{ needs['deploy-production'].result }}')"
-  TEST_PROD="$(get_emoji '${{ needs['test-production'].result }}')"
-  SMOKE_TEST="$(get_emoji '${{ needs['smoke-test'].result }}')"
-  HEALTH_CHECK="$(get_emoji '${{ needs.health-check.result }}')"
-  CSP_CHECK="$(get_emoji '${{ needs.csp-headers-check.result }}')"
+  VALIDATE="$(get_emoji "${JOB_STATUS_VALIDATE_WORKFLOW:-success}")"
+  DOCKERFILE_LINT="$(get_emoji "${JOB_STATUS_DOCKERFILE_LINT:-success}")"
+  SUPER_LINTER="$(get_emoji "${JOB_STATUS_SUPER_LINTER:-success}")"
+  FRONTEND="$(get_emoji "${JOB_STATUS_FRONTEND:-success}")"
+  CHECK="$(get_emoji "${JOB_STATUS_CHECK:-success}")"
+  BUILD="$(get_emoji "${JOB_STATUS_BINARY_BUILD:-success}")"
+  DOCKER="$(get_emoji "${JOB_STATUS_DOCKER:-success}")"
+  CODEQL="$(get_emoji "${JOB_STATUS_CODEQL:-success}")"
+  KUBESCAPE="$(get_emoji "${JOB_STATUS_KUBESCAPE:-success}")"
+  SECURITY_SCAN="$(get_emoji "${JOB_STATUS_SECURITY_SCAN:-success}")"
+  SONARCLOUD="$(get_emoji "${JOB_STATUS_SONARCLOUD:-success}")"
+  CONVENTIONAL="$(get_emoji "${JOB_STATUS_CONVENTIONAL_COMMITS:-success}")"
+  KUBE_BENCH="$(get_emoji "${JOB_STATUS_KUBE_BENCH:-success}")"
+  KUBE_HUNTER="$(get_emoji "${JOB_STATUS_KUBE_HUNTER:-success}")"
+  CHECKOV="$(get_emoji "${JOB_STATUS_CHECKOV:-success}")"
+  COSIGN_VERIFY="$(get_emoji "${JOB_STATUS_COSIGN_VERIFY:-success}")"
+  PROVISION_K8S="$(get_emoji "${JOB_STATUS_PROVISION_K8S_VPS:-success}")"
+  DEPLOY_STAGING="$(get_emoji "${JOB_STATUS_DEPLOY_STAGING:-success}")"
+  TEST_STAGING="$(get_emoji "${JOB_STATUS_TEST_STAGING:-success}")"
+  DEPLOY_PROD="$(get_emoji "${JOB_STATUS_DEPLOY_PRODUCTION:-success}")"
+  TEST_PROD="$(get_emoji "${JOB_STATUS_TEST_PRODUCTION:-success}")"
+  SMOKE_TEST="$(get_emoji "${JOB_STATUS_SMOKE_TEST:-success}")"
+  HEALTH_CHECK="$(get_emoji "${JOB_STATUS_HEALTH_CHECK:-success}")"
+  CSP_CHECK="$(get_emoji "${JOB_STATUS_CSP_HEADERS_CHECK:-success}")"
+  SEMGREP="$(get_emoji "${JOB_STATUS_SEMGREP:-success}")"
+  OSV_SCANNER="$(get_emoji "${JOB_STATUS_OSV_SCANNER:-success}")"
+  FUZZ_TESTS="$(get_emoji "${JOB_STATUS_FUZZ_TESTS:-success}")"
+  OSV_AUDIT="$(get_emoji "${JOB_STATUS_OSV_AUDIT:-success}")"
+  DEPENDENCY_REVIEW="$(get_emoji "${JOB_STATUS_DEPENDENCY_REVIEW:-success}")"
   FAILED_JOBS=""
-  if [[ "${{ needs.validate-workflow.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Validate "; fi
-  if [[ "${{ needs.dockerfile-lint.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DockerfileLint "; fi
-  if [[ "${{ needs.super-linter.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Lint "; fi
-  if [[ "${{ needs.frontend.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Frontend "; fi
-  if [[ "${{ needs.check.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Check "; fi
-  if [[ "${{ needs.binary_build.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Build "; fi
-  if [[ "${{ needs.docker.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Docker "; fi
-  if [[ "${{ needs.codeql.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CodeQL "; fi
-  if [[ "${{ needs.kubescape.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Kubescape "; fi
-  if [[ "${{ needs.security-scan.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}SecurityScan "; fi
-  if [[ "${{ needs.sonarcloud.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}SonarCloud "; fi
-  if [[ "${{ needs.conventional-commits.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}ConventionalCommits "; fi
-  if [[ "${{ needs.kube-bench.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}KubeBench "; fi
-  if [[ "${{ needs.kube-hunter.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}KubeHunter "; fi
-  if [[ "${{ needs.checkov.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Checkov "; fi
-  if [[ "${{ needs.cosign-verify.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CosignVerify "; fi
-  if [[ "${{ needs.provision-k8s-vps.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}ProvisionK8s "; fi
-  if [[ "${{ needs['deploy-staging'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DeployStaging "; fi
-  if [[ "${{ needs['test-staging'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}TestStaging "; fi
-  if [[ "${{ needs.semgrep.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Semgrep "; fi
-  if [[ "${{ needs.osv-scanner.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}OSVScanner "; fi
-  if [[ "${{ needs.fuzz-tests.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}FuzzTests "; fi
-  if [[ "${{ needs.osv-audit.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}OSVAudit "; fi
-  if [[ "${{ needs['dependency-review'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DependencyReview "; fi
-  if [[ "${{ needs['deploy-production'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Deploy "; fi
-  if [[ "${{ needs['test-production'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Test "; fi
-  if [[ "${{ needs['smoke-test'].result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Smoke "; fi
-  if [[ "${{ needs.health-check.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}HealthCheck "; fi
-  if [[ "${{ needs.csp-headers-check.result }}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CSPCheck "; fi
+  if [[ "${JOB_STATUS_VALIDATE_WORKFLOW:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Validate "; fi
+  if [[ "${JOB_STATUS_DOCKERFILE_LINT:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DockerfileLint "; fi
+  if [[ "${JOB_STATUS_SUPER_LINTER:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Lint "; fi
+  if [[ "${JOB_STATUS_FRONTEND:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Frontend "; fi
+  if [[ "${JOB_STATUS_CHECK:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Check "; fi
+  if [[ "${JOB_STATUS_BINARY_BUILD:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Build "; fi
+  if [[ "${JOB_STATUS_DOCKER:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Docker "; fi
+  if [[ "${JOB_STATUS_CODEQL:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CodeQL "; fi
+  if [[ "${JOB_STATUS_KUBESCAPE:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Kubescape "; fi
+  if [[ "${JOB_STATUS_SECURITY_SCAN:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}SecurityScan "; fi
+  if [[ "${JOB_STATUS_SONARCLOUD:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}SonarCloud "; fi
+  if [[ "${JOB_STATUS_CONVENTIONAL_COMMITS:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}ConventionalCommits "; fi
+  if [[ "${JOB_STATUS_KUBE_BENCH:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}KubeBench "; fi
+  if [[ "${JOB_STATUS_KUBE_HUNTER:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}KubeHunter "; fi
+  if [[ "${JOB_STATUS_CHECKOV:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Checkov "; fi
+  if [[ "${JOB_STATUS_COSIGN_VERIFY:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CosignVerify "; fi
+  if [[ "${JOB_STATUS_PROVISION_K8S_VPS:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}ProvisionK8s "; fi
+  if [[ "${JOB_STATUS_DEPLOY_STAGING:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DeployStaging "; fi
+  if [[ "${JOB_STATUS_TEST_STAGING:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}TestStaging "; fi
+  if [[ "${JOB_STATUS_SEMGREP:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Semgrep "; fi
+  if [[ "${JOB_STATUS_OSV_SCANNER:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}OSVScanner "; fi
+  if [[ "${JOB_STATUS_FUZZ_TESTS:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}FuzzTests "; fi
+  if [[ "${JOB_STATUS_OSV_AUDIT:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}OSVAudit "; fi
+  if [[ "${JOB_STATUS_DEPENDENCY_REVIEW:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}DependencyReview "; fi
+  if [[ "${JOB_STATUS_DEPLOY_PRODUCTION:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Deploy "; fi
+  if [[ "${JOB_STATUS_TEST_PRODUCTION:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Test "; fi
+  if [[ "${JOB_STATUS_SMOKE_TEST:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}Smoke "; fi
+  if [[ "${JOB_STATUS_HEALTH_CHECK:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}HealthCheck "; fi
+  if [[ "${JOB_STATUS_CSP_HEADERS_CHECK:-success}" == "failure" ]]; then FAILED_JOBS="${FAILED_JOBS}CSPCheck "; fi
   if [[ -n "$FAILED_JOBS" ]]; then
     OVERALL="ОШИБКА"; STATUS="failure"
   else
@@ -434,7 +439,7 @@ collect_statuses() {
 send_telegram() {
   curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
     -H "Content-Type: application/json" \
-    -d "{\"chat_id\": \"${TELEGRAM_CHAT_ID}\", \"text\": \"🔴 Critical issue: #${{ github.event.issue.number }}\n$ISSUE_TITLE\n${{ github.event.issue.html_url }}\"}"
+    -d "{\"chat_id\": \"${TELEGRAM_CHAT_ID}\", \"text\": \"🔴 Critical issue: #${ISSUE_NUMBER}\n${ISSUE_TITLE}\n${ISSUE_HTML_URL}\"}"
 }
 
 main() {
