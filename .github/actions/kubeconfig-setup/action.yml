@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/actions/runner/main/.github/actions-schemas/composite-action.json
 name: "Kubeconfig Setup"
 description: "Download and configure kubeconfig"
 inputs:
@@ -18,6 +19,8 @@ runs:
         path: ./kubeconfig
     - run: |
         mkdir -p "$HOME/.kube"
-        cp ./kubeconfig/${{ inputs.kubeconfig-path }} "$HOME/.kube/config"
+        cp "./kubeconfig/$KUBECONFIG_PATH" "$HOME/.kube/config"
         chmod 600 "$HOME/.kube/config"
+      env:
+        KUBECONFIG_PATH: ${{ inputs.kubeconfig-path }}
       shell: bash

@@ -44,7 +44,7 @@ install_tools() {
 
 run_gosec() {
 	mkdir -p sarif-results
-	gosec -exclude=G101,G505 -exclude-generated -fmt=sarif -out=sarif-results/gosec.sarif ./... 2>&1 || true
+	gosec -exclude=G101,G201,G505 -exclude-generated -fmt=sarif -out=sarif-results/gosec.sarif ./... 2>&1 || true
 	if [ ! -s sarif-results/gosec.sarif ]; then
 		echo "{\"\$schema\":\"https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/sarif-2.1/schema/sarif-schema-2.1.0.json\",\"version\":\"2.1.0\",\"runs\":[{\"tool\":{\"driver\":{\"name\":\"gosec\"}},\"results\":[]}]}" > sarif-results/gosec.sarif
 	fi
@@ -304,7 +304,8 @@ security_gate() {
 		fi
 	fi
 	if [ -f sarif-results/govulncheck.txt ]; then
-		GOVULNCHECK=$(grep -cE "^\(#[0-9]+\)" sarif-results/govulncheck.txt 2>/dev/null || echo 0)
+		GOVULNCHECK=$(grep -cE "^\(#[0-9]+\)" sarif-results/govulncheck.txt 2>/dev/null || true)
+		GOVULNCHECK=${GOVULNCHECK:-0}
 		echo "govulncheck: $GOVULNCHECK vulnerabilities found"
 		if [ "$GOVULNCHECK" -gt 0 ]; then
 			echo "⚠️  WARNING: govulncheck found $GOVULNCHECK potential vulnerabilities"

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/actions/runner/main/.github/actions-schemas/composite-action.json
 name: "SSH Setup"
 description: "Set up SSH agent and known hosts"
 inputs:
@@ -15,5 +16,7 @@ runs:
         ssh-private-key: ${{ inputs.ssh-private-key }}
     - run: |
         mkdir -p ~/.ssh
-        ssh-keyscan -H "${{ inputs.vps-host }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+        ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+      env:
+        VPS_HOST: ${{ inputs.vps-host }}
       shell: bash

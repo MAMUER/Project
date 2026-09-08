@@ -1,9 +1,24 @@
-import { useAuthForm } from './useAuthForm';
 import './Auth.css';
 
-export default function RegisterForm({ formData, errors, generalError, passwordChecks, submitting, getFieldClass, setField, onSubmit, updatePasswordChecks, onSwitchMode }) {
+export default function RegisterForm({
+  formData,
+  errors,
+  generalError,
+  passwordChecks,
+  submitting,
+  getFieldClass,
+  setField,
+  onSubmit,
+  updatePasswordChecks,
+  onSwitchMode,
+}) {
   return (
-    <form className='auth-form' onSubmit={onSubmit} noValidate aria-label='Форма регистрации'>
+    <form
+      className='auth-form'
+      onSubmit={onSubmit}
+      noValidate
+      aria-label='Форма регистрации'
+    >
       <div className='field'>
         <label htmlFor='register-name'>Имя</label>
         <input
@@ -45,9 +60,7 @@ export default function RegisterForm({ formData, errors, generalError, passwordC
         </div>
       </div>
       <div className='field'>
-        <label htmlFor='register-password'>
-          Пароль (мин. 8 символов)
-        </label>
+        <label htmlFor='register-password'>Пароль (мин. 8 символов)</label>
         <input
           id='register-password'
           type='password'
@@ -63,7 +76,9 @@ export default function RegisterForm({ formData, errors, generalError, passwordC
           maxLength={128}
           className={errors.password ? 'invalid' : ''}
           aria-invalid={!!errors.password}
-          aria-describedby={errors.password ? 'register-password-error' : 'password-hints'}
+          aria-describedby={
+            errors.password ? 'register-password-error' : 'password-hints'
+          }
         />
         <div className='field-error' id='register-password-error' role='alert'>
           {errors.password || ''}

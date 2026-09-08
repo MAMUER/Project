@@ -1,6 +1,13 @@
 import { useState } from 'react';
 
-export default function TwoFAForm({ formData, generalError, submitting, setField, onSubmit, onBack }) {
+export default function TwoFAForm({
+  formData,
+  generalError,
+  submitting,
+  setField,
+  onSubmit,
+  onBack,
+}) {
   const [backupCode, setBackupCode] = useState('');
 
   const handleBackupClick = () => {
@@ -9,11 +16,14 @@ export default function TwoFAForm({ formData, generalError, submitting, setField
   };
 
   return (
-    <form className='auth-form' onSubmit={onSubmit} noValidate aria-label='Двухфакторная аутентификация'>
+    <form
+      className='auth-form'
+      onSubmit={onSubmit}
+      noValidate
+      aria-label='Двухфакторная аутентификация'
+    >
       <h2>Двухфакторная аутентификация</h2>
-      <p className='verify-text'>
-        Введите код из приложения-аутентификатора.
-      </p>
+      <p className='verify-text'>Введите код из приложения-аутентификатора.</p>
       <div className='field'>
         <label htmlFor='login-totp-code'>6-значный код</label>
         <input
@@ -54,7 +64,11 @@ export default function TwoFAForm({ formData, generalError, submitting, setField
       <button type='submit' className='btn-primary' disabled={submitting}>
         {submitting ? 'Вход...' : 'Войти'}
       </button>
-      <button type='button' className='btn-secondary' onClick={handleBackupClick}>
+      <button
+        type='button'
+        className='btn-secondary'
+        onClick={handleBackupClick}
+      >
         Использовать резервный код
       </button>
       <p className='auth-switch'>

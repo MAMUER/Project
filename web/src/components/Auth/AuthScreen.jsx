@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useAuthForm } from './useAuthForm';
 import LoginForm from './LoginForm';
 import RegisterForm from './RegisterForm';
 import TwoFAForm from './TwoFAForm';
+import { useAuthForm } from './useAuthForm';
 import VerifyEmail from './VerifyEmail';
 import './Auth.css';
 
@@ -137,7 +137,10 @@ export default function AuthScreen({ searchParams: searchParamsProp }) {
             submitting={submitting}
             setField={setField}
             onSubmit={handleLogin2FASubmit}
-            onBack={() => { setMode('login'); setTwoFATempToken(null); }}
+            onBack={() => {
+              setMode('login');
+              setTwoFATempToken(null);
+            }}
           />
         )}
 

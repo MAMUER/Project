@@ -1,6 +1,20 @@
-export default function LoginForm({ formData, errors, generalError, submitting, getFieldClass, setField, onSubmit, onSwitchMode }) {
+export default function LoginForm({
+  formData,
+  errors,
+  generalError,
+  submitting,
+  getFieldClass,
+  setField,
+  onSubmit,
+  onSwitchMode,
+}) {
   return (
-    <form className='auth-form' onSubmit={onSubmit} noValidate aria-label='Форма входа'>
+    <form
+      className='auth-form'
+      onSubmit={onSubmit}
+      noValidate
+      aria-label='Форма входа'
+    >
       <div className='field'>
         <label htmlFor='login-email'>Email</label>
         <input
@@ -34,7 +48,9 @@ export default function LoginForm({ formData, errors, generalError, submitting, 
           maxLength={128}
           className={errors.password ? 'invalid' : ''}
           aria-invalid={!!errors.password}
-          aria-describedby={errors.password ? 'login-password-error' : undefined}
+          aria-describedby={
+            errors.password ? 'login-password-error' : undefined
+          }
         />
         <div className='field-error' id='login-password-error' role='alert'>
           {errors.password || ''}
